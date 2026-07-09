@@ -90,6 +90,32 @@ test_that("build_export_csv() flattens the ranked matrix with raw + norm cols", 
   expect_equal(df$input_lists, c("pasted", "pasted"))
 })
 
+test_that("render_curation() labels AI rationales as non-citation-gated", {
+  curated <- tibble::tibble(
+    gene_symbol = "NF1",
+    include = TRUE,
+    confidence = 0.9,
+    rationale = "Strong Open Targets association."
+  )
+  attr(curated, "ai_used") <- TRUE
+  html <- as.character(render_curation(curated))
+  expect_match(html, "AI-curated selection")
+  expect_match(html, "not separately citation-gated", fixed = TRUE)
+})
+
+test_that("render_curation() omits the AI caveat for the fallback selection", {
+  curated <- tibble::tibble(
+    gene_symbol = "NF1",
+    include = TRUE,
+    confidence = NA_real_,
+    rationale = "Selected by composite rank (AI unavailable)."
+  )
+  attr(curated, "ai_used") <- FALSE
+  html <- as.character(render_curation(curated))
+  expect_match(html, "Composite-rank selection")
+  expect_false(grepl("not separately citation-gated", html, fixed = TRUE))
+})
+
 test_that("render_report() writes a self-contained HTML with the disclaimer", {
   out <- tempfile(fileext = ".html")
   on.exit(unlink(out), add = TRUE)

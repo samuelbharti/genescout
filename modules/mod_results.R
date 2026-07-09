@@ -55,8 +55,10 @@ results_server <- function(id, result, config = candid_config) {
     # --- AI curation (the final compaction step) ------------------------------
     curated <- reactiveVal(NULL)
 
-    # Reset any prior curation when a fresh ranking arrives.
-    observeEvent(result(), curated(NULL))
+    # Reset any prior curation when the ranking changes - including when a failed
+    # re-run clears it to NULL (ignoreNULL = FALSE), so a stale AI-curated card and
+    # its CSV never outlive the ranking they were built from.
+    observeEvent(result(), curated(NULL), ignoreNULL = FALSE)
 
     output$curate_control <- renderUI({
       req(result())
@@ -69,7 +71,12 @@ results_server <- function(id, result, config = candid_config) {
         ),
         span(
           class = "text-muted small ms-2",
-          "Filter the ranked list to a compact, cited set for your study."
+          paste(
+            "Filter the ranked list to a compact set for your study.",
+            "The model picks only from the ranked candidates; its rationales",
+            "summarize the evidence shown - the grounded, source-linked evidence",
+            "stays in the table and drill-down above."
+          )
         )
       )
     })
@@ -93,6 +100,7 @@ results_server <- function(id, result, config = candid_config) {
     })
 
     output$curation <- renderUI({
+      req(result()) # never show a curated card without a current ranking
       cur <- curated()
       if (is.null(cur)) {
         return(NULL)
@@ -114,6 +122,7 @@ results_server <- function(id, result, config = candid_config) {
     output$curated_download <- downloadHandler(
       filename = function() "candid_curated.csv",
       content = function(file) {
+        req(result())
         req(curated())
         utils::write.csv(
           build_curated_csv(curated()),

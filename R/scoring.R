@@ -73,9 +73,11 @@ normalize_saturating_desc <- function(m) {
 #   - EVIDENCE signals: weight is always in the denominator, so a missing one
 #     contributes 0 to the numerator but still divides - breadth is rewarded and
 #     a narrow-but-famous gene is structurally beaten by a broadly-supported one.
-#   - ANNOTATION signals (e.g. constraint, druggability): weight enters the
-#     denominator ONLY when present for that gene, so a missing annotation is
-#     neutral (it nudges the score up when available, never penalizes when not).
+#   - ANNOTATION signals (e.g. constraint, druggability): only ever nudge the
+#     score UP. A present annotation joins the mean (numerator + denominator) for
+#     a gene ONLY when its normalized value is at least that gene's evidence-only
+#     mean; an absent or a weak annotation is neutral, so an annotation can never
+#     lower a gene's composite below its evidence-only score.
 # `weights` (a named key -> weight vector) overrides the registry weights, which
 # is how the live UI sliders re-rank without re-querying. `coverage_bonus`
 # optionally rewards genes supported by many EVIDENCE sources.
@@ -103,22 +105,47 @@ compute_composite <- function(
   }
   w[is.na(w)] <- 0
 
+  is_ann <- roles == "annotation"
   norm <- as.matrix(gene_matrix[, paste0(keys, "_n"), drop = FALSE])
   norm[is.na(norm)] <- 0
-  numer <- as.numeric(norm %*% w)
 
-  is_ann <- roles == "annotation"
-  denom <- rep(sum(w[!is_ann]), nrow(gene_matrix))
+  # Evidence: a weighted mean whose denominator always carries every evidence
+  # weight, so a missing evidence signal contributes 0 but still divides - breadth
+  # is rewarded and a narrow-but-famous gene is beaten by a broadly-supported one.
+  w_ev <- w
+  w_ev[is_ann] <- 0
+  denom_ev <- sum(w[!is_ann])
+  numer_ev <- as.numeric(norm %*% w_ev)
+  ev_mean <- if (denom_ev > 0) {
+    numer_ev / denom_ev
+  } else {
+    rep(0, nrow(gene_matrix))
+  }
+
+  numer <- numer_ev
+  denom <- rep(denom_ev, nrow(gene_matrix))
+
+  # Annotations nudge up, never penalize: a present annotation joins the mean ONLY
+  # when its normalized value is at least the gene's evidence-only mean, so an
+  # absent OR a weak annotation is neutral and can never pull the composite below
+  # the evidence-only score. A gene is thus never ranked below an otherwise
+  # identical gene merely for carrying an extra, weak annotation record.
   if (any(is_ann)) {
-    pcols <- paste0(keys[is_ann], "_present")
-    if (all(pcols %in% names(gene_matrix))) {
-      pres <- as.matrix(gene_matrix[, pcols, drop = FALSE])
-      pres <- matrix(as.numeric(pres), nrow = nrow(gene_matrix))
-      denom <- denom + as.numeric(pres %*% w[is_ann])
-    } else {
-      # No per-signal presence columns (e.g. a minimal stub matrix): treat
-      # annotation weight as always-on, the pre-role behavior.
-      denom <- denom + sum(w[is_ann])
+    ann_keys <- keys[is_ann]
+    ann_w <- w[is_ann]
+    for (j in seq_along(ann_keys)) {
+      nk <- as.numeric(gene_matrix[[paste0(ann_keys[j], "_n")]])
+      nk[is.na(nk)] <- 0
+      pcol <- paste0(ann_keys[j], "_present")
+      pres <- if (pcol %in% names(gene_matrix)) {
+        as.logical(gene_matrix[[pcol]])
+      } else {
+        rep(TRUE, nrow(gene_matrix)) # minimal stub matrix: treat as present
+      }
+      pres[is.na(pres)] <- FALSE
+      include <- pres & (nk >= ev_mean) & (ann_w[j] > 0)
+      numer <- numer + ifelse(include, ann_w[j] * nk, 0)
+      denom <- denom + ifelse(include, ann_w[j], 0)
     }
   }
 

@@ -24,7 +24,8 @@ candid_signal <- function(
   weight = 1,
   direction = "higher_better",
   role = "evidence",
-  needs = "gene"
+  needs = "gene",
+  seed_key = NULL
 ) {
   list(
     key = key,
@@ -35,7 +36,12 @@ candid_signal <- function(
     weight = weight,
     direction = direction,
     role = role,
-    needs = needs
+    needs = needs,
+    # When set, this gene-keyed signal can be satisfied OFFLINE from the named
+    # context$seed_data table (a disease seeder already fetched it). Such signals
+    # still run for an unresolved gene, so a seeded gene MyGene could not resolve
+    # keeps its already-in-hand grounded evidence instead of being blanked.
+    seed_key = seed_key
   )
 }
 
@@ -58,7 +64,10 @@ candid_signal_registry <- function(
       extractor = extract_ot_assoc,
       normalize = normalize_identity,
       weight = w$ot_assoc %||% 1,
-      role = "evidence"
+      role = "evidence",
+      # In discovery mode this reads the seeded associated-targets table offline;
+      # in plain enrichment it queries live by gene id (handled by the extractor).
+      seed_key = "ot_targets"
     ),
     candid_signal(
       "pmc_hits",
@@ -118,7 +127,8 @@ candid_signal_registry <- function(
           extractor = extract_panelapp,
           normalize = normalize_identity,
           weight = w$panelapp %||% 1,
-          role = "evidence"
+          role = "evidence",
+          seed_key = "panelapp"
         ),
         candid_signal(
           "diseases",
@@ -127,7 +137,8 @@ candid_signal_registry <- function(
           extractor = extract_diseases,
           normalize = normalize_saturating(m$diseases %||% 2),
           weight = w$diseases %||% 0.75,
-          role = "evidence"
+          role = "evidence",
+          seed_key = "diseases"
         )
       )
     )
@@ -170,18 +181,29 @@ signal_miss <- function() {
 }
 
 # A one-row lookup in a stashed seed_data table (symbol match, case-insensitive).
-# Returns the 1-row tibble or NULL. Used by the disease-mode extractors so they
-# read the once-fetched disease tables instead of re-querying per gene.
-seed_row <- function(context, key, symbol) {
+# `symbols` may be several aliases for one gene: the seed table is keyed by the
+# SOURCE's symbol, which MyGene may canonicalize to a different HGNC symbol, so we
+# match on the canonical symbol OR any original input symbol. Returns the 1-row
+# tibble or NULL. Used by the disease-mode extractors so they read the
+# once-fetched disease tables instead of re-querying per gene.
+seed_row <- function(context, key, symbols) {
   tbl <- pluck_at(context, "seed_data", key)
   if (is.null(tbl) || nrow(tbl) == 0) {
     return(NULL)
   }
-  hit <- tbl[toupper(tbl$symbol) == toupper(symbol), , drop = FALSE]
+  want <- toupper(symbols[!is.na(symbols) & nzchar(symbols)])
+  hit <- tbl[toupper(tbl$symbol) %in% want, , drop = FALSE]
   if (nrow(hit) == 0) {
     return(NULL)
   }
   hit[1, , drop = FALSE]
+}
+
+# The symbols to look a resolved gene up by in the seed tables: its canonical
+# (MyGene) symbol plus every original input token it collapsed from, so a seed
+# keyed under an alias still matches after canonicalization.
+seed_lookup_symbols <- function(resolved) {
+  unique(c(resolved$symbol, resolved$input_symbols))
 }
 
 # Open Targets association. In discovery mode (context$disease present) this is
@@ -190,7 +212,7 @@ seed_row <- function(context, key, symbol) {
 extract_ot_assoc <- function(resolved, context = list()) {
   disease <- pluck_at(context, "disease")
   if (!is.null(disease)) {
-    row <- seed_row(context, "ot_targets", resolved$symbol)
+    row <- seed_row(context, "ot_targets", seed_lookup_symbols(resolved))
     if (is.null(row)) {
       return(signal_miss())
     }
@@ -406,7 +428,7 @@ extract_pharos_tdl <- function(resolved, context = list()) {
 # PanelApp: Genomics England panel-membership confidence for the disease, read
 # from the once-fetched panel table (context$seed_data). Discovery mode only.
 extract_panelapp <- function(resolved, context = list()) {
-  row <- seed_row(context, "panelapp", resolved$symbol)
+  row <- seed_row(context, "panelapp", seed_lookup_symbols(resolved))
   if (is.null(row)) {
     return(signal_miss())
   }
@@ -431,7 +453,7 @@ extract_panelapp <- function(resolved, context = list()) {
 # DISEASES (Jensen Lab): knowledge + text-mining association of the gene to the
 # disease, read from context$seed_data. Discovery mode only.
 extract_diseases <- function(resolved, context = list()) {
-  row <- seed_row(context, "diseases", resolved$symbol)
+  row <- seed_row(context, "diseases", seed_lookup_symbols(resolved))
   if (is.null(row)) {
     return(signal_miss())
   }
@@ -455,21 +477,62 @@ extract_diseases <- function(resolved, context = list()) {
 
 # --- Discovery seeding ------------------------------------------------------
 
+# Prioritize + cap the seeded candidate union so a broad disease does not fan
+# out into thousands of live per-gene queries (each seeded gene later fires the
+# gene-keyed extractors). Priority is the sum of each source's normalized
+# contribution, so a multi-source gene ranks ahead of a single-source one; ties
+# break on symbol for determinism. Pure, so it is testable offline. Returns the
+# (deduped, NA-stripped) symbols unchanged when already within `max_seed`.
+cap_seed_symbols <- function(symbols, data, max_seed = 200) {
+  symbols <- unique(symbols[!is.na(symbols) & nzchar(symbols)])
+  if (length(symbols) <= max_seed) {
+    return(symbols)
+  }
+  prio <- stats::setNames(numeric(length(symbols)), symbols)
+  contrib <- function(tbl, tf) {
+    if (is.null(tbl) || nrow(tbl) == 0) {
+      return(NULL)
+    }
+    val <- tf(as.numeric(tbl$raw))
+    val[is.na(val)] <- 0
+    tapply(val, tbl$symbol, max) # best contribution per symbol within a source
+  }
+  pieces <- list(
+    contrib(data$ot_targets, function(x) pmin(pmax(x, 0), 1)),
+    contrib(data$panelapp, function(x) pmin(pmax(x, 0), 1)),
+    contrib(data$diseases, function(x) x / (x + 2))
+  )
+  for (p in pieces) {
+    if (is.null(p)) {
+      next
+    }
+    idx <- match(names(p), names(prio))
+    ok <- !is.na(idx)
+    prio[idx[ok]] <- prio[idx[ok]] + as.numeric(p)[ok]
+  }
+  names(prio)[order(-prio, names(prio))][seq_len(max_seed)]
+}
+
 # Gather candidate genes for a disease from the disease-keyed sources (Open
 # Targets associated targets, PanelApp, DISEASES). Returns the union of gene
-# symbols plus a normalized per-source table (symbol, raw, source_id,
-# source_url) that the disease-mode extractors read via seed_row(). Each source
-# is wrapped so one failing source never sinks the others.
-seed_disease_genes <- function(disease, ot_size = 250) {
+# symbols (deduped, NA-stripped, and capped to `max_seed` by seed strength) plus
+# a normalized per-source table (symbol, raw, source_id, source_url) that the
+# disease-mode extractors read via seed_row(). `n_seeded` is the pre-cap count so
+# a caller can record when the universe was truncated. Each source is wrapped so
+# one failing source never sinks the others.
+seed_disease_genes <- function(disease, ot_size = 250, max_seed = 200) {
   data <- list()
   syms <- character()
+  # Uppercase + drop NA/blank symbols: a source row with a null approvedSymbol
+  # yields NA, which must never enter the candidate universe.
   norm_tbl <- function(symbol, raw, source_id, source_url) {
-    tibble::tibble(
+    tbl <- tibble::tibble(
       symbol = toupper(as.character(symbol)),
       raw = as.numeric(raw),
       source_id = as.character(source_id),
       source_url = as.character(source_url)
     )
+    tbl[!is.na(tbl$symbol) & nzchar(tbl$symbol), , drop = FALSE]
   }
 
   ot <- tryCatch(
@@ -520,7 +583,13 @@ seed_disease_genes <- function(disease, ot_size = 250) {
     }
   }
 
-  list(symbols = unique(syms), data = data)
+  syms <- unique(syms[!is.na(syms) & nzchar(syms)])
+  list(
+    symbols = cap_seed_symbols(syms, data, max_seed = max_seed),
+    data = data,
+    n_seeded = length(syms),
+    max_seed = max_seed
+  )
 }
 
 # --- Flatten, resolve, dedupe -----------------------------------------------
@@ -533,7 +602,10 @@ flatten_gene_lists <- function(lists) {
   order <- character()
   for (nm in names(lists)) {
     toks <- trimws(as.character(lists[[nm]]))
-    toks <- toks[nzchar(toks) & !startsWith(toks, "#")]
+    # Drop NA first: nzchar(NA) is TRUE and startsWith(NA, "#") is NA, so an NA
+    # token would survive the filter and later crash the membership lookup. NAs
+    # reach here from a seeded gene with a null source symbol or an empty CSV cell.
+    toks <- toks[!is.na(toks) & nzchar(toks) & !startsWith(toks, "#")]
     for (t in toks) {
       key <- toupper(t)
       if (is.null(membership[[key]])) {
@@ -670,6 +742,7 @@ enrich_genes <- function(
     function(s) identical(s$needs %||% "gene", "gene"),
     registry
   )
+  has_input_symbols <- "input_symbols" %in% names(resolved)
   signals <- list()
   evidence <- list()
   for (i in seq_len(nrow(resolved))) {
@@ -677,10 +750,22 @@ enrich_genes <- function(
       gene_id = resolved$gene_id[i],
       symbol = resolved$symbol[i],
       entrez = resolved$entrez[i],
-      resolved = resolved$resolved[i]
+      resolved = resolved$resolved[i],
+      input_symbols = if (has_input_symbols) {
+        resolved$input_symbols[[i]]
+      } else {
+        character()
+      }
     )
     for (sig in gene_signals) {
-      res <- if (isTRUE(gene$resolved)) {
+      # Run the extractor when the gene resolved, OR when the signal is
+      # seed-backed and this gene's grounded evidence is already in seed_data
+      # (an offline read that needs only the symbol) - so a seeded gene MyGene
+      # could not resolve is not silently blanked. Live signals still skip
+      # unresolved genes (no wasted network calls on junk tokens).
+      seed_backed <- !is.null(sig$seed_key) &&
+        !is.null(seed_row(context, sig$seed_key, seed_lookup_symbols(gene)))
+      res <- if (isTRUE(gene$resolved) || seed_backed) {
         tryCatch(sig$extractor(gene, context), error = function(e) {
           signal_miss()
         })

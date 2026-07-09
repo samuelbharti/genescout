@@ -6,11 +6,15 @@
 # a final polish, never a hard dependency: with no credentials (or on any error)
 # it falls back to the top genes by composite rank, so the app always works.
 #
-# Grounding (a CANDID non-negotiable): the model may pick ONLY from the provided
-# candidates and may justify a pick ONLY from the evidence shown - it never
-# introduces new facts. Provider/model come from config.yml via build_chat(),
-# never hardcoded, so switching providers is a config change. `chat_factory` is
-# injectable so tests run without the network.
+# Grounding (a CANDID non-negotiable): the gene SELECTION is structurally gated -
+# validate_curation() drops any symbol not in the ranked candidate set, so the
+# model cannot introduce a gene. The one-line rationale is model-written and only
+# prompt-instructed to stay on the shown evidence, so it is presented as an AI
+# summary, not as a separately citation-gated evidence item; the grounded,
+# source-linked evidence remains in the ranked table and per-gene drill-down.
+# Provider/model come from config.yml via build_chat(), never hardcoded, so
+# switching providers is a config change. `chat_factory` is injectable so tests
+# run without the network.
 
 empty_curated_table <- function() {
   tibble::tibble(

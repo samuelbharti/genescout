@@ -81,9 +81,8 @@ registry_legend_html <- function(registry) {
       paste(
         "Composite = weighted mean of each source's normalized signal.",
         "Evidence sources reward breadth (a missing one counts as 0);",
-        "annotation sources (constraint, druggability) nudge the score when",
-        "present but never penalize when absent. Rank is by composite (higher",
-        "first)."
+        "annotation sources (constraint, druggability) only nudge the score up",
+        "and never penalize a gene. Rank is by composite (higher first)."
       )
     ),
     htmltools::tags$ul(class = "mb-0", items)
@@ -186,13 +185,29 @@ render_curation <- function(curated) {
     )
   }
 
+  # The gene SELECTION is structurally gated to the ranked candidates, but the
+  # free-text rationale is model-written. Say so, so it is never mistaken for an
+  # independently citation-gated evidence item (the grounded, source-linked
+  # evidence lives in the ranked table + per-gene drill-down).
+  caveat <- if (ai_used && nrow(inc) > 0) {
+    htmltools::p(
+      class = "small text-muted fst-italic mt-1",
+      paste(
+        "Rationales are the model's summary of the evidence shown for each",
+        "gene, not separately citation-gated claims. See the ranked table and",
+        "per-gene drill-down for the grounded, source-linked evidence."
+      )
+    )
+  }
+
   htmltools::tagList(
     htmltools::tags$h4(
       class = "h5",
       sprintf("Curated list (%d genes)", nrow(inc))
     ),
     banner,
-    body
+    body,
+    caveat
   )
 }
 
@@ -235,7 +250,14 @@ render_gene_evidence <- function(gene_row, evidence) {
       if (!isTRUE(gene_row$resolved)) {
         htmltools::div(
           class = "alert alert-warning py-1 px-2",
-          "Gene symbol could not be resolved; no signals were gathered."
+          if (nrow(ev) > 0) {
+            paste(
+              "Gene symbol could not be resolved to a canonical id; only",
+              "disease-seed (symbol-keyed) signals were gathered."
+            )
+          } else {
+            "Gene symbol could not be resolved; no signals were gathered."
+          }
         )
       },
       if (length(lists) > 0) {

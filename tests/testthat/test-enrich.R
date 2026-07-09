@@ -10,6 +10,17 @@ test_that("flatten_gene_lists() unions lists and drops blanks/comments", {
   expect_setequal(flat$input_lists[[which(flat$token == "TP53")]], c("a", "b"))
 })
 
+test_that("flatten_gene_lists() drops NA tokens without crashing", {
+  # A seeded gene with a null source symbol (or an empty CSV cell) arrives as NA;
+  # nzchar(NA) is TRUE and startsWith(NA, "#") is NA, so an unguarded filter would
+  # keep the NA and later crash the membership lookup.
+  flat <- flatten_gene_lists(list(
+    seeded = c("NF1", NA_character_, "TP53"),
+    other = NA_character_
+  ))
+  expect_setequal(flat$token, c("NF1", "TP53"))
+})
+
 test_that("resolve_genes() collapses aliases to one canonical gene", {
   flat <- flatten_gene_lists(list(mine = c("p53", "TP53", "NF1")))
   res <- resolve_genes(flat, resolver = stub_resolver)

@@ -65,6 +65,46 @@ test_that("compute_composite() does not penalize a missing annotation signal", {
   expect_equal(out$composite, c(0.65, 0.5))
 })
 
+test_that("a present but weak annotation never lowers the composite", {
+  # The "never penalize" invariant: a gene with identical evidence plus a WEAK
+  # annotation must not rank below one that simply lacks the annotation.
+  registry <- list(
+    list(key = "ev1", weight = 1, role = "evidence"),
+    list(key = "ann", weight = 1, role = "annotation")
+  )
+  gm <- tibble::tibble(
+    symbol = c("WEAK_ANN", "NO_ANN"),
+    ev1_n = c(0.6, 0.6),
+    ann_n = c(0.25, 0), # present-but-weak (0.25 < evidence mean 0.6) vs absent
+    ev1_present = c(TRUE, TRUE),
+    ann_present = c(TRUE, FALSE),
+    n_evidence_present = c(1L, 1L)
+  )
+  out <- compute_composite(gm, registry)
+  # The weak annotation is below the evidence-only mean, so it is neutral: both
+  # genes score the evidence-only 0.6 and WEAK_ANN is not demoted below NO_ANN.
+  expect_equal(out$composite, c(0.6, 0.6))
+})
+
+test_that("a present strong annotation raises the composite", {
+  registry <- list(
+    list(key = "ev1", weight = 1, role = "evidence"),
+    list(key = "ann", weight = 1, role = "annotation")
+  )
+  gm <- tibble::tibble(
+    symbol = c("STRONG_ANN", "NO_ANN"),
+    ev1_n = c(0.6, 0.6),
+    ann_n = c(0.9, 0), # strong (>= evidence mean) vs absent
+    ev1_present = c(TRUE, TRUE),
+    ann_present = c(TRUE, FALSE),
+    n_evidence_present = c(1L, 1L)
+  )
+  out <- compute_composite(gm, registry)
+  # STRONG_ANN: (0.6 + 0.9)/2 = 0.75 (raised); NO_ANN: 0.6 (unchanged).
+  expect_equal(out$composite, c(0.75, 0.6))
+  expect_true(out$composite[1] > out$composite[2])
+})
+
 test_that("compute_composite() honors a named weights override", {
   registry <- list(
     list(key = "a", weight = 1, role = "evidence"),

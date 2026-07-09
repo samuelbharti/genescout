@@ -48,6 +48,15 @@ run_enrich <- function(
       label <- paste0("disease: ", disease$name %||% disease$id)
       lists[[label]] <- seeded$symbols
     }
+    # Record when the seeded universe was capped, so the truncation is audited in
+    # the provenance rather than being a silent limit.
+    n_seeded <- seeded$n_seeded %||% length(seeded$symbols)
+    if (n_seeded > length(seeded$symbols)) {
+      context$seed_capped <- list(
+        kept = length(seeded$symbols),
+        total = n_seeded
+      )
+    }
   }
   flat <- flatten_gene_lists(lists)
   if (nrow(flat) == 0) {
@@ -168,6 +177,20 @@ candid_provenance <- function(context = list()) {
           endpoint = disease$id
         )
       )
+    )
+  }
+  cap <- pluck_at(context, "seed_capped")
+  if (!is.null(cap)) {
+    sources <- c(
+      sources,
+      list(list(
+        source = sprintf(
+          "Discovery seeding: kept top %d of %d seeded candidate genes",
+          cap$kept,
+          cap$total
+        ),
+        endpoint = ""
+      ))
     )
   }
   sources
