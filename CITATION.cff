@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use CANDID, please cite it using these metadata."
+title: "CANDID: Candidate Annotation and Disease-informed Interpretation of Evidence"
+abstract: >-
+  An agentic evidence-review workbench for research genomics. CANDID takes a
+  candidate list (variants, genes, or perturbation hits) and a biological
+  context and produces a plausibility-ranked, cited research review with
+  caveats and suggested next experiments. Research use only.
+type: software
+authors:
+  - given-names: Samuel
+    family-names: Bharti
+    affiliation: "University of Alabama at Birmingham"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"  # add when available
+repository-code: "https://github.com/samuelbharti/candid"
+url: "https://github.com/samuelbharti/candid"
+license: MIT
+keywords:
+  - genomics
+  - variant interpretation
+  - gene prioritization
+  - agentic AI
+  - large language models
+  - evidence synthesis
+  - rare disease
+  - NF1
+version: "0.1.0"
+date-released: "2026-07-13"
