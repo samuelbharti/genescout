@@ -15,6 +15,7 @@ Depends:
 Imports:
     brand.yml,
     bslib,
+    cachem,
     dplyr,
     DT,
     ellmer,
@@ -22,12 +23,12 @@ Imports:
     httr2,
     jsonlite,
     purrr,
+    rlang,
     shiny,
     shinychat,
     tibble,
     yaml
 Suggests:
-    httptest2,
     quarto,
     testthat (>= 3.0.0),
     thematic
