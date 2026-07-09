@@ -41,7 +41,7 @@ candidate_section_html <- function(candidate) {
       if (!is_blank(candidate$narrative)) {
         htmltools::p(htmltools::em(candidate$narrative))
       },
-      evidence_table_html(candidate$evidence),
+      evidence_sections(candidate$evidence),
       caveats_html(candidate$caveats),
       if (!is_blank(candidate$next_step)) {
         htmltools::p(htmltools::strong("Next step: "), candidate$next_step)
@@ -56,31 +56,54 @@ candidate_section_html <- function(candidate) {
   htmltools::div(class = "card mb-3", htmltools::div(class = "card-body", body))
 }
 
-# An HTML table of grounded associations; each row links to its source record.
-evidence_table_html <- function(evidence) {
+# Human-readable labels for the evidence domains, in display order.
+CANDID_DOMAIN_LABELS <- c(
+  `pathway-disease` = "Pathway & disease",
+  literature = "Literature",
+  `variant-effect` = "Variant effect"
+)
+
+# Grounded evidence grouped into per-domain sub-tables. Each row links to its
+# source record; empty evidence renders a muted note.
+evidence_sections <- function(evidence) {
   if (is.null(evidence) || nrow(evidence) == 0) {
     return(htmltools::p(
       class = "text-muted fst-italic",
-      "No grounded associations."
+      "No grounded evidence."
     ))
   }
-  rows <- lapply(seq_len(nrow(evidence)), function(i) {
+  domains <- intersect(names(CANDID_DOMAIN_LABELS), unique(evidence$domain))
+  htmltools::tagList(lapply(domains, function(d) {
+    sub <- evidence[evidence$domain == d, , drop = FALSE]
+    htmltools::tagList(
+      htmltools::tags$h4(
+        class = "h6 text-muted mt-3",
+        CANDID_DOMAIN_LABELS[[d]]
+      ),
+      evidence_domain_table(sub)
+    )
+  }))
+}
+
+# One domain's evidence rows as a table (finding, detail, source link).
+evidence_domain_table <- function(sub) {
+  rows <- lapply(seq_len(nrow(sub)), function(i) {
     htmltools::tags$tr(
-      htmltools::tags$td(evidence$disease[i]),
-      htmltools::tags$td(formatC(evidence$score[i], format = "f", digits = 3)),
+      htmltools::tags$td(sub$title[i]),
+      htmltools::tags$td(sub$detail[i]),
       htmltools::tags$td(htmltools::tags$a(
-        href = evidence$source_url[i],
+        href = sub$source_url[i],
         target = "_blank",
-        evidence$source_id[i]
+        sub$source_id[i]
       ))
     )
   })
   htmltools::tags$table(
     class = "table table-sm",
     htmltools::tags$thead(htmltools::tags$tr(
-      htmltools::tags$th("Disease"),
-      htmltools::tags$th("Score"),
-      htmltools::tags$th("Source (Open Targets)")
+      htmltools::tags$th("Finding"),
+      htmltools::tags$th("Detail"),
+      htmltools::tags$th("Source")
     )),
     htmltools::tags$tbody(rows)
   )
