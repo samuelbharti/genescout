@@ -16,7 +16,6 @@ tests
 template.yml
 .pre-commit-config.yaml
 air.toml
-.lintr
 .markdownlint.json
 .markdownlintignore
 .Renviron

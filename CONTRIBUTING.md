@@ -45,7 +45,7 @@
 ## Style, tests, CI
 
 - Format with [air](https://posit-dev.github.io/air/): `air format .`
-- Lint: `lintr::lint_dir(".")` (config in `.lintr`).
+  (config in `air.toml`). air is the R style gate; `air format --check .` runs in CI.
 - Tests live in `tests/testthat/`. Run: `testthat::test_dir("tests/testthat")`.
-- Every push/PR runs `CI` (lint, format, tests, markdown), `Secret scan`
+- Every push/PR runs `CI` (format, tests, markdown), `Secret scan`
   (gitleaks), and `PR title` (Conventional Commits). Make sure these pass.

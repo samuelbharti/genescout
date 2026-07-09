@@ -93,8 +93,8 @@ run_review()  (R/orchestrate.R)
   retry, and a 30-minute success-only cache (never cache failures).
 - All external identifiers and versions are logged, not silently assumed.
 - Structured returns over free text wherever a downstream stage consumes the output.
-- Format with air (`air format .`); lint clean (`lintr::lint_dir(".")`). Keep functions
-  small; snake_case (or camelCase) names.
+- Format with air (`air format .`; config in `air.toml`) - the single R style gate,
+  checked in CI. Keep functions small; snake_case (or camelCase) names.
 - Write the fixture-backed test alongside each new tool client.
 
 ## How to add a new data source (the extension pattern)

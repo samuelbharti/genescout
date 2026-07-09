@@ -8,22 +8,12 @@
 exclude: "^(renv/|data/|docs/|secrets/)"
 
 repos:
-  # R code formatting with air (matches air.toml).
+  # R code formatting with air (matches air.toml). air is the single R
+  # style/formatting gate; it also fails on unparseable R.
   - repo: https://github.com/posit-dev/air
     rev: v0.9.0
     hooks:
       - id: air-format
-
-  # R-specific lint and safety checks.
-  - repo: https://github.com/lorenzwalthert/precommit
-    rev: v0.4.3
-    hooks:
-      - id: lintr
-      - id: parsable-R
-      - id: no-browser-statement
-      - id: no-debug-statement
-      - id: no-print-statement
-        exclude: "^dev/"
 
   # Secret scanning - block credentials before they are committed.
   - repo: https://github.com/gitleaks/gitleaks

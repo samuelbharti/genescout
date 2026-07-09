@@ -23,7 +23,7 @@ The pr-title workflow enforces this.
 
 - [ ] Branch is named `<type>/<short-desc>` and is not `main`.
 - [ ] App runs locally (`shiny::runApp()`); tests pass (`testthat::test_dir("tests/testthat")`).
-- [ ] Code is formatted (`air format .`) and lints clean (`lintr::lint_dir(".")`).
+- [ ] Code is formatted (`air format .`).
 - [ ] Every new biological claim is grounded in a tool result (no ungrounded output).
 - [ ] No secrets committed; only public/synthetic example data.
 - [ ] `docs/data_sources.md` updated if a data source was added or changed.
