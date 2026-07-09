@@ -1,17 +1,72 @@
-# Literature clients - Europe PMC and PubTator.
-# Endpoints (see docs/data_sources.md):
-#   Europe PMC  https://www.ebi.ac.uk/europepmc/webservices/rest
-#   PubTator    https://www.ncbi.nlm.nih.gov/research/pubtator3-api
-# Europe PMC retrieves citations; PubTator supplies pre-annotated
-# gene/disease/variant mentions. Every returned item carries a PMID/PMCID so the
-# citation gate can ground it. Pure clients; no {ellmer} imports.
+# Literature client - Europe PMC.
+# Endpoint: https://www.ebi.ac.uk/europepmc/webservices/rest  (see docs/data_sources.md)
+# Retrieves citations for a gene in a disease context; every returned item
+# carries a PMID (or Europe PMC source:id) so the citation gate can ground it.
+# Pure client through http_get_json(); no {ellmer} imports.
+#
+# PubTator (pre-annotated mentions) is a planned addition - see docs/data_sources.md.
 
-# Search Europe PMC for papers matching a query (gene + disease context).
-europepmc_search <- function(query, limit = 25) {
-  not_implemented("europepmc_search (Europe PMC)")
+EUROPEPMC_BASE <- "https://www.ebi.ac.uk/europepmc/webservices/rest"
+
+# Search Europe PMC. Returns:
+#   list(ok = TRUE, count, data = tibble(title, authors, year, journal, pmid,
+#        source, source_id, source_url))
+#   list(ok = FALSE, error = "...")
+europepmc_search <- function(query, limit = 10) {
+  if (is_blank(query)) {
+    return(list(ok = FALSE, error = "Empty literature query."))
+  }
+  res <- http_get_json(
+    EUROPEPMC_BASE,
+    path = "search",
+    query = list(
+      query = query,
+      format = "json",
+      pageSize = limit,
+      resultType = "lite"
+    ),
+    source = "Europe PMC"
+  )
+  if (!res$ok) {
+    return(list(ok = FALSE, error = res$error))
+  }
+  results <- pluck_at(res$data, "resultList", "result")
+  if (is.null(results) || length(results) == 0) {
+    return(list(ok = FALSE, error = "No literature found."))
+  }
+  list(
+    ok = TRUE,
+    count = pluck_at(res$data, "hitCount", default = NA),
+    data = europepmc_parse_results(results)
+  )
 }
 
-# Retrieve PubTator annotations (gene/disease/variant mentions) for PMIDs.
-pubtator_annotations <- function(pmids) {
-  not_implemented("pubtator_annotations (PubTator)")
+# Pure parser: Europe PMC result rows -> a grounded citation tibble. Every row
+# has a source_id (PMID:<n> or <source>:<id>) and a europepmc.org link.
+# Separated from the fetch so it is testable offline against a JSON fixture.
+europepmc_parse_results <- function(results) {
+  field <- function(key) {
+    vapply(
+      results,
+      function(r) as.character(pluck_at(r, key, default = NA_character_)),
+      character(1)
+    )
+  }
+  pmid <- field("pmid")
+  source <- field("source")
+  id <- field("id")
+  tibble::tibble(
+    title = field("title"),
+    authors = field("authorString"),
+    year = field("pubYear"),
+    journal = field("journalTitle"),
+    pmid = pmid,
+    source = source,
+    source_id = ifelse(
+      !is.na(pmid) & nzchar(pmid),
+      paste0("PMID:", pmid),
+      paste0(source, ":", id)
+    ),
+    source_url = paste0("https://europepmc.org/article/", source, "/", id)
+  )
 }
