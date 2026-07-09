@@ -1,7 +1,9 @@
 #!/usr/bin/env Rscript
-# CANDID eval harness. Runs the pipeline on known candidates and checks that the
-# expected relative ranking holds (known drivers high, negatives low). Treat a
-# regression here as a real failure - it is the spine of the methods evaluation.
+# CANDID eval harness. Runs the deterministic ranking on known gene lists and
+# checks that the expected relative ranking holds (known drivers rank above a
+# passenger/negative-control gene). Treat a regression here as a real failure -
+# it is the spine of the methods evaluation. This harness hits live APIs, so it
+# is run on demand, not in CI.
 #
 # Run from the repo root:  Rscript evals/run_evals.R
 
@@ -9,26 +11,43 @@ source("global.R")
 
 cases <- yaml::read_yaml("evals/test_cases.yaml")
 
+# Assert every gene in expect_high grades as expect_grade (deterministic support).
 run_case <- function(case) {
-  candidates <- parse_candidate_lines(paste(case$candidates, collapse = "\n"))
-  result <- run_review(candidates, case$context, candid_config)
-  # TODO: assert every gene in expect_high ranks above every gene in expect_low
-  # within result$ranked, once run_review() is implemented.
-  invisible(result)
+  result <- run_review(
+    list(eval = case$candidates),
+    case$description %||% "",
+    candid_config,
+    candid_registry
+  )
+  grades <- stats::setNames(result$genes$grade, toupper(result$genes$symbol))
+  want <- case$expect_grade %||% "High"
+  got <- grades[toupper(case$expect_high)]
+  ok <- all(!is.na(got)) && all(got == want)
+  if (ok) {
+    message(sprintf("PASS (%s)", case$description))
+  } else {
+    message(sprintf(
+      "FAIL (%s): %s (want %s)",
+      case$description,
+      paste(sprintf("%s=%s", case$expect_high, got), collapse = ", "),
+      want
+    ))
+  }
+  ok
 }
 
 failed <- FALSE
 for (case in cases) {
-  tryCatch(
+  ok <- tryCatch(
     run_case(case),
-    candid_not_implemented = function(e) {
-      message("PENDING (", case$description, "): ", conditionMessage(e))
-    },
     error = function(e) {
-      failed <<- TRUE
-      message("FAIL (", case$description, "): ", conditionMessage(e))
+      message("ERROR (", case$description, "): ", conditionMessage(e))
+      FALSE
     }
   )
+  if (!isTRUE(ok)) {
+    failed <- TRUE
+  }
 }
 
 if (failed) {

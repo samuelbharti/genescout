@@ -9,15 +9,16 @@ This table is what a reviewer will ask for and what makes the method reproducibl
 
 | Source | Stage | Endpoint | Version / release | Access date | Terms allow programmatic use | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| MyGene | parse / resolve | <https://mygene.info/v3> | v3 | 2026-07-09 | Yes | Symbol → Ensembl / Entrez / UniProt |
-| Ensembl VEP | variant effect | <https://rest.ensembl.org> | REST (GRCh38) | 2026-07-09 | Yes | Functional consequence (by rsID) |
-| gnomAD | variant effect | <https://gnomad.broadinstitute.org/api> | gnomad_r4 (GraphQL) | 2026-07-09 | Yes | Population allele frequency |
-| ClinVar (NCBI E-utilities) | variant effect | <https://eutils.ncbi.nlm.nih.gov> | E-utilities JSON | 2026-07-09 | Yes | Evidence only; not clinical classification |
-| Open Targets Platform | pathway & disease | <https://api.platform.opentargets.org/api/v4/graphql> | v4 (GraphQL) | 2026-07-09 | Yes | Gene–disease associations |
-| Reactome | pathway & disease | <https://reactome.org/ContentService> | TBD | TBD | Yes | Pathway membership |
-| PAGER | pathway & disease | TBD | TBD | TBD | TBD | Pathway / gene-set enrichment |
-| Europe PMC | literature | <https://www.ebi.ac.uk/europepmc/webservices/rest> | REST v6.9 | 2026-07-09 | Yes | Citation retrieval |
-| PubTator | literature | <https://www.ncbi.nlm.nih.gov/research/pubtator3-api> | TBD | TBD | Yes | Pre-annotated gene/disease/variant mentions |
+| MyGene | resolve / dedupe | <https://mygene.info/v3> | v3 | 2026-07-09 | Yes | Symbol → Ensembl / Entrez / UniProt (canonical dedupe key) |
+| Open Targets Platform | ranking signal | <https://api.platform.opentargets.org/api/v4/graphql> | v4 (GraphQL) | 2026-07-09 | Yes | Max gene–disease association score (0–1) |
+| Europe PMC | ranking signal | <https://www.ebi.ac.uk/europepmc/webservices/rest> | REST v6.9 | 2026-07-09 | Yes | Gene mention count (`hitCount`) + exemplar citations |
+| ClinVar (NCBI E-utilities) | ranking signal | <https://eutils.ncbi.nlm.nih.gov> | E-utilities JSON (esearch) | 2026-07-09 | Yes | Count of pathogenic / likely-pathogenic variants per gene. Evidence only; not clinical classification |
+| Ensembl VEP | variant mode (dormant) | <https://rest.ensembl.org> | REST (GRCh38) | 2026-07-09 | Yes | Functional consequence (by rsID); reserved for a future variant mode, not in the gene-list ranking |
+| gnomAD | variant mode (dormant) | <https://gnomad.broadinstitute.org/api> | gnomad_r4 (GraphQL) | 2026-07-09 | Yes | Population allele frequency; reserved for a future variant mode |
+| PubTator | ranking signal (planned) | <https://www.ncbi.nlm.nih.gov/research/pubtator3-api> | TBD | TBD | Yes | Gene-tagged literature count; precise successor to the Europe PMC symbol count |
+| Reactome | ranking signal (planned) | <https://reactome.org/ContentService> | TBD | TBD | Yes | Pathway membership |
+| PAGER | ranking signal (planned) | TBD | TBD | TBD | TBD | Pathway / gene-set enrichment |
+| STRING | ranking signal (planned) | <https://string-db.org/api> | TBD | TBD | Yes | Within-list interaction connectivity |
 
 ## Reproducibility checklist
 

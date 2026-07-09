@@ -1,12 +1,13 @@
-# Agents (ellmer). The three specialists gather grounded evidence deterministically
-# in R/orchestrate.R (fan_out_specialists); this file adds the LLM layer: a
-# grounded per-candidate narrative. Provider/model come from config (never
-# hardcoded); "any provider" is a config change.
+# Agents (ellmer) - the LLM layer, reserved for the Phase 2 subjective-ranking
+# agent that re-ranks/filters the deterministic gene_matrix to a usable 20-100.
+# The deterministic pipeline (R/orchestrate.R) uses NO LLM; nothing here runs
+# until that stage lands. Provider/model come from config (never hardcoded), so
+# switching providers is a config change.
 #
-# Everything here is guarded: if {ellmer} is not installed or no API key is set,
-# the pipeline runs deterministically without a narrative. An agentic path that
-# registers these tools and fans them out with ellmer::parallel_chat_structured()
-# is the planned enhancement; the allowlist below is its contract.
+# Live pieces used today: build_chat() + provider_credentials_ready(), which back
+# candid_llm_available(). The narrate_* helpers and the specialist_tools allowlist
+# are scaffolding for the agent stage. Everything is guarded: if {ellmer} is not
+# installed or no credentials are set, the app runs deterministically.
 
 # Roles -> which tool clients they may call. The specialist only ever sees its
 # own allowlist, keeping contexts isolated.
