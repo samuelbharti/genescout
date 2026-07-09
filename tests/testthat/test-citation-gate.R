@@ -1,15 +1,18 @@
 # Citation gate + scoring + report assembly - offline tests over synthetic
 # evidence (no network, no LLM).
 
+# Synthetic normalized evidence: two grounded pathway-disease rows + one
+# ungrounded literature row (empty source_id) that the gate should drop.
 make_evidence <- function() {
-  tibble::tibble(
-    disease = c(
+  evidence_tibble(
+    domain = c("pathway-disease", "pathway-disease", "literature"),
+    title = c(
       "Li-Fraumeni syndrome",
       "hepatocellular carcinoma",
-      "ungrounded"
+      "ungrounded paper"
     ),
-    disease_id = c("MONDO_0018875", "MONDO_0007256", NA_character_),
-    score = c(0.88, 0.80, 0.10),
+    detail = c("score 0.88", "score 0.80", "Journal (2020)"),
+    score = c(0.88, 0.80, NA_real_),
     source_id = c(
       "OpenTargets:ENSG:MONDO_0018875",
       "OpenTargets:ENSG:MONDO_0007256",
