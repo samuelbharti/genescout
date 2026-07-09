@@ -1,10 +1,24 @@
-# Example environment file. Copy to `.Renviron` (which is git-ignored) and fill
-# in real values. R reads `.Renviron` automatically on startup.
-#
-# CANDID uses ellmer for LLM access; set the key for the provider configured in
-# config.yml. Default provider is Anthropic:
+# Example environment file. Copy to `.Renviron` (git-ignored) and fill in real
+# values. R reads `.Renviron` automatically on startup. Set credentials for ONE
+# provider - the one configured in config.yml.
+
+# --- Anthropic (direct API) -------------------------------------------------
+# config.yml default. Claude models; key from https://console.anthropic.com/.
 ANTHROPIC_API_KEY=
 
-# Other ellmer-supported providers (uncomment the one you configure):
-# OPENAI_API_KEY=
-# GEMINI_API_KEY=
+# --- Google Gemini API (simple API key) -------------------------------------
+# ellmer chat_google_gemini(). Use this if what you have is a Gemini / AI Studio
+# key (a string like "AIza..."). This is the one-key path. Requires config.yml
+# models to be Gemini (e.g. gemini-2.5-pro / gemini-2.5-flash). GOOGLE_API_KEY
+# works as an alias for GEMINI_API_KEY.
+GEMINI_API_KEY=
+
+# --- Google Vertex AI -------------------------------------------------------
+# ellmer chat_google_vertex(). Vertex does NOT take a bare API key: it uses
+# Application Default Credentials (a service-account JSON, or `gcloud auth
+# application-default login`) plus your GCP project and region. Also requires
+# Gemini models in config.yml (ellmer serves only Gemini via Vertex, not Claude).
+GOOGLE_CLOUD_PROJECT=
+GOOGLE_CLOUD_LOCATION=us-central1
+# Service-account key file - keep it inside the git-ignored secrets/ dir:
+# GOOGLE_APPLICATION_CREDENTIALS=secrets/vertex-service-account.json
