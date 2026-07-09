@@ -33,9 +33,23 @@ run_enrich <- function(
   config = NULL,
   registry = candid_signal_registry(),
   resolver = resolve_symbol,
-  context = list()
+  context = list(),
+  seeder = seed_disease_genes
 ) {
-  flat <- flatten_gene_lists(as_gene_lists(gene_lists))
+  lists <- as_gene_lists(gene_lists)
+  # Discovery: with a disease context, seed candidate genes from the disease-keyed
+  # sources (union with the user's list) and stash their per-gene tables for the
+  # disease-mode extractors. `seeder` is injectable for offline tests.
+  disease <- pluck_at(context, "disease")
+  if (!is.null(disease)) {
+    seeded <- seeder(disease)
+    context$seed_data <- seeded$data
+    if (length(seeded$symbols) > 0) {
+      label <- paste0("disease: ", disease$name %||% disease$id)
+      lists[[label]] <- seeded$symbols
+    }
+  }
+  flat <- flatten_gene_lists(lists)
   if (nrow(flat) == 0) {
     stop("No genes to review.", call. = FALSE)
   }
@@ -143,10 +157,17 @@ candid_provenance <- function(context = list()) {
   if (!is.null(disease) && !is_blank(disease$id)) {
     sources <- c(
       sources,
-      list(list(
-        source = paste0("Disease context: ", disease$name %||% disease$id),
-        endpoint = disease$id
-      ))
+      list(
+        list(
+          source = "Genomics England PanelApp",
+          endpoint = PANELAPP_BASE
+        ),
+        list(source = "DISEASES (Jensen Lab)", endpoint = DISEASES_BASE),
+        list(
+          source = paste0("Disease context: ", disease$name %||% disease$id),
+          endpoint = disease$id
+        )
+      )
     )
   }
   sources

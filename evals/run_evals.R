@@ -11,27 +11,72 @@ source("global.R")
 
 cases <- yaml::read_yaml("evals/test_cases.yaml")
 
-# Assert every gene in expect_high grades as expect_grade (deterministic support).
+# Assert every gene in expect_high grades as expect_grade, and (if given) that
+# expect_below ranks strictly below all expect_high genes. A `disease` field
+# turns on discovery mode (disease-aware signals + PanelApp/DISEASES).
 run_case <- function(case) {
+  context <- list()
+  registry <- candid_registry
+  if (!is.null(case$disease)) {
+    dr <- resolve_disease(case$disease)
+    if (!isTRUE(dr$ok) || nrow(dr$matches) == 0) {
+      message(sprintf(
+        "FAIL (%s): could not resolve disease '%s'",
+        case$description,
+        case$disease
+      ))
+      return(FALSE)
+    }
+    context <- list(
+      disease = list(
+        id = dr$matches$id[1],
+        name = dr$matches$name[1]
+      )
+    )
+    registry <- candid_registry_disease
+  }
   result <- run_review(
     list(eval = case$candidates),
     case$description %||% "",
     candid_config,
-    candid_registry
+    registry,
+    context = context
   )
+  ranks <- stats::setNames(result$genes$rank, toupper(result$genes$symbol))
   grades <- stats::setNames(result$genes$grade, toupper(result$genes$symbol))
   want <- case$expect_grade %||% "High"
   got <- grades[toupper(case$expect_high)]
   ok <- all(!is.na(got)) && all(got == want)
+
+  # expect_below: the named (negative-control) gene must rank strictly below
+  # every OTHER candidate, i.e. last.
+  if (!is.null(case$expect_below)) {
+    below <- ranks[toupper(case$expect_below)]
+    others <- ranks[setdiff(
+      toupper(case$candidates),
+      toupper(case$expect_below)
+    )]
+    below_ok <- !is.na(below) &&
+      all(!is.na(others)) &&
+      below > max(others)
+    ok <- ok && below_ok
+  }
+
   if (ok) {
     message(sprintf("PASS (%s)", case$description))
   } else {
-    message(sprintf(
-      "FAIL (%s): %s (want %s)",
-      case$description,
-      paste(sprintf("%s=%s", case$expect_high, got), collapse = ", "),
-      want
-    ))
+    detail <- paste(sprintf("%s=%s", case$expect_high, got), collapse = ", ")
+    if (!is.null(case$expect_below)) {
+      detail <- paste0(
+        detail,
+        sprintf(
+          "; %s rank=%s",
+          case$expect_below,
+          ranks[toupper(case$expect_below)]
+        )
+      )
+    }
+    message(sprintf("FAIL (%s): %s (want %s)", case$description, detail, want))
   }
   ok
 }

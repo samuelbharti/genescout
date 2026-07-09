@@ -35,6 +35,25 @@ input_ui <- function(id, registry = candid_signal_registry()) {
         "in peripheral nerve"
       )
     ),
+    tags$hr(),
+    tags$label(
+      class = "form-label",
+      "Discovery (optional): seed genes from a disease"
+    ),
+    div(
+      class = "input-group input-group-sm mb-2",
+      textInput(
+        ns("disease"),
+        label = NULL,
+        placeholder = "e.g. neurofibromatosis type 1"
+      ),
+      actionButton(
+        ns("resolve_disease"),
+        "Find",
+        class = "btn-outline-secondary"
+      )
+    ),
+    uiOutput(ns("disease_matches")),
     actionButton(ns("run"), "Rank genes", class = "btn-primary w-100"),
     bslib::accordion(
       class = "mt-3",
@@ -73,6 +92,50 @@ weight_sliders_ui <- function(ns, registry) {
 
 input_server <- function(id, registry = candid_registry) {
   moduleServer(id, function(input, output, session) {
+    ns <- session$ns
+
+    # Discovery: resolve a free-text disease/phenotype to ontology candidates the
+    # user confirms, then feed the chosen one into the pipeline as context.
+    disease_matches <- reactiveVal(NULL)
+
+    observeEvent(input$resolve_disease, {
+      term <- input$disease
+      if (is_blank(term)) {
+        showNotification(
+          "Enter a disease or phenotype to search.",
+          type = "message"
+        )
+        return()
+      }
+      r <- tryCatch(
+        resolve_disease(term),
+        error = function(e) list(ok = FALSE, error = conditionMessage(e))
+      )
+      if (!isTRUE(r$ok) || nrow(r$matches) == 0) {
+        disease_matches(NULL)
+        showNotification(
+          paste("No disease match:", r$error %||% "none found"),
+          type = "error"
+        )
+        return()
+      }
+      disease_matches(r$matches)
+    })
+
+    output$disease_matches <- renderUI({
+      m <- disease_matches()
+      if (is.null(m) || nrow(m) == 0) {
+        return(NULL)
+      }
+      choices <- stats::setNames(m$id, sprintf("%s (%s)", m$name, m$id))
+      radioButtons(
+        ns("disease_pick"),
+        "Pick the disease context:",
+        choices = choices,
+        selected = m$id[1]
+      )
+    })
+
     # Pre-fill the paste box with the bundled NF1 gene list, wrapped so a
     # missing/renamed example surfaces a notice rather than crashing.
     observeEvent(input$load_example, {
@@ -104,6 +167,20 @@ input_server <- function(id, registry = candid_registry) {
         input$file$datapath
       )),
       description = reactive(input$description),
+      # The confirmed disease context (list(id, name)) or NULL. NULL keeps the
+      # run in plain enrichment mode.
+      disease = reactive({
+        m <- disease_matches()
+        pick <- input$disease_pick
+        if (is.null(m) || is.null(pick) || is_blank(pick)) {
+          return(NULL)
+        }
+        row <- m[m$id == pick, , drop = FALSE]
+        if (nrow(row) == 0) {
+          return(NULL)
+        }
+        list(id = row$id[1], name = row$name[1])
+      }),
       # Named key -> weight vector from the sliders; falls back to the registry
       # default before the sliders have rendered.
       weights = reactive({

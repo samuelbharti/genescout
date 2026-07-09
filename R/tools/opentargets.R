@@ -19,6 +19,21 @@ OPENTARGETS_QUERY <- paste(
   sep = "\n"
 )
 
+# Disease -> associated targets (the discovery direction): the genes Open Targets
+# associates with a disease, each with its overall association score.
+OPENTARGETS_TARGETS_QUERY <- paste(
+  "query($id: String!, $size: Int!) {",
+  "  disease(efoId: $id) {",
+  "    name",
+  "    associatedTargets(page: {index: 0, size: $size}) {",
+  "      count",
+  "      rows { score target { id approvedSymbol } }",
+  "    }",
+  "  }",
+  "}",
+  sep = "\n"
+)
+
 # Disease associations for a gene (symbol or Ensembl id), ordered by association
 # score (Open Targets returns them sorted, highest first).
 # Returns:
@@ -116,6 +131,94 @@ opentargets_parse_rows <- function(rows, ensembl_id) {
       character(1)
     ),
     disease_id = disease_id,
+    score = vapply(
+      rows,
+      function(r) as.numeric(pluck_at(r, "score", default = NA)),
+      numeric(1)
+    ),
+    source_id = paste0("OpenTargets:", ensembl_id, ":", disease_id),
+    source_url = paste0(
+      "https://platform.opentargets.org/evidence/",
+      ensembl_id,
+      "/",
+      disease_id
+    )
+  )
+}
+
+# Disease -> associated targets (discovery direction). `disease_id` is an Open
+# Targets efoId (underscore form, e.g. MONDO_0018975). Returns:
+#   list(ok = TRUE, disease_id, count,
+#        genes = tibble(symbol, ensembl_id, score, source_id, source_url))
+#   list(ok = FALSE, error = "...")
+ot_disease_targets <- function(disease_id, size = 1000) {
+  if (is_blank(disease_id)) {
+    return(list(ok = FALSE, error = "No disease id for Open Targets."))
+  }
+  id <- gsub(":", "_", trimws(disease_id))
+  res <- http_post_json(
+    OPENTARGETS_URL,
+    body = list(
+      query = OPENTARGETS_TARGETS_QUERY,
+      variables = list(id = id, size = size)
+    ),
+    source = "Open Targets"
+  )
+  if (!res$ok) {
+    return(list(ok = FALSE, error = res$error))
+  }
+  if (!is.null(res$data$errors)) {
+    return(list(ok = FALSE, error = "Open Targets returned a query error."))
+  }
+  disease <- pluck_at(res$data, "data", "disease")
+  if (is.null(disease)) {
+    return(list(
+      ok = FALSE,
+      error = paste0("Open Targets has no disease '", id, "'.")
+    ))
+  }
+  rows <- pluck_at(disease, "associatedTargets", "rows")
+  list(
+    ok = TRUE,
+    disease_id = id,
+    count = pluck_at(disease, "associatedTargets", "count", default = NA),
+    genes = opentargets_targets_parse(rows, id)
+  )
+}
+
+# Pure parser: disease -> associated-target rows -> a grounded gene tibble. Every
+# row carries a source_id and a source_url pointing at the Open Targets evidence.
+opentargets_targets_parse <- function(rows, disease_id) {
+  if (is.null(rows) || length(rows) == 0) {
+    return(tibble::tibble(
+      symbol = character(),
+      ensembl_id = character(),
+      score = numeric(),
+      source_id = character(),
+      source_url = character()
+    ))
+  }
+  ensembl_id <- vapply(
+    rows,
+    function(r) {
+      as.character(pluck_at(r, "target", "id", default = NA_character_))
+    },
+    character(1)
+  )
+  tibble::tibble(
+    symbol = vapply(
+      rows,
+      function(r) {
+        as.character(pluck_at(
+          r,
+          "target",
+          "approvedSymbol",
+          default = NA_character_
+        ))
+      },
+      character(1)
+    ),
+    ensembl_id = ensembl_id,
     score = vapply(
       rows,
       function(r) as.numeric(pluck_at(r, "score", default = NA)),

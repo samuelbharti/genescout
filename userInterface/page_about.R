@@ -12,6 +12,13 @@ about_page <- fluidPage(
         "merges and de-duplicates them, and ranks the genes by a transparent",
         "composite score - every value traceable to its source."
       ),
+      p(
+        "Bring your own gene list from an analysis, or start from a disease and",
+        "let CANDID discover candidate genes for it (Open Targets, PanelApp,",
+        "DISEASES) - or do both and merge. With a disease context the ranking",
+        "becomes disease-specific rather than measuring a gene's general",
+        "prominence."
+      ),
       div(
         class = "alert alert-warning",
         role = "alert",

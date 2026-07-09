@@ -29,17 +29,40 @@ review_server <- function(
 
     observeEvent(inputs$run(), {
       lists <- inputs$gene_lists()
-      if (length(lists) == 0) {
+      disease <- inputs$disease()
+      if (length(lists) == 0 && is.null(disease)) {
         showNotification(
-          "Provide at least one gene (paste a list or upload a table).",
+          paste(
+            "Provide a gene list (paste or upload),",
+            "or pick a disease context for discovery."
+          ),
           type = "error"
         )
         return()
       }
+      # Discovery mode when a disease is confirmed: use the disease registry
+      # (adds PanelApp + DISEASES) and pass the disease as context.
+      active_registry <- if (!is.null(disease)) {
+        candid_registry_disease
+      } else {
+        registry
+      }
+      context <- if (!is.null(disease)) list(disease = disease) else list()
+      message_txt <- if (!is.null(disease)) {
+        "Seeding candidate genes + pulling signals..."
+      } else {
+        "Pulling source signals..."
+      }
       out <- tryCatch(
         withProgress(
-          message = "Pulling source signals...",
-          run_enrich(lists, inputs$description(), config, registry)
+          message = message_txt,
+          run_enrich(
+            lists,
+            inputs$description(),
+            config,
+            active_registry,
+            context = context
+          )
         ),
         error = function(e) {
           showNotification(

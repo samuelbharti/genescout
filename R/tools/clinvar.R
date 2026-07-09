@@ -60,6 +60,55 @@ clinvar_gene_pathogenic_term <- function(symbol) {
   )
 }
 
+# Disease-scoped variant of clinvar_gene_pathogenic_term: pathogenic /
+# likely-pathogenic records for a gene AND a disease/phenotype. Used in discovery
+# mode so the ClinVar signal reflects the study context, not the gene's total.
+clinvar_gene_disease_term <- function(symbol, disease) {
+  paste0(clinvar_gene_pathogenic_term(symbol), " AND \"", disease, "\"[dis]")
+}
+
+# Count of pathogenic / likely-pathogenic variants ClinVar records for a gene in
+# a disease context. Same contract as clinvar_gene_pathogenic_count().
+clinvar_gene_disease_pathogenic_count <- function(symbol, disease) {
+  if (is_blank(symbol)) {
+    return(list(ok = FALSE, error = "No gene symbol for ClinVar lookup."))
+  }
+  if (is_blank(disease)) {
+    return(clinvar_gene_pathogenic_count(symbol))
+  }
+  term <- clinvar_gene_disease_term(symbol, disease)
+  query <- list(db = "clinvar", term = term, retmode = "json", retmax = 0)
+  key <- Sys.getenv("NCBI_API_KEY")
+  if (nzchar(key)) {
+    query$api_key <- key
+  }
+  res <- http_get_json(
+    CLINVAR_EUTILS_BASE,
+    path = "esearch.fcgi",
+    query = query,
+    source = "ClinVar"
+  )
+  if (!res$ok) {
+    return(list(ok = FALSE, error = res$error))
+  }
+  count <- clinvar_gene_count_parse(res$data)
+  if (is.na(count)) {
+    return(list(ok = FALSE, error = "ClinVar returned no count."))
+  }
+  list(
+    ok = TRUE,
+    symbol = symbol,
+    count = count,
+    query = term,
+    source_id = paste0("ClinVar:gene:", toupper(symbol), ":dis:path"),
+    source_url = paste0(
+      CLINVAR_WEB_BASE,
+      "/?term=",
+      utils::URLencode(term, reserved = TRUE)
+    )
+  )
+}
+
 # Pure parser: an esearch JSON body -> the integer hit count, NA if absent.
 # "0" parses to 0L (a real zero, not NA). Separated from the fetch so it is
 # testable offline against a fixture.

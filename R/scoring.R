@@ -91,10 +91,15 @@ compute_composite <- function(
   }
   keys <- vapply(registry, function(s) s$key, character(1))
   roles <- vapply(registry, function(s) s$role %||% "evidence", character(1))
+  reg_w <- vapply(registry, function(s) s$weight, numeric(1))
+  # A weights override is PARTIAL: it overrides only the keys it names (the UI
+  # sliders), and any key it omits keeps its registry weight - so a discovery-only
+  # signal without a slider still counts at its rubric weight.
   w <- if (is.null(weights)) {
-    vapply(registry, function(s) s$weight, numeric(1))
+    reg_w
   } else {
-    as.numeric(weights[keys])
+    ov <- as.numeric(weights[keys])
+    ifelse(is.na(ov), reg_w, ov)
   }
   w[is.na(w)] <- 0
 

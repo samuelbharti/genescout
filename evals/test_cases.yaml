@@ -11,9 +11,25 @@
 # assert TTN ranks below the drivers here - that regresses to the agent stage.
 #
 # `description` is the free-text study context (reserved for the agent; not used
-# by the deterministic ranking). Grow these cases as capabilities land.
+# by the deterministic ranking). `disease` (optional) turns on discovery mode:
+# the ranking becomes disease-aware (OT association to THAT disease, ClinVar
+# scoped to it, gene+disease co-mention, plus PanelApp/DISEASES), which is what
+# lets a prominent-but-off-context gene like TTN fall below the real drivers.
+# `expect_below` asserts a gene ranks strictly below every expect_high gene.
+# Grow these cases as capabilities land.
 
 - description: NF1-associated MPNST - known drivers should grade High.
   candidates: [NF1, SUZ12, CDKN2A, TP53]
   expect_high: [NF1, SUZ12, CDKN2A, TP53]
   expect_grade: High
+
+# In discovery mode the scoring is disease-SPECIFIC, so only NF1 (the defining
+# gene) grades High; TP53/SUZ12/CDKN2A are real cancer genes but not NF1-specific,
+# so they land lower - correctly. What the disease-mode spine guarantees is that
+# the off-context passenger TTN ranks LAST, below every real candidate.
+- description: NF1 discovery - NF1 grades High and TTN ranks last.
+  disease: neurofibromatosis type 1
+  candidates: [NF1, SUZ12, CDKN2A, TP53, TTN]
+  expect_high: [NF1]
+  expect_grade: High
+  expect_below: TTN

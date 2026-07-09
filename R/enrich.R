@@ -1,7 +1,9 @@
 # Gene-list enrichment: pull a ranking signal from each source for every gene,
 # merge and dedupe by canonical gene id, and shape the tidy + wide tables the
-# ranking and UI consume. Deterministic and gene-only (no disease term, no LLM);
-# the free-text study description is reserved for the later agent stage.
+# ranking and UI consume. Deterministic, no LLM. In discovery mode a resolved
+# disease context (context$disease) seeds extra candidate genes and makes the
+# OT / ClinVar / PMC signals disease-specific; in plain enrichment the pull is
+# gene-only. The free-text description is reserved for the later agent stage.
 #
 # A SIGNAL is one source's contribution, defined once in the registry:
 #   candid_signal(key, label, source, extractor, normalize, weight, direction,
@@ -38,11 +40,17 @@ candid_signal <- function(
 }
 
 # The active signal registry, wired from the rubric (weights + normalization
-# midpoints). Registry order is the column order in the results table.
-candid_signal_registry <- function(rubric = load_rubric()) {
+# midpoints). Registry order is the column order in the results table. When
+# `disease_mode` is TRUE (a disease context is set), the disease-keyed PanelApp
+# and DISEASES signals are appended; they are omitted in plain enrichment so
+# their absence never penalizes a gene.
+candid_signal_registry <- function(
+  rubric = load_rubric(),
+  disease_mode = FALSE
+) {
   w <- rubric$weights %||% list()
   m <- rubric$midpoints %||% list()
-  list(
+  base <- list(
     candid_signal(
       "ot_assoc",
       "Open Targets association",
@@ -99,6 +107,32 @@ candid_signal_registry <- function(rubric = load_rubric()) {
       role = "annotation"
     )
   )
+  if (isTRUE(disease_mode)) {
+    base <- c(
+      base,
+      list(
+        candid_signal(
+          "panelapp",
+          "PanelApp confidence",
+          "Genomics England PanelApp",
+          extractor = extract_panelapp,
+          normalize = normalize_identity,
+          weight = w$panelapp %||% 1,
+          role = "evidence"
+        ),
+        candid_signal(
+          "diseases",
+          "DISEASES (Jensen) score",
+          "DISEASES (Jensen Lab)",
+          extractor = extract_diseases,
+          normalize = normalize_saturating(m$diseases %||% 2),
+          weight = w$diseases %||% 0.75,
+          role = "evidence"
+        )
+      )
+    )
+  }
+  base
 }
 
 # A compact registry description for the UI legend / result object.
@@ -135,8 +169,48 @@ signal_miss <- function() {
   )
 }
 
-# Open Targets: max disease-association score (0-1); evidence = the disease rows.
+# A one-row lookup in a stashed seed_data table (symbol match, case-insensitive).
+# Returns the 1-row tibble or NULL. Used by the disease-mode extractors so they
+# read the once-fetched disease tables instead of re-querying per gene.
+seed_row <- function(context, key, symbol) {
+  tbl <- pluck_at(context, "seed_data", key)
+  if (is.null(tbl) || nrow(tbl) == 0) {
+    return(NULL)
+  }
+  hit <- tbl[toupper(tbl$symbol) == toupper(symbol), , drop = FALSE]
+  if (nrow(hit) == 0) {
+    return(NULL)
+  }
+  hit[1, , drop = FALSE]
+}
+
+# Open Targets association. In discovery mode (context$disease present) this is
+# the gene's association to THAT disease, read from the seeded associated-targets
+# table; otherwise the gene's max association across all diseases.
 extract_ot_assoc <- function(resolved, context = list()) {
+  disease <- pluck_at(context, "disease")
+  if (!is.null(disease)) {
+    row <- seed_row(context, "ot_targets", resolved$symbol)
+    if (is.null(row)) {
+      return(signal_miss())
+    }
+    return(list(
+      ok = TRUE,
+      raw = row$raw,
+      source_id = row$source_id,
+      source_url = row$source_url,
+      evidence = evidence_long_rows(
+        resolved$gene_id,
+        "ot_assoc",
+        domain = "pathway-disease",
+        title = sprintf("%s association", disease$name %||% disease$id),
+        detail = sprintf("association score %.2f", row$raw),
+        score = row$raw,
+        source_id = row$source_id,
+        source_url = row$source_url
+      )
+    ))
+  }
   a <- gene_disease_assoc(resolved$gene_id)
   if (!isTRUE(a$ok) || nrow(a$evidence) == 0) {
     return(signal_miss())
@@ -161,12 +235,30 @@ extract_ot_assoc <- function(resolved, context = list()) {
   )
 }
 
-# Europe PMC: total gene-mention count; evidence = a summary row linking the query.
+# Europe PMC gene-mention count. In discovery mode, the count of papers
+# co-mentioning the gene AND the disease (a context-specific literature signal);
+# otherwise the gene's total mention count.
 extract_pmc_hits <- function(resolved, context = list()) {
-  q <- sprintf('"%s"', resolved$symbol)
+  disease <- pluck_at(context, "disease")
+  dname <- if (!is.null(disease)) disease$name %||% disease$id else NULL
+  q <- if (!is.null(dname)) {
+    sprintf('"%s" AND "%s"', resolved$symbol, dname)
+  } else {
+    sprintf('"%s"', resolved$symbol)
+  }
   r <- europepmc_count(q)
   if (!isTRUE(r$ok)) {
     return(signal_miss())
+  }
+  title <- if (!is.null(dname)) {
+    sprintf(
+      "%d Europe PMC co-mentions of %s and %s",
+      r$count,
+      resolved$symbol,
+      dname
+    )
+  } else {
+    sprintf("%d Europe PMC mentions of %s", r$count, resolved$symbol)
   }
   list(
     ok = TRUE,
@@ -177,7 +269,7 @@ extract_pmc_hits <- function(resolved, context = list()) {
       resolved$gene_id,
       "pmc_hits",
       domain = "literature",
-      title = sprintf("%d Europe PMC mentions of %s", r$count, resolved$symbol),
+      title = title,
       detail = sprintf("query %s", q),
       score = NA_real_,
       source_id = r$source_id,
@@ -186,11 +278,27 @@ extract_pmc_hits <- function(resolved, context = list()) {
   )
 }
 
-# ClinVar: count of pathogenic / likely-pathogenic variants; evidence = summary row.
+# ClinVar pathogenic / likely-pathogenic variant count. In discovery mode the
+# count is scoped to the disease context; otherwise it is the gene's total.
 extract_clinvar_path <- function(resolved, context = list()) {
-  r <- clinvar_gene_pathogenic_count(resolved$symbol)
+  disease <- pluck_at(context, "disease")
+  dname <- if (!is.null(disease)) disease$name %||% disease$id else NULL
+  r <- if (!is.null(dname)) {
+    clinvar_gene_disease_pathogenic_count(resolved$symbol, dname)
+  } else {
+    clinvar_gene_pathogenic_count(resolved$symbol)
+  }
   if (!isTRUE(r$ok)) {
     return(signal_miss())
+  }
+  title <- if (!is.null(dname)) {
+    sprintf(
+      "%d pathogenic / likely-pathogenic ClinVar variants for %s",
+      r$count,
+      dname
+    )
+  } else {
+    sprintf("%d pathogenic / likely-pathogenic ClinVar variants", r$count)
   }
   list(
     ok = TRUE,
@@ -201,10 +309,7 @@ extract_clinvar_path <- function(resolved, context = list()) {
       resolved$gene_id,
       "clinvar_path",
       domain = "variant-effect",
-      title = sprintf(
-        "%d pathogenic / likely-pathogenic ClinVar variants",
-        r$count
-      ),
+      title = title,
       detail = "germline classification",
       score = NA_real_,
       source_id = r$source_id,
@@ -296,6 +401,126 @@ extract_pharos_tdl <- function(resolved, context = list()) {
       source_url = r$source_url
     )
   )
+}
+
+# PanelApp: Genomics England panel-membership confidence for the disease, read
+# from the once-fetched panel table (context$seed_data). Discovery mode only.
+extract_panelapp <- function(resolved, context = list()) {
+  row <- seed_row(context, "panelapp", resolved$symbol)
+  if (is.null(row)) {
+    return(signal_miss())
+  }
+  list(
+    ok = TRUE,
+    raw = row$raw,
+    source_id = row$source_id,
+    source_url = row$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "panelapp",
+      domain = "pathway-disease",
+      title = sprintf("Genomics England PanelApp confidence %.2f", row$raw),
+      detail = "diagnostic-panel gene rating (green = 1.0, amber = 0.5)",
+      score = row$raw,
+      source_id = row$source_id,
+      source_url = row$source_url
+    )
+  )
+}
+
+# DISEASES (Jensen Lab): knowledge + text-mining association of the gene to the
+# disease, read from context$seed_data. Discovery mode only.
+extract_diseases <- function(resolved, context = list()) {
+  row <- seed_row(context, "diseases", resolved$symbol)
+  if (is.null(row)) {
+    return(signal_miss())
+  }
+  list(
+    ok = TRUE,
+    raw = row$raw,
+    source_id = row$source_id,
+    source_url = row$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "diseases",
+      domain = "pathway-disease",
+      title = sprintf("DISEASES (Jensen Lab) association score %.2f", row$raw),
+      detail = "knowledge + text-mining channels",
+      score = row$raw,
+      source_id = row$source_id,
+      source_url = row$source_url
+    )
+  )
+}
+
+# --- Discovery seeding ------------------------------------------------------
+
+# Gather candidate genes for a disease from the disease-keyed sources (Open
+# Targets associated targets, PanelApp, DISEASES). Returns the union of gene
+# symbols plus a normalized per-source table (symbol, raw, source_id,
+# source_url) that the disease-mode extractors read via seed_row(). Each source
+# is wrapped so one failing source never sinks the others.
+seed_disease_genes <- function(disease, ot_size = 250) {
+  data <- list()
+  syms <- character()
+  norm_tbl <- function(symbol, raw, source_id, source_url) {
+    tibble::tibble(
+      symbol = toupper(as.character(symbol)),
+      raw = as.numeric(raw),
+      source_id = as.character(source_id),
+      source_url = as.character(source_url)
+    )
+  }
+
+  ot <- tryCatch(
+    ot_disease_targets(disease$id, size = ot_size),
+    error = function(e) list(ok = FALSE)
+  )
+  if (isTRUE(ot$ok) && nrow(ot$genes) > 0) {
+    data$ot_targets <- norm_tbl(
+      ot$genes$symbol,
+      ot$genes$score,
+      ot$genes$source_id,
+      ot$genes$source_url
+    )
+    syms <- c(syms, data$ot_targets$symbol)
+  }
+
+  pa <- tryCatch(
+    panelapp_disease_genes(disease$name),
+    error = function(e) list(ok = FALSE)
+  )
+  if (isTRUE(pa$ok) && nrow(pa$genes) > 0) {
+    data$panelapp <- norm_tbl(
+      pa$genes$symbol,
+      pa$genes$confidence,
+      pa$genes$source_id,
+      pa$genes$source_url
+    )
+    syms <- c(syms, data$panelapp$symbol)
+  }
+
+  doid <- tryCatch(
+    ot_disease_doid(disease$id),
+    error = function(e) list(ok = FALSE)
+  )
+  if (isTRUE(doid$ok) && !is_blank(doid$doid)) {
+    dis <- tryCatch(
+      diseases_gene_associations(doid$doid),
+      error = function(e) list(ok = FALSE)
+    )
+    if (isTRUE(dis$ok) && nrow(dis$genes) > 0) {
+      data$diseases <- norm_tbl(
+        dis$genes$symbol,
+        dis$genes$score,
+        dis$genes$source_id,
+        dis$genes$source_url
+      )
+      syms <- c(syms, data$diseases$symbol)
+    }
+  }
+
+  list(symbols = unique(syms), data = data)
 }
 
 # --- Flatten, resolve, dedupe -----------------------------------------------
