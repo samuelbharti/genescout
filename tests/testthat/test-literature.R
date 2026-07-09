@@ -35,3 +35,13 @@ test_that("literature_query() ANDs the gene with context terms", {
 test_that("literature_query() falls back to the gene alone when no terms", {
   expect_equal(literature_query("NF1", list()), '"NF1"')
 })
+
+test_that("europepmc_count_parse() reads hitCount and keeps 0 as 0", {
+  expect_equal(europepmc_count_parse(read_fixture("europepmc_nf1.json")), 2530L)
+  expect_equal(europepmc_count_parse(read_fixture("europepmc_zero.json")), 0L)
+  expect_true(is.na(europepmc_count_parse(list())))
+})
+
+test_that("europepmc_count() rejects a blank query", {
+  expect_false(europepmc_count("")$ok)
+})

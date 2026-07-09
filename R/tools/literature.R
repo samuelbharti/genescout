@@ -41,6 +41,56 @@ europepmc_search <- function(query, limit = 10) {
   )
 }
 
+# Total Europe PMC hit count for a query - a gene-level literature signal. Uses
+# pageSize = 1 (we only need hitCount, not the rows). A genuine 0 hits is
+# ok = TRUE, count = 0 - distinct from a source failure - so a gene with no
+# literature is not mistaken for an outage (unlike europepmc_search(), which
+# reports ok = FALSE on an empty result list). Returns:
+#   list(ok = TRUE, count, query, source_id, source_url) | list(ok = FALSE, error)
+europepmc_count <- function(query) {
+  if (is_blank(query)) {
+    return(list(ok = FALSE, error = "Empty literature query."))
+  }
+  res <- http_get_json(
+    EUROPEPMC_BASE,
+    path = "search",
+    query = list(
+      query = query,
+      format = "json",
+      pageSize = 1,
+      resultType = "idlist"
+    ),
+    source = "Europe PMC"
+  )
+  if (!res$ok) {
+    return(list(ok = FALSE, error = res$error))
+  }
+  count <- europepmc_count_parse(res$data)
+  if (is.na(count)) {
+    return(list(ok = FALSE, error = "Europe PMC returned no count."))
+  }
+  list(
+    ok = TRUE,
+    count = count,
+    query = query,
+    source_id = paste0("EuropePMC:query:", query),
+    source_url = paste0(
+      "https://europepmc.org/search?query=",
+      utils::URLencode(query, reserved = TRUE)
+    )
+  )
+}
+
+# Pure parser: a Europe PMC search body -> the integer hitCount, NA if absent.
+# 0 parses to 0L (a real zero). Testable offline against a fixture.
+europepmc_count_parse <- function(data) {
+  raw <- pluck_at(data, "hitCount", default = NA)
+  if (is_blank(raw)) {
+    return(NA_integer_)
+  }
+  suppressWarnings(as.integer(raw))
+}
+
 # Pure parser: Europe PMC result rows -> a grounded citation tibble. Every row
 # has a source_id (PMID:<n> or <source>:<id>) and a europepmc.org link.
 # Separated from the fetch so it is testable offline against a JSON fixture.
