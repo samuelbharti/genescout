@@ -11,6 +11,10 @@ GEMINI_API_KEY=
 # Only if you set provider: anthropic in config.yml (Claude models).
 ANTHROPIC_API_KEY=
 
+# --- OpenAI (direct API) ----------------------------------------------------
+# Only if you set provider: openai in config.yml (GPT models).
+OPENAI_API_KEY=
+
 # --- Google Vertex AI (only for provider: google_vertex) --------------------
 # Vertex uses Application Default Credentials, NOT an API key: a service-account
 # JSON (via GOOGLE_APPLICATION_CREDENTIALS) or `gcloud auth application-default

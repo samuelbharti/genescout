@@ -136,6 +136,78 @@ ranked_matrix_html <- function(genes, registry) {
   )
 }
 
+# --- AI curation panel ------------------------------------------------------
+
+# Render a curated selection (from curate_gene_list()) as a card: a banner
+# stating whether the AI ran or the deterministic fallback was used, then the
+# included genes with confidence + grounded rationale. Pure htmltools (the
+# download button is added by the module).
+render_curation <- function(curated) {
+  ai_used <- isTRUE(attr(curated, "ai_used"))
+  note <- attr(curated, "message") %||% attr(curated, "error")
+  inc <- curated[which(curated$include), , drop = FALSE]
+
+  banner <- htmltools::div(
+    class = paste("alert py-2", if (ai_used) "alert-info" else "alert-warning"),
+    htmltools::strong(
+      if (ai_used) "AI-curated selection. " else "Composite-rank selection. "
+    ),
+    if (!is.null(note)) {
+      note
+    } else if (ai_used) {
+      "The model filtered the ranked list to the set below."
+    }
+  )
+
+  body <- if (nrow(inc) == 0) {
+    htmltools::p(class = "text-muted fst-italic", "No genes selected.")
+  } else {
+    rows <- lapply(seq_len(nrow(inc)), function(i) {
+      htmltools::tags$tr(
+        htmltools::tags$td(inc$gene_symbol[i]),
+        htmltools::tags$td(
+          if (is.na(inc$confidence[i])) {
+            "—"
+          } else {
+            sprintf("%.2f", inc$confidence[i])
+          }
+        ),
+        htmltools::tags$td(inc$rationale[i])
+      )
+    })
+    htmltools::tags$table(
+      class = "table table-sm",
+      htmltools::tags$thead(htmltools::tags$tr(
+        htmltools::tags$th("Gene"),
+        htmltools::tags$th("Confidence"),
+        htmltools::tags$th("Rationale")
+      )),
+      htmltools::tags$tbody(rows)
+    )
+  }
+
+  htmltools::tagList(
+    htmltools::tags$h4(
+      class = "h5",
+      sprintf("Curated list (%d genes)", nrow(inc))
+    ),
+    banner,
+    body
+  )
+}
+
+# A flat data frame of the curated (included) genes for CSV export.
+build_curated_csv <- function(curated) {
+  inc <- curated[which(curated$include), , drop = FALSE]
+  data.frame(
+    gene = inc$gene_symbol,
+    confidence = round(inc$confidence, 3),
+    rationale = inc$rationale,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
 # --- Per-gene drill-down ----------------------------------------------------
 
 # One gene's evidence card: header (symbol, grade, composite, source lists) plus

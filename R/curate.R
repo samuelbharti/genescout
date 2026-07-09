@@ -1,0 +1,290 @@
+# AI curation - the final subjective compaction step (the LAST stage).
+#
+# The deterministic pipeline ranks every candidate; this optional step asks the
+# configured LLM to filter/curate the ranked list down to a usable, defensible
+# set for the specific study, with a grounded one-line rationale per gene. It is
+# a final polish, never a hard dependency: with no credentials (or on any error)
+# it falls back to the top genes by composite rank, so the app always works.
+#
+# Grounding (a CANDID non-negotiable): the model may pick ONLY from the provided
+# candidates and may justify a pick ONLY from the evidence shown - it never
+# introduces new facts. Provider/model come from config.yml via build_chat(),
+# never hardcoded, so switching providers is a config change. `chat_factory` is
+# injectable so tests run without the network.
+
+empty_curated_table <- function() {
+  tibble::tibble(
+    gene_symbol = character(),
+    include = logical(),
+    confidence = numeric(),
+    rationale = character()
+  )
+}
+
+# Attach the standard reporting attributes to a curated tibble.
+curated_with_attrs <- function(df, ai_used, message = NULL, error = NULL) {
+  attr(df, "ai_used") <- isTRUE(ai_used)
+  if (!is.null(message)) {
+    attr(df, "message") <- message
+  }
+  if (!is.null(error)) {
+    attr(df, "error") <- error
+  }
+  df
+}
+
+# Structured-output schema requested from the model.
+curation_schema <- function() {
+  ellmer::type_object(
+    selections = ellmer::type_array(
+      items = ellmer::type_object(
+        gene_symbol = ellmer::type_string(
+          "gene symbol, copied EXACTLY from the candidate list"
+        ),
+        include = ellmer::type_boolean(
+          "TRUE if this gene belongs in the final curated list for the study"
+        ),
+        confidence = ellmer::type_number(
+          "confidence from 0 to 1 in this include/exclude decision"
+        ),
+        rationale = ellmer::type_string(
+          "one short sentence justifying the decision FROM THE EVIDENCE SHOWN"
+        )
+      )
+    ),
+    overall_notes = ellmer::type_string(
+      "brief summary of the curation strategy and any caveats"
+    )
+  )
+}
+
+# The top `n` candidate genes (by rank) as the curation shortlist.
+curation_candidates <- function(result, n) {
+  g <- result$genes
+  g <- g[order(g$rank), , drop = FALSE]
+  utils::head(g, n)
+}
+
+# A short disease label for the prompt, or "(none)".
+curation_disease_label <- function(result) {
+  d <- pluck_at(result, "context", "disease")
+  if (is.null(d)) {
+    return("(none)")
+  }
+  d$name %||% d$id %||% "(unspecified)"
+}
+
+# Render the candidate genes as a compact, grounded text block: per gene, its
+# composite/grade, its per-signal values, and up to a few grounded evidence lines
+# (each with its source id) so the model reasons only from what is shown.
+curation_candidates_text <- function(result, candidates, max_evidence = 6) {
+  reg <- result$registry
+  ev <- result$evidence
+  blocks <- vapply(
+    seq_len(nrow(candidates)),
+    function(i) {
+      row <- candidates[i, , drop = FALSE]
+      sig_bits <- vapply(
+        seq_len(nrow(reg)),
+        function(j) {
+          v <- row[[reg$key[j]]]
+          if (is.null(v) || is.na(v)) {
+            return(NA_character_)
+          }
+          sprintf("%s=%s", reg$label[j], format_signal_value(v))
+        },
+        character(1)
+      )
+      sig_bits <- sig_bits[!is.na(sig_bits)]
+      ev_g <- ev[ev$gene_id == row$gene_id, , drop = FALSE]
+      ev_g <- utils::head(ev_g, max_evidence)
+      ev_lines <- if (nrow(ev_g) > 0) {
+        paste0(
+          "    - ",
+          ev_g$title,
+          " [",
+          ev_g$source_id,
+          "]",
+          collapse = "\n"
+        )
+      } else {
+        "    - (no grounded evidence)"
+      }
+      paste0(
+        sprintf(
+          "%d. %s (composite %.3f, %s)\n",
+          row$rank,
+          row$symbol,
+          row$composite,
+          row$grade
+        ),
+        "    signals: ",
+        paste(sig_bits, collapse = "; "),
+        "\n",
+        ev_lines
+      )
+    },
+    character(1)
+  )
+  paste(blocks, collapse = "\n\n")
+}
+
+# Build the system + user prompts.
+build_curation_prompt <- function(result, candidates, top_n) {
+  system_prompt <- paste(
+    "You are an expert biomedical curator compiling a compact, defensible gene",
+    "list for a specific research study. You are given candidate genes already",
+    "ranked by a transparent multi-source composite, each with the grounded",
+    "evidence behind its signals. Select the genes that genuinely belong in the",
+    "final list for THIS study.",
+    "Hard rules: choose ONLY from the provided candidate list; never invent,",
+    "rename, or merge symbols; base every rationale ONLY on the evidence shown",
+    "for that gene and introduce no fact that is not listed; be conservative and",
+    "prefer genes with broad, specific, well-grounded support. Aim for roughly",
+    top_n,
+    "included genes unless the evidence clearly supports fewer or more."
+  )
+  user_prompt <- paste0(
+    "Study context: ",
+    if (is_blank(result$description)) "(none given)" else result$description,
+    "\nDisease context: ",
+    curation_disease_label(result),
+    "\n\nCandidate genes (best first), with grounded evidence:\n\n",
+    curation_candidates_text(result, candidates),
+    "\n\nReturn your curated selection."
+  )
+  list(system = system_prompt, user = user_prompt)
+}
+
+# Coerce ellmer structured output (a data frame or list-of-lists) to a tibble.
+selections_to_df <- function(sel) {
+  if (is.null(sel)) {
+    return(NULL)
+  }
+  if (is.data.frame(sel)) {
+    return(tibble::as_tibble(sel))
+  }
+  dplyr::bind_rows(lapply(sel, function(x) {
+    tibble::tibble(
+      gene_symbol = as.character(x$gene_symbol %||% NA),
+      include = as.logical(x$include %||% NA),
+      confidence = as.numeric(x$confidence %||% NA),
+      rationale = as.character(x$rationale %||% NA)
+    )
+  }))
+}
+
+# Validate/clean the model's selections against the candidate set: drop
+# hallucinated symbols (the grounding gate), clamp confidence, default missing
+# fields, de-duplicate. `candidate_symbols` is the shortlist actually shown.
+validate_curation <- function(df, candidate_symbols) {
+  if (is.null(df) || nrow(df) == 0 || !"gene_symbol" %in% names(df)) {
+    return(empty_curated_table())
+  }
+  df <- tibble::as_tibble(df)
+  sym <- toupper(trimws(as.character(df$gene_symbol)))
+  keep <- sym %in% toupper(candidate_symbols)
+
+  include <- if ("include" %in% names(df)) as.logical(df$include) else TRUE
+  include[is.na(include)] <- FALSE
+  conf <- if ("confidence" %in% names(df)) {
+    pmin(pmax(as.numeric(df$confidence), 0), 1)
+  } else {
+    NA_real_
+  }
+  rat <- if ("rationale" %in% names(df)) as.character(df$rationale) else ""
+  rat[is.na(rat)] <- ""
+
+  out <- tibble::tibble(
+    gene_symbol = sym,
+    include = include,
+    confidence = conf,
+    rationale = rat
+  )[keep, , drop = FALSE]
+  out[!duplicated(out$gene_symbol), , drop = FALSE]
+}
+
+# Fallback when the LLM is unavailable or fails: top genes by composite rank.
+fallback_curation <- function(result, top_n) {
+  genes <- result$genes
+  if (is.null(genes) || nrow(genes) == 0) {
+    return(empty_curated_table())
+  }
+  picked <- utils::head(genes[order(genes$rank), , drop = FALSE], top_n)
+  tibble::tibble(
+    gene_symbol = picked$symbol,
+    include = TRUE,
+    confidence = NA_real_,
+    rationale = "Selected by composite rank (AI unavailable)."
+  )
+}
+
+# Main entry point. Curate a run_review() result down to a usable set. Returns a
+# curated tibble(gene_symbol, include, confidence, rationale) with attributes
+# `ai_used` (logical) and, optionally, `message` / `error`.
+curate_gene_list <- function(
+  result,
+  config = load_config(),
+  top_n = 40,
+  chat_factory = NULL
+) {
+  genes <- result$genes
+  if (is.null(genes) || nrow(genes) == 0) {
+    return(curated_with_attrs(
+      empty_curated_table(),
+      ai_used = FALSE,
+      message = "No ranked genes to curate."
+    ))
+  }
+  candidates <- curation_candidates(result, max(top_n * 2L, 50L))
+  cand_symbols <- toupper(candidates$symbol)
+
+  if (is.null(chat_factory) && !candid_llm_available(config)) {
+    return(curated_with_attrs(
+      fallback_curation(result, top_n),
+      ai_used = FALSE,
+      message = "No LLM credentials set - selected top genes by composite rank."
+    ))
+  }
+  if (is.null(chat_factory)) {
+    chat_factory <- function(system_prompt) {
+      build_chat(
+        config$provider %||% "anthropic",
+        model_for("orchestrator", config),
+        system_prompt
+      )
+    }
+  }
+
+  prompt <- build_curation_prompt(result, candidates, top_n)
+  out <- tryCatch(
+    {
+      chat <- chat_factory(prompt$system)
+      raw <- chat$chat_structured(prompt$user, type = curation_schema())
+      curated_with_attrs(
+        validate_curation(selections_to_df(raw$selections), cand_symbols),
+        ai_used = TRUE
+      )
+    },
+    error = function(e) {
+      curated_with_attrs(
+        fallback_curation(result, top_n),
+        ai_used = FALSE,
+        error = conditionMessage(e)
+      )
+    }
+  )
+
+  # The AI succeeded but returned nothing usable: fall back to rank.
+  if (
+    isTRUE(attr(out, "ai_used")) &&
+      (nrow(out) == 0 || !any(out$include, na.rm = TRUE))
+  ) {
+    return(curated_with_attrs(
+      fallback_curation(result, top_n),
+      ai_used = FALSE,
+      message = "The model returned no usable selection - fell back to rank."
+    ))
+  }
+  out
+}

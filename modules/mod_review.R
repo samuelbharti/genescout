@@ -89,7 +89,7 @@ review_server <- function(
       )
     })
 
-    results_server("results", result)
+    results_server("results", result, config)
     report_server("report", result)
   })
 }

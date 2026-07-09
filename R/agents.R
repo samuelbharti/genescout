@@ -53,11 +53,15 @@ build_chat <- function(provider, model, system_prompt) {
       model = model,
       system_prompt = system_prompt
     ),
+    openai = ellmer::chat_openai(
+      model = model,
+      system_prompt = system_prompt
+    ),
     stop(
       sprintf(
         paste0(
           "Unsupported provider '%s' in config.yml ",
-          "(use anthropic, google_gemini, or google_vertex)."
+          "(use anthropic, google_gemini, google_vertex, or openai)."
         ),
         provider
       ),
@@ -79,6 +83,7 @@ provider_credentials_ready <- function(provider) {
       nzchar(Sys.getenv("GOOGLE_API_KEY")),
     google_vertex = nzchar(Sys.getenv("GOOGLE_CLOUD_PROJECT")) &&
       nzchar(Sys.getenv("GOOGLE_CLOUD_LOCATION")),
+    openai = nzchar(Sys.getenv("OPENAI_API_KEY")),
     FALSE
   )
 }
