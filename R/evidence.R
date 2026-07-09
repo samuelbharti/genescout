@@ -27,6 +27,49 @@ evidence_tibble <- function(
 
 empty_evidence <- function() evidence_tibble()
 
+# --- Long evidence for the gene-list pipeline -------------------------------
+# The same evidence rows, tagged with the gene and the signal they support, so
+# the UI can drill from a ranked gene down to the records behind each signal.
+
+evidence_long_rows <- function(
+  gene_id,
+  signal_key,
+  domain,
+  title,
+  detail,
+  score,
+  source_id,
+  source_url
+) {
+  base <- evidence_tibble(domain, title, detail, score, source_id, source_url)
+  if (nrow(base) == 0) {
+    return(empty_evidence_long())
+  }
+  tibble::tibble(
+    gene_id = gene_id,
+    signal_key = signal_key,
+    domain = base$domain,
+    title = base$title,
+    detail = base$detail,
+    score = base$score,
+    source_id = base$source_id,
+    source_url = base$source_url
+  )
+}
+
+empty_evidence_long <- function() {
+  tibble::tibble(
+    gene_id = character(),
+    signal_key = character(),
+    domain = character(),
+    title = character(),
+    detail = character(),
+    score = numeric(),
+    source_id = character(),
+    source_url = character()
+  )
+}
+
 # --- pathway-disease specialist (Open Targets) ------------------------------
 
 gather_pathway_disease <- function(gene, size = 20) {
