@@ -7,17 +7,17 @@
 #
 # Credentials come from the environment (see .Renviron.example), never from here:
 #   anthropic      -> ANTHROPIC_API_KEY
-#   google_gemini  -> GEMINI_API_KEY (or GOOGLE_API_KEY)
+#   google_gemini  -> GEMINI_API_KEY (or GOOGLE_API_KEY)   <- the API-key path
 #   google_vertex  -> GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION + Application
-#                     Default Credentials (service-account JSON via
-#                     GOOGLE_APPLICATION_CREDENTIALS, or
-#                     `gcloud auth application-default login`)
+#                     Default Credentials (service-account JSON or
+#                     `gcloud auth application-default login`); NOT an API key
 #
-# NOTE: ellmer serves only Gemini through Google (Vertex or the Gemini API), not
-# Claude. To use Claude, set provider: anthropic with the claude-* models below.
+# ellmer serves only Gemini through Google (never Claude). A plain API key uses
+# the Gemini Developer API via google_gemini - key only, no project id or
+# service-account file. For Claude, set provider: anthropic with claude-* below.
 
 default:
-  provider: google_vertex
+  provider: google_gemini
   models:
     # Orchestration and the caveats/veto stage: the most capable model.
     orchestrator: gemini-2.5-pro
