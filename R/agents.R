@@ -1,21 +1,19 @@
-# Agents (ellmer). Phase 0 uses a single grounded-narrative helper; the parallel
-# variant-effect / pathway-disease / literature specialists and their
-# type_object() evidence schemas land in Phase 1 (see PLAN.md). Provider/model
-# come from config (never hardcoded); "any provider" is a config change.
+# Agents (ellmer). The three specialists gather grounded evidence deterministically
+# in R/orchestrate.R (fan_out_specialists); this file adds the LLM layer: a
+# grounded per-candidate narrative. Provider/model come from config (never
+# hardcoded); "any provider" is a config change.
 #
 # Everything here is guarded: if {ellmer} is not installed or no API key is set,
-# the pipeline runs deterministically without a narrative.
+# the pipeline runs deterministically without a narrative. An agentic path that
+# registers these tools and fans them out with ellmer::parallel_chat_structured()
+# is the planned enhancement; the allowlist below is its contract.
 
 # Roles -> which tool clients they may call. The specialist only ever sees its
-# own allowlist, keeping contexts isolated (used in Phase 1).
+# own allowlist, keeping contexts isolated.
 specialist_tools <- list(
   `variant-effect` = c("vep_consequence", "gnomad_frequency", "clinvar_lookup"),
-  `pathway-disease` = c(
-    "gene_disease_assoc",
-    "reactome_pathways",
-    "pager_enrichment"
-  ),
-  literature = c("europepmc_search", "pubtator_annotations")
+  `pathway-disease` = c("gene_disease_assoc"),
+  literature = c("europepmc_search")
 )
 
 # Build an ellmer Chat for a role, using the model from config and the matching
@@ -56,13 +54,19 @@ narrate_candidate <- function(
   )
 }
 
-# Assemble the grounding prompt: only the retrieved associations, each with its
-# Open Targets source id, plus the disease context label.
+# Assemble the grounding prompt: only the retrieved evidence rows (across all
+# domains), each with its source id, plus the disease context label.
 build_narrative_prompt <- function(symbol, evidence, context) {
+  detail <- ifelse(
+    is.na(evidence$detail) | !nzchar(evidence$detail),
+    "",
+    paste0(" - ", evidence$detail)
+  )
   lines <- sprintf(
-    "- %s (score %.2f) [source: %s]",
-    evidence$disease,
-    evidence$score,
+    "- [%s] %s%s [source: %s]",
+    evidence$domain,
+    evidence$title,
+    detail,
     evidence$source_id
   )
   paste0(
@@ -72,10 +76,10 @@ build_narrative_prompt <- function(symbol, evidence, context) {
     "Gene: ",
     symbol,
     ".\n",
-    "Open Targets associations (the ONLY evidence you may use):\n",
+    "Grounded evidence (the ONLY evidence you may use):\n",
     paste(lines, collapse = "\n"),
     "\n\nIn 2-3 sentences, summarize how plausibly this gene relates to the ",
-    "context, citing the diseases above. Do not introduce any fact not listed. ",
+    "context, citing the evidence above. Do not introduce any fact not listed. ",
     "If support is weak or off-context, say so."
   )
 }

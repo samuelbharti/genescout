@@ -6,30 +6,56 @@
 # Grade thresholds on the best available association score (0-1).
 CANDID_GRADE_BREAKS <- c(high = 0.5, moderate = 0.2)
 
-# Score one candidate from its (already gated) evidence + context priors.
-# Returns list(score, grade, rationale). `evidence` is the kept evidence tibble.
+# Score one candidate from its (already gated) multi-domain evidence + context
+# priors. Grade is driven by the best Open Targets association score;
+# literature and variant-effect items are counted as supporting evidence.
+# Returns list(score, grade, rationale, is_driver). `evidence` is the kept
+# normalized evidence tibble (see R/evidence.R).
 score_candidate <- function(evidence, context, symbol = NA_character_) {
+  drivers <- toupper(as.character(context$known_drivers %||% character()))
+  is_driver <- !is.na(symbol) && toupper(symbol) %in% drivers
+
   if (is.null(evidence) || nrow(evidence) == 0) {
     return(list(
       score = 0,
       grade = "Insufficient evidence",
-      rationale = "No grounded associations were returned."
+      rationale = "No grounded evidence was returned.",
+      is_driver = is_driver
     ))
   }
-  best <- max(evidence$score, na.rm = TRUE)
-  grade <- grade_for_score(best)
+  n_lit <- sum(evidence$domain == "literature")
+  n_var <- sum(evidence$domain == "variant-effect")
+  assoc <- evidence[
+    evidence$domain == "pathway-disease" & !is.na(evidence$score),
+    ,
+    drop = FALSE
+  ]
 
-  drivers <- toupper(as.character(context$known_drivers %||% character()))
-  is_driver <- !is.na(symbol) && toupper(symbol) %in% drivers
+  if (nrow(assoc) == 0) {
+    grade <- if (n_lit + n_var > 0) "Low" else "Insufficient evidence"
+    return(list(
+      score = 0,
+      grade = grade,
+      rationale = sprintf(
+        "No disease-association score; %d paper(s) and %d variant item(s).",
+        n_lit,
+        n_var
+      ),
+      is_driver = is_driver
+    ))
+  }
+  best <- max(assoc$score)
   rationale <- sprintf(
-    "Top association score %.2f across %d disease(s)%s.",
+    "Top association score %.2f across %d disease(s); %d paper(s), %d variant item(s)%s.",
     best,
-    nrow(evidence),
-    if (is_driver) "; listed as a known driver in this context" else ""
+    nrow(assoc),
+    n_lit,
+    n_var,
+    if (is_driver) "; known driver in this context" else ""
   )
   list(
     score = best,
-    grade = grade,
+    grade = grade_for_score(best),
     rationale = rationale,
     is_driver = is_driver
   )

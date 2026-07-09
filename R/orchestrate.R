@@ -1,12 +1,12 @@
 # Orchestration: the top-level pipeline entry point.
 #
-# Phase 0 vertical slice: for each candidate, fetch Open Targets gene/disease
-# associations (grounded, each with a source id), run them through the citation
-# gate, score/caveat them against the disease context, and assemble a ranked
-# review. When ellmer is available and an API key is set, a short grounded
-# narrative is added per candidate; otherwise the deterministic evidence stands
-# on its own. Later phases add the parallel variant-effect and literature
-# specialists (see PLAN.md).
+# For each candidate, fan out to three specialists (see R/evidence.R):
+#   pathway-disease (Open Targets), literature (Europe PMC), and - when a variant
+#   is supplied - variant-effect (Ensembl VEP / gnomAD / ClinVar). Their grounded
+#   evidence is combined, run through the citation gate, scored/caveated against
+#   the disease context, and assembled into a ranked review. When ellmer is
+#   available and an API key is set, a short grounded narrative is added per
+#   candidate; otherwise the deterministic evidence stands on its own.
 #
 # Return shape:
 #   list(
@@ -38,41 +38,39 @@ run_review <- function(candidates, context, config = load_config()) {
   )
 }
 
-# Review a single candidate row end to end.
+# Review a single candidate row end to end: fan out the specialists, gate, score.
 review_one_candidate <- function(row, context, config, use_llm) {
   gene <- row$gene %||% row$candidate
-  assoc <- gene_disease_assoc(gene)
+  variant <- row$variant
 
-  if (!isTRUE(assoc$ok)) {
-    return(list(
-      candidate = row$candidate,
-      symbol = gene,
-      gene = gene,
-      ok = FALSE,
-      error = assoc$error,
-      grade = "Insufficient evidence",
-      score = 0,
-      evidence = NULL,
-      caveats = "No grounded evidence could be retrieved.",
-      narrative = NA_character_
-    ))
-  }
-
-  gated <- validate_evidence(assoc$evidence)
-  scored <- score_candidate(gated$kept, context, symbol = assoc$symbol)
-  caveats <- apply_caveats(gated$kept, context, symbol = assoc$symbol)
+  specialists <- fan_out_specialists(gene, variant, context)
+  evidence <- dplyr::bind_rows(
+    specialists$pathway_disease$evidence,
+    specialists$literature$evidence,
+    specialists$variant_effect$evidence
+  )
+  symbol <- specialists$pathway_disease$symbol %||% gene
+  gated <- validate_evidence(evidence)
+  scored <- score_candidate(gated$kept, context, symbol = symbol)
+  caveats <- apply_caveats(gated$kept, context, symbol = symbol)
 
   narrative <- NA_character_
-  if (isTRUE(use_llm)) {
-    narrative <- narrate_candidate(assoc$symbol, gated$kept, context, config)
+  if (isTRUE(use_llm) && nrow(gated$kept) > 0) {
+    narrative <- narrate_candidate(symbol, gated$kept, context, config)
   }
 
   list(
     candidate = row$candidate,
-    symbol = assoc$symbol,
+    symbol = symbol,
     gene = gene,
-    ensembl_id = assoc$ensembl_id,
-    ok = TRUE,
+    ensembl_id = specialists$pathway_disease$ensembl_id,
+    ok = nrow(gated$kept) > 0,
+    error = if (nrow(gated$kept) == 0) {
+      specialists$pathway_disease$error %||%
+        "No grounded evidence was retrieved."
+    } else {
+      NULL
+    },
     grade = scored$grade,
     score = scored$score,
     rationale = scored$rationale,
@@ -81,6 +79,16 @@ review_one_candidate <- function(row, context, config, use_llm) {
     caveats = caveats,
     next_step = suggested_next_step(scored, context),
     narrative = narrative
+  )
+}
+
+# Run the three specialists for one candidate. Sequential by default; the ellmer
+# agent path (R/agents.R) fans the same tools out concurrently when enabled.
+fan_out_specialists <- function(gene, variant, context) {
+  list(
+    pathway_disease = gather_pathway_disease(gene),
+    literature = gather_literature(gene, context),
+    variant_effect = gather_variant_effect(variant)
   )
 }
 
@@ -118,13 +126,17 @@ build_ranked_table <- function(per) {
   df[order(-df$score), , drop = FALSE]
 }
 
-# The top disease name for a candidate, or "-" if none.
+# The top disease name for a candidate (highest-scoring association), or "-".
 candidate_top_disease <- function(candidate) {
   ev <- candidate$evidence
   if (is.null(ev) || nrow(ev) == 0) {
     return("-")
   }
-  as.character(ev$disease[which.max(ev$score)])
+  assoc <- ev[ev$domain == "pathway-disease" & !is.na(ev$score), , drop = FALSE]
+  if (nrow(assoc) == 0) {
+    return("-")
+  }
+  as.character(assoc$title[which.max(assoc$score)])
 }
 
 # A minimal, honest next-step suggestion for Phase 0.
@@ -142,11 +154,15 @@ suggested_next_step <- function(scored, context) {
   )
 }
 
-# Provenance for the sources used in this slice.
+# Provenance for the sources the pipeline can query.
 candid_provenance <- function() {
   list(
     list(source = "MyGene.info", endpoint = MYGENE_BASE),
-    list(source = "Open Targets Platform", endpoint = OPENTARGETS_URL)
+    list(source = "Open Targets Platform", endpoint = OPENTARGETS_URL),
+    list(source = "Europe PMC", endpoint = EUROPEPMC_BASE),
+    list(source = "Ensembl VEP", endpoint = ENSEMBL_BASE),
+    list(source = "gnomAD", endpoint = GNOMAD_URL),
+    list(source = "ClinVar (NCBI E-utilities)", endpoint = EUTILS_BASE)
   )
 }
 
