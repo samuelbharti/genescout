@@ -1,0 +1,17 @@
+# CANDID model configuration.
+#
+# Each pipeline role maps to a provider + model. ellmer selects the provider
+# (chat_anthropic(), chat_openai(), chat_gemini(), ...), so switching providers or
+# models is a config change, not a code change. Engine logic reads these via
+# R/config.R and never hardcodes a model string.
+#
+# API keys come from the environment (e.g. ANTHROPIC_API_KEY), never from here.
+
+default:
+  provider: anthropic
+  models:
+    # Orchestration and the caveats/veto stage: the most capable model.
+    orchestrator: claude-opus-4-8
+    caveats: claude-opus-4-8
+    # The three retrieval specialists: a faster model for speed + cost.
+    specialist: claude-sonnet-5
