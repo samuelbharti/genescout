@@ -1,0 +1,32 @@
+# Validate that every PR title follows Conventional Commits (feat:, fix:, docs:,
+# chore:, ...). Squash-merging then yields a clean, conventional main history.
+name: PR title
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  lint-pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            chore
+            refactor
+            test
+            build
+            ci
+            perf
+            style
+            revert
