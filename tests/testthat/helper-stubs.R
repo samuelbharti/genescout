@@ -15,8 +15,8 @@ stub_resolver <- function(symbol, species = "human") {
   list(ok = TRUE, symbol = hit$sym, ensembl_gene = hit$id, entrez = NA)
 }
 
-stub_signal <- function(key, values) {
-  extractor <- function(resolved) {
+stub_signal <- function(key, values, role = "evidence") {
+  extractor <- function(resolved, context = list()) {
     v <- values[[resolved$gene_id]]
     if (is.null(v)) {
       return(signal_miss())
@@ -38,7 +38,15 @@ stub_signal <- function(key, values) {
       )
     )
   }
-  candid_signal(key, toupper(key), "Stub", extractor, normalize_identity, 1)
+  candid_signal(
+    key,
+    toupper(key),
+    "Stub",
+    extractor,
+    normalize_identity,
+    1,
+    role = role
+  )
 }
 
 # Both genes present in both signals, but NF1 scores higher overall (composite

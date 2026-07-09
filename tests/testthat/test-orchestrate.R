@@ -51,3 +51,24 @@ test_that("run_review() carries grounded evidence through the citation gate", {
   expect_true(nrow(out$evidence) >= 1)
   expect_true(all(nzchar(out$evidence$source_id)))
 })
+
+test_that("run_enrich() + rank_result() split re-ranks without re-enriching", {
+  enr <- run_enrich(
+    list(mine = c("NF1", "TP53")),
+    registry = stub_registry(),
+    resolver = stub_resolver
+  )
+  # Enrichment is unranked and keeps the registry object for cheap re-ranking.
+  expect_false("composite" %in% names(enr$genes))
+  expect_true("registry_obj" %in% names(enr))
+
+  ranked <- rank_result(enr)
+  expect_setequal(ranked$genes$rank, c(1, 2))
+  expect_equal(ranked$genes$symbol[1], "NF1") # composite 0.75 > 0.25
+  expect_false("registry_obj" %in% names(ranked))
+  expect_false(ranked$generated_with_llm)
+
+  # A weight override on the SAME enriched object re-ranks with no re-enrich.
+  flipped <- rank_result(enr, weights = c(a = 0, b = 1))
+  expect_false(identical(flipped$genes$composite, ranked$genes$composite))
+})

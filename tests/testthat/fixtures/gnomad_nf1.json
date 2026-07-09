@@ -1,0 +1,11 @@
+{
+  "data": {
+    "gene": {
+      "gene_id": "ENSG00000196712",
+      "gnomad_constraint": {
+        "oe_lof_upper": 0.29,
+        "pli": 1.0
+      }
+    }
+  }
+}

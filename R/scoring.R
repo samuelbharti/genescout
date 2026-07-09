@@ -53,25 +53,79 @@ normalize_log_saturating <- function(m) {
   }
 }
 
+# Descending saturating m/(x+m): x = 0 -> 1, x = m -> 0.5, larger x -> 0. For
+# "lower is better" signals (e.g. gnomAD LOEUF, where a small value means strong
+# loss-of-function constraint) so that every normalized column stays
+# higher-is-better and the composite can treat all signals uniformly. NA or
+# negative -> 0 (no positive signal). Absolute, so it stays reproducible.
+normalize_saturating_desc <- function(m) {
+  force(m)
+  function(x) {
+    out <- m / (x + m)
+    ifelse(is.na(x) | x < 0, 0, out)
+  }
+}
+
 # --- Composite + rank -------------------------------------------------------
 
 # Weighted mean of the normalized per-signal columns (`<key>_n`) over the
-# registry. Missing signals count as 0 in the numerator; their weight stays in
-# the denominator. `coverage_bonus` optionally rewards genes supported broadly.
-compute_composite <- function(gene_matrix, registry, coverage_bonus = FALSE) {
+# registry, role-aware:
+#   - EVIDENCE signals: weight is always in the denominator, so a missing one
+#     contributes 0 to the numerator but still divides - breadth is rewarded and
+#     a narrow-but-famous gene is structurally beaten by a broadly-supported one.
+#   - ANNOTATION signals (e.g. constraint, druggability): weight enters the
+#     denominator ONLY when present for that gene, so a missing annotation is
+#     neutral (it nudges the score up when available, never penalizes when not).
+# `weights` (a named key -> weight vector) overrides the registry weights, which
+# is how the live UI sliders re-rank without re-querying. `coverage_bonus`
+# optionally rewards genes supported by many EVIDENCE sources.
+compute_composite <- function(
+  gene_matrix,
+  registry,
+  weights = NULL,
+  coverage_bonus = FALSE
+) {
   if (nrow(gene_matrix) == 0) {
     gene_matrix$composite <- numeric()
     return(gene_matrix)
   }
   keys <- vapply(registry, function(s) s$key, character(1))
-  weights <- vapply(registry, function(s) s$weight, numeric(1))
-  ncols <- paste0(keys, "_n")
-  norm <- as.matrix(gene_matrix[, ncols, drop = FALSE])
+  roles <- vapply(registry, function(s) s$role %||% "evidence", character(1))
+  w <- if (is.null(weights)) {
+    vapply(registry, function(s) s$weight, numeric(1))
+  } else {
+    as.numeric(weights[keys])
+  }
+  w[is.na(w)] <- 0
+
+  norm <- as.matrix(gene_matrix[, paste0(keys, "_n"), drop = FALSE])
   norm[is.na(norm)] <- 0
-  composite <- as.numeric(norm %*% weights) / sum(weights)
+  numer <- as.numeric(norm %*% w)
+
+  is_ann <- roles == "annotation"
+  denom <- rep(sum(w[!is_ann]), nrow(gene_matrix))
+  if (any(is_ann)) {
+    pcols <- paste0(keys[is_ann], "_present")
+    if (all(pcols %in% names(gene_matrix))) {
+      pres <- as.matrix(gene_matrix[, pcols, drop = FALSE])
+      pres <- matrix(as.numeric(pres), nrow = nrow(gene_matrix))
+      denom <- denom + as.numeric(pres %*% w[is_ann])
+    } else {
+      # No per-signal presence columns (e.g. a minimal stub matrix): treat
+      # annotation weight as always-on, the pre-role behavior.
+      denom <- denom + sum(w[is_ann])
+    }
+  }
+
+  composite <- ifelse(denom > 0, numer / denom, 0)
   if (isTRUE(coverage_bonus)) {
-    coverage <- gene_matrix$n_sources_present / length(registry)
-    composite <- composite * (0.5 + 0.5 * coverage)
+    n_ev <- sum(!is_ann)
+    cov <- if (n_ev > 0 && "n_evidence_present" %in% names(gene_matrix)) {
+      gene_matrix$n_evidence_present / n_ev
+    } else {
+      0
+    }
+    composite <- composite * (0.5 + 0.5 * cov)
   }
   gene_matrix$composite <- composite
   gene_matrix

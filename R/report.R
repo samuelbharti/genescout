@@ -16,7 +16,9 @@ CANDID_DISCLAIMER <- paste(
 CANDID_DOMAIN_LABELS <- c(
   `pathway-disease` = "Pathway & disease",
   literature = "Literature",
-  `variant-effect` = "Variant / ClinVar"
+  `variant-effect` = "Variant / ClinVar",
+  constraint = "Constraint (gnomAD)",
+  druggability = "Druggability"
 )
 
 # --- Ranked gene x signal table ---------------------------------------------
@@ -52,15 +54,23 @@ format_signal_value <- function(v) {
   )
 }
 
-# The signal legend: what the composite means and each source's weight.
+# The signal legend: what the composite means and each source's role/weight.
 registry_legend_html <- function(registry) {
   items <- lapply(seq_len(nrow(registry)), function(i) {
+    role <- registry$role[i] %||% "evidence"
+    dir_note <- if (identical(registry$direction[i], "lower_better")) {
+      " · lower is better"
+    } else {
+      ""
+    }
     htmltools::tags$li(
       htmltools::strong(registry$label[i]),
       sprintf(
-        " — %s (weight %.2g)",
+        " — %s (%s, weight %.2g%s)",
         registry$source[i],
-        registry$weight[i]
+        role,
+        registry$weight[i],
+        dir_note
       )
     )
   })
@@ -69,12 +79,45 @@ registry_legend_html <- function(registry) {
     htmltools::p(
       class = "mb-1",
       paste(
-        "Composite score = weighted mean of each source's normalized signal;",
-        "a missing signal counts as 0. Rank is by composite (higher first)."
+        "Composite = weighted mean of each source's normalized signal.",
+        "Evidence sources reward breadth (a missing one counts as 0);",
+        "annotation sources (constraint, druggability) nudge the score when",
+        "present but never penalize when absent. Rank is by composite (higher",
+        "first)."
       )
     ),
     htmltools::tags$ul(class = "mb-0", items)
   )
+}
+
+# A flat data frame of the ranked matrix for CSV export: rank, gene, ids, each
+# signal's raw + normalized value, coverage, composite, grade, and the input
+# list(s) each gene came from.
+build_export_csv <- function(result) {
+  genes <- result$genes
+  reg <- result$registry
+  df <- data.frame(
+    rank = genes$rank,
+    gene = genes$symbol,
+    gene_id = genes$gene_id,
+    resolved = genes$resolved,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  for (i in seq_len(nrow(reg))) {
+    k <- reg$key[i]
+    df[[k]] <- genes[[k]]
+    df[[paste0(k, "_norm")]] <- round(genes[[paste0(k, "_n")]], 4)
+  }
+  df$n_sources_present <- genes$n_sources_present
+  df$composite <- round(genes$composite, 4)
+  df$grade <- genes$grade
+  df$input_lists <- vapply(
+    genes$input_lists,
+    function(x) paste(x, collapse = ";"),
+    character(1)
+  )
+  df
 }
 
 # Ranked matrix as a static HTML table (for the download).

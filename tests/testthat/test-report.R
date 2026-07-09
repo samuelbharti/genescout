@@ -35,7 +35,9 @@ fake_result <- function() {
       "ClinVar pathogenic variants"
     ),
     source = c("Open Targets Platform", "Europe PMC", "ClinVar"),
-    weight = c(1, 0.5, 1)
+    weight = c(1, 0.5, 1),
+    role = c("evidence", "evidence", "evidence"),
+    direction = c("higher_better", "higher_better", "higher_better")
   )
   list(
     description = "NF1-associated MPNST",
@@ -74,6 +76,18 @@ test_that("render_gene_evidence() flags an unresolved gene", {
     res$evidence
   ))
   expect_match(html, "could not be resolved")
+})
+
+test_that("build_export_csv() flattens the ranked matrix with raw + norm cols", {
+  df <- build_export_csv(fake_result())
+  expect_equal(df$rank, c(1, 2))
+  expect_equal(df$gene, c("NF1", "XYZ"))
+  expect_true(all(
+    c("ot_assoc", "ot_assoc_norm", "composite", "grade", "input_lists") %in%
+      names(df)
+  ))
+  expect_equal(df$ot_assoc, c(0.72, NA))
+  expect_equal(df$input_lists, c("pasted", "pasted"))
 })
 
 test_that("render_report() writes a self-contained HTML with the disclaimer", {

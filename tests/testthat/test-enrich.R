@@ -55,7 +55,7 @@ test_that("a missing signal is NA raw, 0 normalized, not present", {
     "z",
     "Z",
     "Stub",
-    extractor = function(resolved) signal_miss(),
+    extractor = function(resolved, context = list()) signal_miss(),
     normalize = normalize_identity,
     weight = 1
   ))

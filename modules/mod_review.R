@@ -1,6 +1,7 @@
 # Review module: the top-level coordinator for the Review tab. Composes the
-# input, results, and report sub-modules, runs the deterministic gene-list
-# ranking on demand, and surfaces failures as notifications rather than crashes.
+# input, results, and report sub-modules. On "Rank genes" it runs the expensive
+# enrichment once (run_enrich), then re-ranks reactively (rank_result) whenever a
+# weight slider moves - no re-query. Failures surface as notifications.
 
 review_ui <- function(id) {
   ns <- NS(id)
@@ -22,8 +23,9 @@ review_server <- function(
   registry = candid_registry
 ) {
   moduleServer(id, function(input, output, session) {
-    inputs <- input_server("input")
-    result <- reactiveVal(NULL)
+    inputs <- input_server("input", registry)
+    # The enriched (unranked) result, recomputed only on a "Rank genes" click.
+    enriched <- reactiveVal(NULL)
 
     observeEvent(inputs$run(), {
       lists <- inputs$gene_lists()
@@ -37,7 +39,7 @@ review_server <- function(
       out <- tryCatch(
         withProgress(
           message = "Pulling source signals...",
-          run_review(lists, inputs$description(), config, registry)
+          run_enrich(lists, inputs$description(), config, registry)
         ),
         error = function(e) {
           showNotification(
@@ -47,7 +49,21 @@ review_server <- function(
           NULL
         }
       )
-      result(out)
+      enriched(out)
+    })
+
+    # The ranked result: pure, cheap, and recomputed whenever the enriched data
+    # or the weight sliders change. NULL before the first run (empty state).
+    result <- reactive({
+      e <- enriched()
+      if (is.null(e)) {
+        return(NULL)
+      }
+      rank_result(
+        e,
+        weights = inputs$weights(),
+        coverage_bonus = inputs$coverage_bonus()
+      )
     })
 
     results_server("results", result)

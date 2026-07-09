@@ -1,13 +1,20 @@
-# Report module: download the auditable HTML report for the current review.
-# Disabled until a review result exists.
+# Report module: download the current review as an auditable HTML report or a
+# flat CSV of the ranked table. Both are disabled until a review result exists.
 
 report_ui <- function(id) {
   ns <- NS(id)
 
-  downloadButton(
-    ns("download"),
-    "Download report (HTML)",
-    class = "btn-outline-secondary"
+  tagList(
+    downloadButton(
+      ns("download"),
+      "Download report (HTML)",
+      class = "btn-outline-secondary"
+    ),
+    downloadButton(
+      ns("download_csv"),
+      "Download table (CSV)",
+      class = "btn-outline-secondary mt-2"
+    )
   )
 }
 
@@ -19,6 +26,13 @@ report_server <- function(id, result) {
       content = function(file) {
         req(result())
         render_report(result(), file)
+      }
+    )
+    output$download_csv <- downloadHandler(
+      filename = function() "candid_ranking.csv",
+      content = function(file) {
+        req(result())
+        utils::write.csv(build_export_csv(result()), file, row.names = FALSE)
       }
     )
   })

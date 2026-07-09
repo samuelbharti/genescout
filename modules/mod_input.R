@@ -1,8 +1,12 @@
-# Input module: collect gene lists (paste + optional upload) plus a free-text
-# study description, and expose them as reactives. The description is stored for
-# the later AI ranking step; the deterministic pipeline uses the genes only.
+# Input module: collect gene lists (paste + optional upload), a free-text study
+# description, and per-source ranking weights. Exposes them as reactives. The
+# weight sliders re-rank the cached result live (no re-query, because the
+# normalization is absolute); the description is stored for the later AI step.
 
-input_ui <- function(id) {
+# `registry` defaults to a freshly built registry (not the `candid_registry`
+# global, which global.R defines only after the UI is sourced). Its keys match
+# the global, so the slider input ids line up with what input_server() reads.
+input_ui <- function(id, registry = candid_signal_registry()) {
   ns <- NS(id)
 
   tagList(
@@ -32,11 +36,42 @@ input_ui <- function(id) {
       )
     ),
     actionButton(ns("run"), "Rank genes", class = "btn-primary w-100"),
+    bslib::accordion(
+      class = "mt-3",
+      open = FALSE,
+      bslib::accordion_panel(
+        "Ranking weights",
+        helpText(
+          "Adjust how much each source counts; the table re-ranks instantly",
+          "with no re-query."
+        ),
+        weight_sliders_ui(ns, registry),
+        checkboxInput(
+          ns("coverage_bonus"),
+          "Reward genes supported by many evidence sources",
+          value = FALSE
+        )
+      )
+    ),
     helpText("Research use only. Not for clinical or diagnostic use.")
   )
 }
 
-input_server <- function(id) {
+# One slider per registry signal, initialized from its rubric weight.
+weight_sliders_ui <- function(ns, registry) {
+  lapply(registry, function(s) {
+    sliderInput(
+      ns(paste0("w_", s$key)),
+      s$label,
+      min = 0,
+      max = 2,
+      value = s$weight,
+      step = 0.05
+    )
+  })
+}
+
+input_server <- function(id, registry = candid_registry) {
   moduleServer(id, function(input, output, session) {
     # Pre-fill the paste box with the bundled NF1 gene list, wrapped so a
     # missing/renamed example surfaces a notice rather than crashing.
@@ -60,13 +95,29 @@ input_server <- function(id) {
       )
     })
 
+    keys <- vapply(registry, function(s) s$key, character(1))
+
     list(
       run = reactive(input$run),
       gene_lists = reactive(collect_gene_lists(
         input$paste,
         input$file$datapath
       )),
-      description = reactive(input$description)
+      description = reactive(input$description),
+      # Named key -> weight vector from the sliders; falls back to the registry
+      # default before the sliders have rendered.
+      weights = reactive({
+        w <- vapply(
+          registry,
+          function(s) {
+            val <- input[[paste0("w_", s$key)]]
+            if (is.null(val)) s$weight else as.numeric(val)
+          },
+          numeric(1)
+        )
+        stats::setNames(w, keys)
+      }),
+      coverage_bonus = reactive(isTRUE(input$coverage_bonus))
     )
   })
 }
