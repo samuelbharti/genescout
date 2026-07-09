@@ -81,10 +81,16 @@ test_that("render_report() writes a self-contained HTML citing sources", {
 
 test_that("render_candidate_cards() returns UI with grounded citations", {
   cand <- list(list(
-    candidate = "TP53", symbol = "TP53", ok = TRUE, grade = "High",
-    score = 0.88, rationale = "Top score 0.88.",
-    evidence = make_evidence()[1:2, ], caveats = "a caveat",
-    next_step = "Validate.", narrative = NA_character_
+    candidate = "TP53",
+    symbol = "TP53",
+    ok = TRUE,
+    grade = "High",
+    score = 0.88,
+    rationale = "Top score 0.88.",
+    evidence = make_evidence()[1:2, ],
+    caveats = "a caveat",
+    next_step = "Validate.",
+    narrative = NA_character_
   ))
   cards <- render_candidate_cards(cand)
   expect_s3_class(cards, "shiny.tag.list")
