@@ -69,6 +69,22 @@ read_candidate_table <- function(path) {
   )
 }
 
+# --- Bundled examples -------------------------------------------------------
+# Public/synthetic example candidate lists in data/examples/, used by the UI's
+# "load example" button. `dir` is injectable so the helper is testable offline.
+
+# Path to a bundled example table (e.g. "nf1_candidates" -> the NF1 gene list).
+example_path <- function(name, dir = file.path("data", "examples")) {
+  file.path(dir, paste0(name, ".tsv"))
+}
+
+# Read a bundled example and return its candidates as newline-joined text,
+# ready to pre-fill the paste box. The parse path then handles it like any paste.
+example_text <- function(name, dir = file.path("data", "examples")) {
+  df <- read_candidate_table(example_path(name, dir))
+  paste(df$candidate, collapse = "\n")
+}
+
 # Dispatch on an input source list(file = <path|NULL>, text = <chr|NULL>).
 parse_candidates <- function(source) {
   if (!is.null(source$file) && nzchar(source$file)) {

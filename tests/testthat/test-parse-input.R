@@ -30,3 +30,11 @@ test_that("parse_candidates() requires some input", {
     "No candidates provided"
   )
 })
+
+test_that("example_text() returns the NF1 gene list as pasteable text", {
+  dir <- test_path("..", "..", "data", "examples")
+  txt <- example_text("nf1_candidates", dir = dir)
+  genes <- strsplit(txt, "\n")[[1]]
+  expect_length(genes, 6)
+  expect_true(all(c("NF1", "SUZ12", "CDKN2A", "TTN") %in% genes))
+})
