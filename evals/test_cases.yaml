@@ -1,0 +1,10 @@
+# CANDID eval cases: known candidates and their expected relative ranking within
+# a disease context. run_evals.R runs the pipeline and asserts the ordering
+# holds. This is the benchmark spine of the eventual methods evaluation - grow it
+# as capabilities land.
+
+- context: nf1
+  description: Known MPNST drivers should rank above a passenger gene.
+  candidates: [NF1, SUZ12, CDKN2A, TTN]
+  expect_high: [NF1, SUZ12, CDKN2A]
+  expect_low: [TTN]
