@@ -9,15 +9,19 @@
 GNOMAD_URL <- "https://gnomad.broadinstitute.org/api"
 GNOMAD_WEB <- "https://gnomad.broadinstitute.org/gene"
 
-GNOMAD_CONSTRAINT_QUERY <- paste(
-  "query($sym: String!) {",
-  "  gene(gene_symbol: $sym, reference_genome: GRCh38) {",
-  "    gene_id",
-  "    gnomad_constraint { oe_lof_upper pli }",
-  "  }",
-  "}",
-  sep = "\n"
-)
+# The gnomAD API takes one gene per query (batching is done with GraphQL aliases;
+# here we query one gene at a time and rely on the shared HTTP cache). The symbol
+# is inlined, so it is validated against a strict allow-list first to avoid any
+# query injection.
+gnomad_constraint_query <- function(symbol) {
+  sprintf(
+    paste0(
+      "{ gene(gene_symbol: \"%s\", reference_genome: GRCh38) ",
+      "{ gnomad_constraint { oe_lof_upper pli } } }"
+    ),
+    symbol
+  )
+}
 
 # LOEUF constraint for a gene symbol. Returns:
 #   list(ok = TRUE, symbol, loeuf, pli, source_id, source_url)
@@ -29,12 +33,15 @@ gnomad_loeuf <- function(symbol) {
     return(list(ok = FALSE, error = "No gene symbol for gnomAD lookup."))
   }
   sym <- toupper(trimws(symbol))
+  if (!grepl("^[A-Za-z0-9._-]+$", sym)) {
+    return(list(
+      ok = FALSE,
+      error = paste0("Invalid gene symbol '", symbol, "'.")
+    ))
+  }
   res <- http_post_json(
     GNOMAD_URL,
-    body = list(
-      query = GNOMAD_CONSTRAINT_QUERY,
-      variables = list(sym = sym)
-    ),
+    body = list(query = gnomad_constraint_query(sym)),
     source = "gnomAD"
   )
   if (!res$ok) {
@@ -67,13 +74,12 @@ gnomad_constraint_parse <- function(data, symbol) {
     ))
   }
   pli <- suppressWarnings(as.numeric(pluck_at(con, "pli", default = NA)))
-  gene_id <- pluck_at(gene, "gene_id", default = symbol)
   list(
     ok = TRUE,
     symbol = symbol,
     loeuf = loeuf,
     pli = pli,
     source_id = paste0("gnomAD:gene:", symbol, ":constraint"),
-    source_url = paste0(GNOMAD_WEB, "/", gene_id, "?dataset=gnomad_r4")
+    source_url = paste0(GNOMAD_WEB, "/", symbol)
   )
 }

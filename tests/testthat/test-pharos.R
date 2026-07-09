@@ -9,11 +9,19 @@ test_that("pharos_tdl_parse() maps TDL to a 0-1 score", {
 })
 
 test_that("pharos_tdl_parse() is a miss for an absent target", {
-  expect_false(pharos_tdl_parse(list(data = list(target = NULL)), "XYZ")$ok)
+  empty <- list(data = list(targets = list(targets = list())))
+  expect_false(pharos_tdl_parse(empty, "XYZ")$ok)
+  expect_false(pharos_tdl_parse(list(data = list(targets = NULL)), "XYZ")$ok)
 })
 
 test_that("pharos_tdl_parse() is a miss for an unknown TDL value", {
-  bad <- list(data = list(target = list(sym = "XYZ", tdl = "Tnope")))
+  bad <- list(
+    data = list(
+      targets = list(
+        targets = list(list(sym = "XYZ", tdl = "Tnope"))
+      )
+    )
+  )
   expect_false(pharos_tdl_parse(bad, "XYZ")$ok)
 })
 

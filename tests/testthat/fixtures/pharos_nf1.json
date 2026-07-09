@@ -1,8 +1,9 @@
 {
   "data": {
-    "target": {
-      "sym": "NF1",
-      "tdl": "Tbio"
+    "targets": {
+      "targets": [
+        { "sym": "NF1", "tdl": "Tbio" }
+      ]
     }
   }
 }

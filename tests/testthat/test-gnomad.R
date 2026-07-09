@@ -6,7 +6,7 @@ test_that("gnomad_constraint_parse() extracts LOEUF and pLI", {
   expect_equal(r$loeuf, 0.29)
   expect_equal(r$pli, 1.0)
   expect_match(r$source_id, "gnomAD:gene:NF1")
-  expect_match(r$source_url, "ENSG00000196712")
+  expect_match(r$source_url, "/NF1")
 })
 
 test_that("gnomad_constraint_parse() is a miss when constraint is absent", {

@@ -11,7 +11,14 @@ PHAROS_WEB <- "https://pharos.nih.gov/targets"
 # TDL -> a 0-1 druggability score (already on a 0-1 scale, normalized by identity).
 PHAROS_TDL_SCORE <- c(Tclin = 1.0, Tchem = 0.75, Tbio = 0.5, Tdark = 0.25)
 
-PHAROS_QUERY <- "query($sym: String!) { target(q: { sym: $sym }) { sym tdl } }"
+# Batch `targets` query (one symbol here), matching the proven gene-list-builder
+# client. Response shape: data.targets.targets[] of { sym, tdl }.
+PHAROS_QUERY <- paste(
+  "query($syms: [String!]) {",
+  "  targets(targets: $syms) { targets { sym tdl } }",
+  "}",
+  sep = "\n"
+)
 
 # TDL score for a gene symbol. Returns:
 #   list(ok = TRUE, symbol, tdl, score, source_id, source_url)
@@ -23,7 +30,7 @@ pharos_tdl <- function(symbol) {
   sym <- toupper(trimws(symbol))
   res <- http_post_json(
     PHAROS_URL,
-    body = list(query = PHAROS_QUERY, variables = list(sym = sym)),
+    body = list(query = PHAROS_QUERY, variables = list(syms = list(sym))),
     source = "Pharos"
   )
   if (!res$ok) {
@@ -35,17 +42,18 @@ pharos_tdl <- function(symbol) {
   pharos_tdl_parse(res$data, sym)
 }
 
-# Pure parser: a Pharos target body -> the TDL signal. Separated from the fetch
+# Pure parser: a Pharos targets body -> the TDL signal. Separated from the fetch
 # so it is testable offline against a JSON fixture. An unknown/absent TDL is a
 # miss (ok = FALSE).
 pharos_tdl_parse <- function(data, symbol) {
-  target <- pluck_at(data, "data", "target")
-  if (is.null(target)) {
+  targets <- pluck_at(data, "data", "targets", "targets")
+  if (is.null(targets) || length(targets) == 0) {
     return(list(
       ok = FALSE,
       error = paste0("Pharos has no record for '", symbol, "'.")
     ))
   }
+  target <- targets[[1]]
   tdl <- as.character(pluck_at(target, "tdl", default = NA_character_))
   if (is_blank(tdl) || is.na(PHAROS_TDL_SCORE[tdl])) {
     return(list(
