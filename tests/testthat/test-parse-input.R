@@ -38,3 +38,11 @@ test_that("example_text() returns the NF1 gene list as pasteable text", {
   expect_length(genes, 6)
   expect_true(all(c("NF1", "SUZ12", "CDKN2A", "TTN") %in% genes))
 })
+
+test_that("collect_gene_lists() names pasted lines and skips empty inputs", {
+  lists <- collect_gene_lists("NF1\nTP53", NULL)
+  expect_named(lists, "pasted")
+  expect_equal(lists$pasted, c("NF1", "TP53"))
+  expect_length(collect_gene_lists("", NULL), 0)
+  expect_length(collect_gene_lists(NULL, NULL), 0)
+})

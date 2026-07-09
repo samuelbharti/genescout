@@ -13,8 +13,10 @@ if (requireNamespace("thematic", quietly = TRUE)) {
 source("R/load_components.R")
 
 # Provider/model configuration (roles -> provider + model), read from config.yml.
-# Never hardcode model strings in engine logic; read them from here.
+# Never hardcode model strings in engine logic; read them from here. Reserved for
+# the later subjective-ranking agent; the deterministic pipeline uses no LLM.
 candid_config <- load_config()
 
-# Disease contexts available to the UI (named list, keyed by context id).
-candid_contexts <- list_contexts()
+# The signal registry (which sources contribute to the composite rank, and their
+# weights), built once from rubric.yml. Passed into run_review() by the app.
+candid_registry <- candid_signal_registry()

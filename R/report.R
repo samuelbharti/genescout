@@ -1,11 +1,10 @@
-# Report rendering. Turns a review result into an auditable artifact: per-
-# candidate cards (what it is - grounded evidence with citations - caveats -
-# suggested next step), a ranked summary table, and the research-use-only
-# disclaimer.
+# Report rendering. Turns a review result into an auditable artifact: a ranked
+# gene x signal table (with a legend explaining the composite), per-gene
+# drill-down cards showing the evidence behind each signal, and the
+# research-use-only disclaimer.
 #
-# render_candidate_cards() returns Shiny UI for the app; render_report() writes a
-# standalone HTML file (used by the download button and the CLI). Every stated
-# association links to its Open Targets record.
+# The same renderers serve the Shiny app (results module) and the downloadable
+# standalone HTML. Every signal value and evidence row links to its source.
 
 CANDID_DISCLAIMER <- paste(
   "Research use only. CANDID is a hypothesis-prioritization aid for researchers.",
@@ -13,70 +12,141 @@ CANDID_DISCLAIMER <- paste(
   "treatment guidance, or ACMG/AMP variant classification."
 )
 
-# Build the per-candidate evidence cards as a Shiny tagList. Plain divs with
-# Bootstrap card classes (the app loads Bootstrap via bs_theme, and the
-# standalone report styles .card/.card-body itself), so the same renderer serves
-# both the app and the downloadable report - and it avoids bslib::card runtime
-# machinery.
-render_candidate_cards <- function(candidates) {
-  htmltools::tagList(lapply(candidates, candidate_section_html))
-}
-
-# Alias kept for the report assembly path.
-candidate_sections_html <- render_candidate_cards
-
-candidate_section_html <- function(candidate) {
-  header <- htmltools::tags$h3(
-    class = "h5",
-    candidate$symbol %||% candidate$candidate,
-    htmltools::span(
-      class = "badge text-bg-secondary ms-2",
-      candidate$grade %||% "-"
-    )
-  )
-  body <- if (isTRUE(candidate$ok)) {
-    htmltools::tagList(
-      header,
-      if (!is_blank(candidate$rationale)) htmltools::p(candidate$rationale),
-      if (!is_blank(candidate$narrative)) {
-        htmltools::p(htmltools::em(candidate$narrative))
-      },
-      evidence_sections(candidate$evidence),
-      caveats_html(candidate$caveats),
-      if (!is_blank(candidate$next_step)) {
-        htmltools::p(htmltools::strong("Next step: "), candidate$next_step)
-      }
-    )
-  } else {
-    htmltools::tagList(
-      header,
-      htmltools::div(class = "text-muted", candidate$error %||% "No evidence.")
-    )
-  }
-  htmltools::div(class = "card mb-3", htmltools::div(class = "card-body", body))
-}
-
 # Human-readable labels for the evidence domains, in display order.
 CANDID_DOMAIN_LABELS <- c(
   `pathway-disease` = "Pathway & disease",
   literature = "Literature",
-  `variant-effect` = "Variant effect"
+  `variant-effect` = "Variant / ClinVar"
 )
 
-# Grounded evidence grouped into per-domain sub-tables. Each row links to its
-# source record; empty evidence renders a muted note.
+# --- Ranked gene x signal table ---------------------------------------------
+
+# A display data frame for the ranked matrix: Rank, Gene, one column per signal
+# (raw value), Composite, Grade. `registry` is the result$registry summary.
+gene_matrix_display <- function(genes, registry) {
+  df <- data.frame(
+    Rank = genes$rank,
+    Gene = genes$symbol,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  for (i in seq_len(nrow(registry))) {
+    df[[registry$label[i]]] <- format_signal_value(genes[[registry$key[i]]])
+  }
+  df[["Composite"]] <- round(genes$composite, 3)
+  df[["Grade"]] <- genes$grade
+  df
+}
+
+# Format a raw signal column for display: integers as counts, fractions to 2 dp,
+# missing as an em dash.
+format_signal_value <- function(v) {
+  ifelse(
+    is.na(v),
+    "—",
+    ifelse(
+      v == round(v),
+      formatC(v, format = "d", big.mark = ","),
+      sprintf("%.2f", v)
+    )
+  )
+}
+
+# The signal legend: what the composite means and each source's weight.
+registry_legend_html <- function(registry) {
+  items <- lapply(seq_len(nrow(registry)), function(i) {
+    htmltools::tags$li(
+      htmltools::strong(registry$label[i]),
+      sprintf(
+        " — %s (weight %.2g)",
+        registry$source[i],
+        registry$weight[i]
+      )
+    )
+  })
+  htmltools::div(
+    class = "small text-muted mb-3",
+    htmltools::p(
+      class = "mb-1",
+      paste(
+        "Composite score = weighted mean of each source's normalized signal;",
+        "a missing signal counts as 0. Rank is by composite (higher first)."
+      )
+    ),
+    htmltools::tags$ul(class = "mb-0", items)
+  )
+}
+
+# Ranked matrix as a static HTML table (for the download).
+ranked_matrix_html <- function(genes, registry) {
+  disp <- gene_matrix_display(genes, registry)
+  htmltools::tags$table(
+    class = "table table-striped",
+    htmltools::tags$thead(htmltools::tags$tr(
+      lapply(names(disp), htmltools::tags$th)
+    )),
+    htmltools::tags$tbody(lapply(seq_len(nrow(disp)), function(i) {
+      htmltools::tags$tr(lapply(names(disp), function(col) {
+        htmltools::tags$td(as.character(disp[i, col]))
+      }))
+    }))
+  )
+}
+
+# --- Per-gene drill-down ----------------------------------------------------
+
+# One gene's evidence card: header (symbol, grade, composite, source lists) plus
+# the grounded evidence grouped by domain. `gene_row` is a 1-row slice of
+# result$genes; `evidence` is result$evidence (filtered here by gene_id).
+render_gene_evidence <- function(gene_row, evidence) {
+  ev <- evidence[evidence$gene_id == gene_row$gene_id, , drop = FALSE]
+  lists <- gene_row$input_lists[[1]]
+  htmltools::div(
+    class = "card mb-3",
+    htmltools::div(
+      class = "card-body",
+      htmltools::tags$h4(
+        class = "h5",
+        gene_row$symbol,
+        htmltools::span(
+          class = "badge text-bg-secondary ms-2",
+          gene_row$grade
+        ),
+        htmltools::span(
+          class = "text-muted ms-2 small",
+          sprintf("composite %.3f", gene_row$composite)
+        )
+      ),
+      if (!isTRUE(gene_row$resolved)) {
+        htmltools::div(
+          class = "alert alert-warning py-1 px-2",
+          "Gene symbol could not be resolved; no signals were gathered."
+        )
+      },
+      if (length(lists) > 0) {
+        htmltools::p(
+          class = "small text-muted",
+          paste0("From list(s): ", paste(lists, collapse = ", "))
+        )
+      },
+      evidence_sections(ev)
+    )
+  )
+}
+
+# Grounded evidence grouped into per-domain sub-tables. Empty -> a muted note.
 evidence_sections <- function(evidence) {
   if (is.null(evidence) || nrow(evidence) == 0) {
     return(htmltools::p(
       class = "text-muted fst-italic",
-      "No grounded evidence."
+      "No grounded evidence for this gene."
     ))
   }
   domains <- intersect(names(CANDID_DOMAIN_LABELS), unique(evidence$domain))
   htmltools::tagList(lapply(domains, function(d) {
     sub <- evidence[evidence$domain == d, , drop = FALSE]
     htmltools::tagList(
-      htmltools::tags$h4(
+      htmltools::tags$h5(
         class = "h6 text-muted mt-3",
         CANDID_DOMAIN_LABELS[[d]]
       ),
@@ -109,64 +179,32 @@ evidence_domain_table <- function(sub) {
   )
 }
 
-# Caveats as a small list, or nothing when there are none.
-caveats_html <- function(caveats) {
-  if (length(caveats) == 0) {
-    return(NULL)
-  }
-  htmltools::div(
-    class = "alert alert-warning py-2 px-3",
-    htmltools::strong("Caveats: "),
-    htmltools::tags$ul(lapply(caveats, htmltools::tags$li))
-  )
-}
-
-# Ranked summary table as HTML.
-ranked_table_html <- function(ranked) {
-  rows <- lapply(seq_len(nrow(ranked)), function(i) {
-    htmltools::tags$tr(
-      htmltools::tags$td(ranked$symbol[i]),
-      htmltools::tags$td(ranked$grade[i]),
-      htmltools::tags$td(formatC(ranked$score[i], format = "f", digits = 3)),
-      htmltools::tags$td(ranked$top_disease[i]),
-      htmltools::tags$td(ranked$n_evidence[i])
-    )
-  })
-  htmltools::tags$table(
-    class = "table table-striped",
-    htmltools::tags$thead(htmltools::tags$tr(
-      htmltools::tags$th("Gene"),
-      htmltools::tags$th("Grade"),
-      htmltools::tags$th("Score"),
-      htmltools::tags$th("Top disease"),
-      htmltools::tags$th("# evidence")
-    )),
-    htmltools::tags$tbody(rows)
-  )
-}
+# --- Standalone HTML report -------------------------------------------------
 
 # Write the full standalone HTML report for `result` to `file`.
 render_report <- function(result, file) {
-  ctx <- result$context
+  genes <- result$genes
   doc <- htmltools::tags$html(
     htmltools::tags$head(
       htmltools::tags$meta(charset = "utf-8"),
-      htmltools::tags$title("CANDID evidence review"),
+      htmltools::tags$title("CANDID gene-list review"),
       htmltools::tags$style(candid_report_css())
     ),
     htmltools::tags$body(
       htmltools::div(
         class = "container",
-        htmltools::tags$h1("CANDID evidence review"),
-        htmltools::p(
-          htmltools::strong("Context: "),
-          ctx$label %||% ctx$id %||% "unspecified"
-        ),
+        htmltools::tags$h1("CANDID gene-list review"),
+        if (!is_blank(result$description)) {
+          htmltools::p(htmltools::strong("Studying: "), result$description)
+        },
         htmltools::div(class = "disclaimer", CANDID_DISCLAIMER),
-        htmltools::tags$h2("Ranked candidates"),
-        ranked_table_html(result$ranked),
-        htmltools::tags$h2("Evidence"),
-        candidate_sections_html(result$candidates),
+        htmltools::tags$h2("Ranked genes"),
+        registry_legend_html(result$registry),
+        ranked_matrix_html(genes, result$registry),
+        htmltools::tags$h2("Evidence by gene"),
+        htmltools::tagList(lapply(seq_len(nrow(genes)), function(i) {
+          render_gene_evidence(genes[i, , drop = FALSE], result$evidence)
+        })),
         report_footer(result)
       )
     )
@@ -176,17 +214,13 @@ render_report <- function(result, file) {
 }
 
 report_footer <- function(result) {
-  sources <- vapply(
-    result$provenance,
-    function(s) s$source,
-    character(1)
-  )
+  sources <- vapply(result$provenance, function(s) s$source, character(1))
   htmltools::tags$footer(
     class = "text-muted mt-4",
     htmltools::tags$hr(),
     htmltools::p(paste0("Sources: ", paste(sources, collapse = ", "), ".")),
     htmltools::p(paste0(
-      "Narrative generated with an LLM: ",
+      "Subjective AI ranking applied: ",
       if (isTRUE(result$generated_with_llm)) "yes" else "no",
       "."
     ))
@@ -195,7 +229,7 @@ report_footer <- function(result) {
 
 candid_report_css <- function() {
   paste(
-    ".container { max-width: 900px; margin: 2rem auto;",
+    ".container { max-width: 960px; margin: 2rem auto;",
     "  font-family: system-ui, sans-serif; padding: 0 1rem; }",
     ".disclaimer, .alert { background: #fff3cd; border: 1px solid #ffe69c;",
     "  border-radius: .375rem; }",
@@ -209,7 +243,8 @@ candid_report_css <- function() {
     "h1 { margin-bottom: .25rem; } h2 { margin-top: 2rem; }",
     ".card { border: 1px solid #dee2e6; border-radius: .5rem; margin: 1rem 0; }",
     ".card-body { padding: 1rem 1.25rem; }",
-    ".card h3, .card .h5 { margin-top: 0; } .text-muted { color: #6c757d; }",
+    ".card h4, .card .h5 { margin-top: 0; } .text-muted { color: #6c757d; }",
+    ".small { font-size: .85rem; }",
     sep = "\n"
   )
 }

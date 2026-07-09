@@ -1,20 +1,15 @@
-# Input module: collect a candidate list (file upload or pasted text) plus the
-# disease context, and expose them as reactives. Parsing/validation happens
-# downstream in parse_candidates(); this module only gathers raw inputs.
+# Input module: collect gene lists (paste + optional upload) plus a free-text
+# study description, and expose them as reactives. The description is stored for
+# the later AI ranking step; the deterministic pipeline uses the genes only.
 
 input_ui <- function(id) {
   ns <- NS(id)
 
   tagList(
-    fileInput(
-      ns("file"),
-      "Upload a candidate table (TSV/CSV)",
-      accept = c(".tsv", ".csv", ".txt")
-    ),
     textAreaInput(
       ns("paste"),
-      "...or paste gene symbols / variants (one per line)",
-      rows = 5,
+      "Paste gene symbols (one per line)",
+      rows = 6,
       placeholder = "NF1\nSUZ12\nCDKN2A"
     ),
     actionButton(
@@ -22,22 +17,29 @@ input_ui <- function(id) {
       "Load NF1 example genes",
       class = "btn-outline-secondary btn-sm mb-3"
     ),
-    selectInput(ns("context"), "Disease context", choices = NULL),
-    actionButton(ns("run"), "Run review", class = "btn-primary w-100"),
+    fileInput(
+      ns("file"),
+      "...or upload a gene table (TSV/CSV)",
+      accept = c(".tsv", ".csv", ".txt")
+    ),
+    textAreaInput(
+      ns("description"),
+      "What are you studying? (optional)",
+      rows = 3,
+      placeholder = paste(
+        "e.g. germline drivers of NF1-associated MPNST",
+        "in peripheral nerve"
+      )
+    ),
+    actionButton(ns("run"), "Rank genes", class = "btn-primary w-100"),
     helpText("Research use only. Not for clinical or diagnostic use.")
   )
 }
 
-# `contexts` is a named character vector of context ids for the picker.
-input_server <- function(id, contexts) {
+input_server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    observe({
-      updateSelectInput(session, "context", choices = contexts)
-    })
-
-    # Pre-fill the paste box with the bundled NF1 gene list and select its
-    # context, so a first-time user can run a review with one click. Loading is
-    # wrapped so a missing/renamed example file surfaces a notice, not a crash.
+    # Pre-fill the paste box with the bundled NF1 gene list, wrapped so a
+    # missing/renamed example surfaces a notice rather than crashing.
     observeEvent(input$load_example, {
       loaded <- tryCatch(
         example_text("nf1_candidates"),
@@ -51,11 +53,8 @@ input_server <- function(id, contexts) {
       )
       req(loaded)
       updateTextAreaInput(session, "paste", value = loaded)
-      if ("nf1" %in% contexts) {
-        updateSelectInput(session, "context", selected = "nf1")
-      }
       showNotification(
-        "Loaded the NF1 example gene list. Click Run review.",
+        "Loaded the NF1 example gene list. Click Rank genes.",
         type = "message",
         duration = 4
       )
@@ -63,11 +62,11 @@ input_server <- function(id, contexts) {
 
     list(
       run = reactive(input$run),
-      source = reactive(list(
-        file = input$file$datapath,
-        text = input$paste
+      gene_lists = reactive(collect_gene_lists(
+        input$paste,
+        input$file$datapath
       )),
-      context = reactive(input$context)
+      description = reactive(input$description)
     )
   })
 }

@@ -7,10 +7,10 @@ about_page <- fluidPage(
       width = 8,
       p(
         "CANDID (Candidate Annotation aNd Disease-informed Interpretation of",
-        "eviDence) turns a candidate list - variants, genes, or perturbation",
-        "hits - plus a biological context into a plausibility-ranked, cited",
-        "research review: what each candidate is, what evidence supports it,",
-        "what is uncertain, and what to test next."
+        "eviDence) takes a gene list and prioritizes it for any disease or",
+        "phenotype. It pulls a signal from each of several public sources,",
+        "merges and de-duplicates them, and ranks the genes by a transparent",
+        "composite score - every value traceable to its source."
       ),
       div(
         class = "alert alert-warning",
@@ -25,12 +25,15 @@ about_page <- fluidPage(
       width = 4,
       tags$h4("How it works"),
       tags$ol(
-        tags$li("Parse the candidate list and load the disease context."),
+        tags$li("Resolve every gene to a canonical id and de-duplicate."),
         tags$li(
-          "Fan out to variant-effect, pathway/disease, and literature agents."
+          "Pull a per-source signal: Open Targets association, Europe PMC",
+          "mentions, ClinVar pathogenic variants."
         ),
-        tags$li("Gate every claim on a source, then score and apply caveats."),
-        tags$li("Assemble an auditable, cited report.")
+        tags$li(
+          "Gate every value on a source, then rank by a weighted composite."
+        ),
+        tags$li("Drill into any gene to see the evidence behind each signal.")
       )
     )
   )

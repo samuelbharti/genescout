@@ -85,6 +85,23 @@ example_text <- function(name, dir = file.path("data", "examples")) {
   paste(df$candidate, collapse = "\n")
 }
 
+# Assemble the named gene lists the pipeline consumes from the paste box and an
+# optional uploaded table. Each source becomes one named list, so a gene's origin
+# is retained through de-duplication. Returns list() when nothing was provided.
+collect_gene_lists <- function(pasted, file_path = NULL) {
+  lists <- list()
+  if (!is.null(pasted) && nzchar(trimws(pasted %||% ""))) {
+    lists[["pasted"]] <- strsplit(pasted, "\r?\n")[[1]]
+  }
+  if (!is.null(file_path) && nzchar(file_path)) {
+    tbl <- tryCatch(read_candidate_table(file_path), error = function(e) NULL)
+    if (!is.null(tbl)) {
+      lists[["uploaded"]] <- as.character(tbl$candidate)
+    }
+  }
+  lists
+}
+
 # Dispatch on an input source list(file = <path|NULL>, text = <chr|NULL>).
 parse_candidates <- function(source) {
   if (!is.null(source$file) && nzchar(source$file)) {
