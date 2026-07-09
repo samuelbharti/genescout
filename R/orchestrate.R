@@ -23,7 +23,7 @@ run_review <- function(candidates, context, config = load_config()) {
     stop("No candidates to review.", call. = FALSE)
   }
   ctx <- if (is.character(context)) load_context(context) else context
-  use_llm <- candid_llm_available()
+  use_llm <- candid_llm_available(config)
 
   per <- lapply(seq_len(nrow(candidates)), function(i) {
     review_one_candidate(candidates[i, , drop = FALSE], ctx, config, use_llm)
@@ -166,8 +166,9 @@ candid_provenance <- function() {
   )
 }
 
-# TRUE when an LLM narrative can be generated (ellmer installed + key present).
-candid_llm_available <- function() {
+# TRUE when an LLM narrative can be generated: ellmer installed AND the provider
+# configured in config.yml has its credentials present in the environment.
+candid_llm_available <- function(config = load_config()) {
   requireNamespace("ellmer", quietly = TRUE) &&
-    nzchar(Sys.getenv("ANTHROPIC_API_KEY"))
+    provider_credentials_ready(config$provider %||% "anthropic")
 }

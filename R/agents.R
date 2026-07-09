@@ -16,8 +16,8 @@ specialist_tools <- list(
   literature = c("europepmc_search")
 )
 
-# Build an ellmer Chat for a role, using the model from config and the matching
-# system prompt from prompts/. Kept thin so provider swaps are config-only.
+# Build an ellmer Chat for a role, using the provider + model from config and the
+# matching system prompt from prompts/. Kept thin so provider swaps are config-only.
 candid_chat <- function(
   role_prompt,
   model_role = "specialist",
@@ -26,9 +26,59 @@ candid_chat <- function(
   if (!requireNamespace("ellmer", quietly = TRUE)) {
     stop("The 'ellmer' package is required for LLM narration.", call. = FALSE)
   }
-  ellmer::chat_anthropic(
+  build_chat(
+    provider = config$provider %||% "anthropic",
     model = model_for(model_role, config),
     system_prompt = read_prompt(role_prompt)
+  )
+}
+
+# Map the configured provider to its ellmer constructor. Credentials come from
+# the environment (see .Renviron.example), never from config. Adding a provider
+# is a new case here plus its credential env var in provider_credentials_ready();
+# the rest of the engine is untouched.
+build_chat <- function(provider, model, system_prompt) {
+  switch(
+    provider,
+    anthropic = ellmer::chat_anthropic(
+      model = model,
+      system_prompt = system_prompt
+    ),
+    google_gemini = ellmer::chat_google_gemini(
+      model = model,
+      system_prompt = system_prompt
+    ),
+    google_vertex = ellmer::chat_google_vertex(
+      model = model,
+      system_prompt = system_prompt
+    ),
+    stop(
+      sprintf(
+        paste0(
+          "Unsupported provider '%s' in config.yml ",
+          "(use anthropic, google_gemini, or google_vertex)."
+        ),
+        provider
+      ),
+      call. = FALSE
+    )
+  )
+}
+
+# Does the environment carry the credentials the given provider needs? A presence
+# check only (nonblank env vars), not a live auth test. Vertex uses Application
+# Default Credentials, so we gate on project + region being set; the actual ADC
+# token (service-account JSON or `gcloud auth application-default login`) is
+# resolved by ellmer/gargle at call time.
+provider_credentials_ready <- function(provider) {
+  switch(
+    provider,
+    anthropic = nzchar(Sys.getenv("ANTHROPIC_API_KEY")),
+    google_gemini = nzchar(Sys.getenv("GEMINI_API_KEY")) ||
+      nzchar(Sys.getenv("GOOGLE_API_KEY")),
+    google_vertex = nzchar(Sys.getenv("GOOGLE_CLOUD_PROJECT")) &&
+      nzchar(Sys.getenv("GOOGLE_CLOUD_LOCATION")),
+    FALSE
   )
 }
 
