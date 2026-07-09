@@ -1,0 +1,33 @@
+Package: candid
+Title: Candidate Annotation aNd Disease-informed Interpretation of eviDence
+Version: 0.1.0
+Authors@R:
+    person("Samuel", "Bharti", email = "sbharti@uab.edu", role = c("aut", "cre"))
+Description: An agentic, R-native evidence-review workbench for research genomics.
+    Turns a candidate list (variants, genes, or perturbation hits) plus a disease
+    context into a plausibility-ranked, cited research review with caveats and
+    suggested next experiments. Built on ellmer for provider-agnostic LLM
+    orchestration and httr2 for public bio-database access. Research use only.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends:
+    R (>= 4.3)
+Imports:
+    brand.yml,
+    bslib,
+    dplyr,
+    DT,
+    ellmer,
+    htmltools,
+    httr2,
+    jsonlite,
+    purrr,
+    shiny,
+    shinychat,
+    tibble,
+    yaml
+Suggests:
+    httptest2,
+    quarto,
+    testthat (>= 3.0.0),
+    thematic

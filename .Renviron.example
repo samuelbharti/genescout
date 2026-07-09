@@ -1,0 +1,10 @@
+# Example environment file. Copy to `.Renviron` (which is git-ignored) and fill
+# in real values. R reads `.Renviron` automatically on startup.
+#
+# CANDID uses ellmer for LLM access; set the key for the provider configured in
+# config.yml. Default provider is Anthropic:
+ANTHROPIC_API_KEY=
+
+# Other ellmer-supported providers (uncomment the one you configure):
+# OPENAI_API_KEY=
+# GEMINI_API_KEY=
