@@ -24,13 +24,23 @@ evidence" is a valid, first-class outcome - never inflate a grade to avoid it.
 Down-rank, or **veto** (force to the bottom with a stated reason), a candidate
 that looks compelling but is:
 
-- **Common in gnomAD** - population frequency too high to be a plausible driver.
-- **Unrelated-tissue-only** - support comes only from tissues outside the
-  context's tissues of interest.
-- **Single weak source** - one low-quality citation or a single database hit.
 - **Known artifact / FLAGS gene** - recurrent-artifact genes (e.g. TTN, MUC16).
+  *Implemented (veto).* `R/caveats.R` reads the FLAGS list from `rubric.yml`
+  (`caveats.flags_genes`, extended by a disease context's `flags_genes`) and sinks
+  the gene to the bottom with a reason.
+- **Single weak source** - one low-quality citation or a single database hit.
+  *Implemented (caveat).* One present evidence signal whose normalized value is
+  below `caveats.single_source.max_norm` down-weights the composite by
+  `caveats.single_source.penalty`.
+- **Common in gnomAD** - population frequency too high to be a plausible driver.
+  *Deferred* - needs a gene-level allele-frequency signal. LOEUF is constraint,
+  not frequency, so it is deliberately **not** used as a substitute here. Add the
+  signal first, then wire the trigger.
+- **Unrelated-tissue-only** - support comes only from tissues outside the
+  context's `tissues_of_interest`. *Deferred* - needs a tissue-expression signal.
 
-Always record *why* a caveat or veto was applied, on the candidate itself.
+Everything in this stage is deterministic and reproducible (no LLM in the ranking
+path). Always record *why* a caveat or veto was applied, on the candidate itself.
 
 ## Output
 

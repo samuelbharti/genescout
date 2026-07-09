@@ -85,7 +85,8 @@ review_server <- function(
       rank_result(
         e,
         weights = inputs$weights(),
-        coverage_bonus = inputs$coverage_bonus()
+        coverage_bonus = inputs$coverage_bonus(),
+        caveats = inputs$caveats()
       )
     })
 

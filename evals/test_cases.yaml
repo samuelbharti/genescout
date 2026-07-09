@@ -4,24 +4,25 @@
 # association, Europe PMC mentions, ClinVar pathogenic variants). It asserts that
 # genes with strong multi-source support grade High.
 #
-# IMPORTANT: with gene-only signals, a prominent-but-off-context gene (e.g. TTN in
-# an NF1 study - a huge, heavily-studied gene with many ClinVar variants) also
-# scores high. Down-ranking it needs the Phase 2 free-text agent (which knows the
-# study context) or a Phase 3 constraint signal (e.g. gnomAD LOEUF). So we do NOT
-# assert TTN ranks below the drivers here - that regresses to the agent stage.
+# A prominent-but-off-context gene like TTN (a huge, heavily-studied gene with many
+# ClinVar variants) would score high on raw multi-source prominence alone. Two
+# mechanisms now push it down: the deterministic CAVEATS/VETO stage sinks recurrent
+# sequencing-artifact (FLAGS) genes context-independently, and discovery mode makes
+# the whole ranking disease-specific. TTN is a FLAGS gene, so it is vetoed to the
+# bottom in BOTH cases below.
 #
 # `description` is the free-text study context (reserved for the agent; not used
 # by the deterministic ranking). `disease` (optional) turns on discovery mode:
 # the ranking becomes disease-aware (OT association to THAT disease, ClinVar
-# scoped to it, gene+disease co-mention, plus PanelApp/DISEASES), which is what
-# lets a prominent-but-off-context gene like TTN fall below the real drivers.
-# `expect_below` asserts a gene ranks strictly below every expect_high gene.
-# Grow these cases as capabilities land.
+# scoped to it, gene+disease co-mention, plus PanelApp/DISEASES). `expect_below`
+# asserts a gene ranks strictly below every other candidate. Grow these cases as
+# capabilities land.
 
-- description: NF1-associated MPNST - known drivers should grade High.
-  candidates: [NF1, SUZ12, CDKN2A, TP53]
+- description: NF1-associated MPNST - drivers grade High, TTN vetoed to the bottom.
+  candidates: [NF1, SUZ12, CDKN2A, TP53, TTN]
   expect_high: [NF1, SUZ12, CDKN2A, TP53]
   expect_grade: High
+  expect_below: TTN
 
 # In discovery mode the scoring is disease-SPECIFIC, so only NF1 (the defining
 # gene) grades High; TP53/SUZ12/CDKN2A are real cancer genes but not NF1-specific,

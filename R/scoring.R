@@ -170,12 +170,26 @@ rubric_coverage_bonus <- function() {
 }
 
 # Deterministic rank by composite (descending); symbol is the stable tie-break.
+# A vetoed candidate (from the caveats stage) is forced below every non-vetoed
+# gene via a large rank-score offset - its composite is left untouched (so the
+# report shows the real evidence score), only its position changes.
 rank_genes <- function(gene_matrix) {
   if (nrow(gene_matrix) == 0) {
     gene_matrix$rank <- integer()
     return(gene_matrix)
   }
-  gene_matrix$rank <- rank(-gene_matrix$composite, ties.method = "min")
+  vetoed <- if ("vetoed" %in% names(gene_matrix)) {
+    as.logical(gene_matrix$vetoed)
+  } else {
+    rep(FALSE, nrow(gene_matrix))
+  }
+  vetoed[is.na(vetoed)] <- FALSE
+  rank_score <- ifelse(
+    vetoed,
+    gene_matrix$composite - 1000,
+    gene_matrix$composite
+  )
+  gene_matrix$rank <- rank(-rank_score, ties.method = "min")
   gene_matrix[order(gene_matrix$rank, gene_matrix$symbol), , drop = FALSE]
 }
 

@@ -69,6 +69,14 @@ input_ui <- function(id, registry = candid_signal_registry()) {
           ns("coverage_bonus"),
           "Reward genes supported by many evidence sources",
           value = FALSE
+        ),
+        checkboxInput(
+          ns("caveats"),
+          paste(
+            "Apply caveats & veto (sink FLAGS sequencing-artifact genes;",
+            "down-weight single-weak-source genes)"
+          ),
+          value = TRUE
         )
       )
     ),
@@ -194,7 +202,9 @@ input_server <- function(id, registry = candid_registry) {
         )
         stats::setNames(w, keys)
       }),
-      coverage_bonus = reactive(isTRUE(input$coverage_bonus))
+      coverage_bonus = reactive(isTRUE(input$coverage_bonus)),
+      # Caveats/veto on by default; NULL (pre-render) counts as on.
+      caveats = reactive(isTRUE(input$caveats %||% TRUE))
     )
   })
 }

@@ -37,7 +37,25 @@ gene_matrix_display <- function(genes, registry) {
   }
   df[["Composite"]] <- round(genes$composite, 3)
   df[["Grade"]] <- genes$grade
+  df[["Caveats"]] <- caveats_count_display(genes)
   df
+}
+
+# Per-gene caveat summary for the ranked table: the number of caveats (the reasons
+# themselves are in the per-gene drill-down), or an em dash when clean. Defensive:
+# a gene matrix built before the caveats stage shows "—" for every row.
+caveats_count_display <- function(genes) {
+  if (!"caveats" %in% names(genes)) {
+    return(rep("—", nrow(genes)))
+  }
+  vapply(
+    seq_len(nrow(genes)),
+    function(i) {
+      k <- length(genes$caveats[[i]])
+      if (k == 0) "—" else as.character(k)
+    },
+    character(1)
+  )
 }
 
 # Format a raw signal column for display: integers as counts, fractions to 2 dp,
@@ -82,7 +100,10 @@ registry_legend_html <- function(registry) {
         "Composite = weighted mean of each source's normalized signal.",
         "Evidence sources reward breadth (a missing one counts as 0);",
         "annotation sources (constraint, druggability) only nudge the score up",
-        "and never penalize a gene. Rank is by composite (higher first)."
+        "and never penalize a gene. Rank is by composite (higher first).",
+        "The caveats stage then down-weights weak candidates and vetoes",
+        "recurrent-artifact (FLAGS) genes to the bottom, with the reason on the",
+        "gene."
       )
     ),
     htmltools::tags$ul(class = "mb-0", items)
@@ -111,6 +132,16 @@ build_export_csv <- function(result) {
   df$n_sources_present <- genes$n_sources_present
   df$composite <- round(genes$composite, 4)
   df$grade <- genes$grade
+  df$vetoed <- if ("vetoed" %in% names(genes)) {
+    as.logical(genes$vetoed)
+  } else {
+    FALSE
+  }
+  df$caveats <- if ("caveats" %in% names(genes)) {
+    vapply(genes$caveats, function(x) paste(x, collapse = " | "), character(1))
+  } else {
+    ""
+  }
   df$input_lists <- vapply(
     genes$input_lists,
     function(x) paste(x, collapse = ";"),
@@ -266,7 +297,33 @@ render_gene_evidence <- function(gene_row, evidence) {
           paste0("From list(s): ", paste(lists, collapse = ", "))
         )
       },
+      caveats_block(gene_row),
       evidence_sections(ev)
+    )
+  )
+}
+
+# The caveats/veto banner for a gene's drill-down: a red alert when vetoed, an
+# amber one for down-weighting caveats, listing each recorded reason. NULL when
+# the gene is clean or predates the caveats stage.
+caveats_block <- function(gene_row) {
+  if (!"caveats" %in% names(gene_row)) {
+    return(NULL)
+  }
+  reasons <- gene_row$caveats[[1]]
+  if (length(reasons) == 0) {
+    return(NULL)
+  }
+  vetoed <- "vetoed" %in% names(gene_row) && isTRUE(gene_row$vetoed[1])
+  htmltools::div(
+    class = paste(
+      "alert py-2",
+      if (vetoed) "alert-danger" else "alert-warning"
+    ),
+    htmltools::strong(if (vetoed) "Vetoed. " else "Caveats. "),
+    htmltools::tags$ul(
+      class = "mb-0",
+      lapply(reasons, htmltools::tags$li)
     )
   )
 }

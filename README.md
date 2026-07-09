@@ -146,11 +146,14 @@ candid/
 
 See [`PLAN.md`](PLAN.md) for the full phased plan. Near-term:
 
-- [ ] Thin vertical slice: candidate list → one source → summary → report
+- [x] Thin vertical slice: candidate list → one source → summary → report
+- [x] Multi-source deterministic enrichment + weighted-mean ranking (live sliders)
+- [x] Dual-mode discovery: seed genes from a disease, disease-aware scoring
+- [x] Scoring rubric + caveats/veto stage (deterministic: FLAGS veto, weak-source)
+- [x] AI curator: grounded, model-agnostic final compaction
+- [x] Shiny UI with per-candidate evidence cards
+- [x] Eval harness on known NF1 biology
 - [ ] Three parallel specialist agents with real data tools
-- [ ] Scoring rubric + caveats/veto stage
-- [ ] Shiny UI with per-candidate evidence cards
-- [ ] Eval harness on known NF1 biology
 - [ ] Preprint + evaluation write-up
 
 ## Citation

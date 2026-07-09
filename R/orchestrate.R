@@ -37,6 +37,15 @@ run_enrich <- function(
   seeder = seed_disease_genes
 ) {
   lists <- as_gene_lists(gene_lists)
+  # Optional disease-context priors (context/*.yaml: FLAGS genes, tissues, drivers)
+  # for the caveats stage. Accept an already-loaded `priors` list or a `priors_id`
+  # to load; a bad id degrades to no priors rather than crashing the run.
+  if (is.null(context$priors) && !is_blank(pluck_at(context, "priors_id"))) {
+    context$priors <- tryCatch(
+      load_context(context$priors_id),
+      error = function(e) NULL
+    )
+  }
   # Discovery: with a disease context, seed candidate genes from the disease-keyed
   # sources (union with the user's list) and stash their per-gene tables for the
   # disease-mode extractors. `seeder` is injectable for offline tests.
@@ -88,6 +97,7 @@ rank_result <- function(
   enriched,
   weights = NULL,
   coverage_bonus = FALSE,
+  caveats = TRUE,
   generated_with_llm = FALSE
 ) {
   registry <- enriched$registry_obj
@@ -97,8 +107,22 @@ rank_result <- function(
     weights = weights,
     coverage_bonus = coverage_bonus
   )
+  # Caveats/veto: deterministic anti-bias override. Runs on the cheap ranking half
+  # so a slider change re-applies it with no re-query; reads context$priors when a
+  # disease context supplied them.
+  genes <- apply_caveats(
+    genes,
+    registry,
+    context = enriched$context %||% list(),
+    enabled = isTRUE(caveats)
+  )
   genes <- rank_genes(genes)
   genes$grade <- grade_for_score(genes$composite)
+  if ("vetoed" %in% names(genes)) {
+    vetoed <- as.logical(genes$vetoed)
+    vetoed[is.na(vetoed)] <- FALSE
+    genes$grade[vetoed] <- "Vetoed"
+  }
 
   out <- enriched
   out$genes <- genes
@@ -117,6 +141,7 @@ run_review <- function(
   registry = candid_signal_registry(),
   resolver = resolve_symbol,
   coverage_bonus = rubric_coverage_bonus(),
+  caveats = TRUE,
   context = list()
 ) {
   enriched <- run_enrich(
@@ -127,7 +152,12 @@ run_review <- function(
     resolver = resolver,
     context = context
   )
-  rank_result(enriched, weights = NULL, coverage_bonus = coverage_bonus)
+  rank_result(
+    enriched,
+    weights = NULL,
+    coverage_bonus = coverage_bonus,
+    caveats = caveats
+  )
 }
 
 # Coerce assorted inputs into the named list of character vectors that
@@ -177,6 +207,16 @@ candid_provenance <- function(context = list()) {
           endpoint = disease$id
         )
       )
+    )
+  }
+  priors <- pluck_at(context, "priors")
+  if (!is.null(priors) && !is_blank(priors$label %||% priors$id)) {
+    sources <- c(
+      sources,
+      list(list(
+        source = paste0("Context priors: ", priors$label %||% priors$id),
+        endpoint = ""
+      ))
     )
   }
   cap <- pluck_at(context, "seed_capped")

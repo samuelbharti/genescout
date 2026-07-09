@@ -27,3 +27,37 @@ default:
     gnomad_loeuf: 0.35 # LOEUF 0.35 -> 0.5; strongly constrained (<0.35) scores higher
     diseases: 2 # DISEASES confidence ~2 (of 0-5) normalizes to 0.5
   coverage_bonus: false
+  # Caveats / veto: the deterministic anti-familiar-gene-bias override (R/caveats.R;
+  # spec in prompts/scoring-rubric.md). Retune here - no code change.
+  caveats:
+    enabled: true
+    # FLAGS = FrequentLy mutAted GeneS (Shyr et al. 2014, BMC Med Genomics 7:64):
+    # genes recurrently reported as sequencing artifacts across unrelated cohorts,
+    # so a hit is weak evidence of disease relevance. Vetoed (forced to the bottom
+    # with a stated reason). A disease context's flags_genes extends this list.
+    flags_genes:
+      [
+        TTN,
+        MUC16,
+        OBSCN,
+        SYNE1,
+        MUC4,
+        FLG,
+        AHNAK2,
+        RYR2,
+        RYR3,
+        DNAH5,
+        DNAH11,
+        PKHD1,
+        PLEC,
+        NEB,
+        CUBN,
+        MUC5B,
+        USH2A,
+        DST,
+        FAT3,
+        HMCN1,
+      ]
+    single_source:
+      penalty: 0.75 # composite *= this when supported by one weak source
+      max_norm: 0.5 # "weak" = the single present evidence source normalizes below this
