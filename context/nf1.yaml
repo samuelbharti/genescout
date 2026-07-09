@@ -28,6 +28,13 @@ tissues_of_interest:
   - neurofibroma
   - MPNST
 
+# Terms OR-ed into the Europe PMC literature query: gene AND (terms).
+search_terms:
+  - MPNST
+  - malignant peripheral nerve sheath tumor
+  - neurofibromatosis type 1
+  - NF1
+
 # Genes commonly flagged as recurrent sequencing artifacts (FLAGS). Down-weight
 # by default; the caveats stage uses this list.
 flags_genes:
