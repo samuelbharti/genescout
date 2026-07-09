@@ -1,18 +1,72 @@
-# Scoring and caveats. Combines gated evidence with the disease-context priors
-# into a per-candidate plausibility score, then runs the caveats/bias stage that
-# can down-rank or veto a candidate. The rubric lives in prompts/scoring-rubric.md
-# so the mapping is explicit and reviewable, not buried in code.
+# Scoring and caveats. Phase 0 uses a light, transparent scheme over the Open
+# Targets evidence; later phases combine multi-source evidence and the full
+# caveats/veto logic (see prompts/scoring-rubric.md). Kept deterministic so the
+# ranking is reproducible and testable.
+
+# Grade thresholds on the best available association score (0-1).
+CANDID_GRADE_BREAKS <- c(high = 0.5, moderate = 0.2)
 
 # Score one candidate from its (already gated) evidence + context priors.
-# Returns list(score, grade, rationale).
-score_candidate <- function(candidate_evidence, context) {
-  not_implemented("score_candidate")
+# Returns list(score, grade, rationale). `evidence` is the kept evidence tibble.
+score_candidate <- function(evidence, context, symbol = NA_character_) {
+  if (is.null(evidence) || nrow(evidence) == 0) {
+    return(list(
+      score = 0,
+      grade = "Insufficient evidence",
+      rationale = "No grounded associations were returned."
+    ))
+  }
+  best <- max(evidence$score, na.rm = TRUE)
+  grade <- grade_for_score(best)
+
+  drivers <- toupper(as.character(context$known_drivers %||% character()))
+  is_driver <- !is.na(symbol) && toupper(symbol) %in% drivers
+  rationale <- sprintf(
+    "Top association score %.2f across %d disease(s)%s.",
+    best,
+    nrow(evidence),
+    if (is_driver) "; listed as a known driver in this context" else ""
+  )
+  list(
+    score = best,
+    grade = grade,
+    rationale = rationale,
+    is_driver = is_driver
+  )
 }
 
-# Caveats / anti-bias stage. Down-ranks or vetoes candidates that look
-# compelling but are: common in gnomAD, supported only by unrelated-tissue
-# evidence, backed by a single weak source, or a known artifact/FLAGS gene.
-# Records the reason on each affected candidate.
-apply_caveats <- function(scored, context) {
-  not_implemented("apply_caveats (down-rank / veto)")
+# Map a numeric association score to a plausibility grade.
+grade_for_score <- function(score) {
+  if (is.na(score)) {
+    return("Insufficient evidence")
+  }
+  if (score >= CANDID_GRADE_BREAKS[["high"]]) {
+    "High"
+  } else if (score >= CANDID_GRADE_BREAKS[["moderate"]]) {
+    "Moderate"
+  } else {
+    "Low"
+  }
+}
+
+# Caveats / anti-bias stage. Phase 0 flags the FLAGS/artifact genes from the
+# context; the full down-rank/veto logic (gnomAD-common, unrelated-tissue-only,
+# single-weak-source) lands with the variant-effect and literature specialists.
+# Returns a character vector of caveat strings (possibly empty).
+apply_caveats <- function(evidence, context, symbol = NA_character_) {
+  caveats <- character()
+  flags <- toupper(as.character(context$flags_genes %||% character()))
+  if (!is.na(symbol) && toupper(symbol) %in% flags) {
+    caveats <- c(
+      caveats,
+      "Listed among recurrent-artifact (FLAGS) genes for this context; treat with caution."
+    )
+  }
+  if (!is.null(evidence) && nrow(evidence) == 1) {
+    caveats <- c(
+      caveats,
+      "Supported by a single association; corroborate with other evidence."
+    )
+  }
+  caveats
 }
