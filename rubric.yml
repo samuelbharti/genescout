@@ -1,0 +1,21 @@
+# CANDID technical-ranking rubric.
+#
+# Per-signal weights ("source definitions") and normalization midpoints for the
+# deterministic composite score. Edit here to retune ranking - no code change
+# needed. The human rationale lives in prompts/scoring-rubric.md.
+#
+#   weights   - relative importance of each source's signal in the weighted mean.
+#   midpoints - the raw value that normalizes to 0.5 (saturating transforms), i.e.
+#               "how many is a lot" for counts.
+#   coverage_bonus - if true, multiply the composite by (0.5 + 0.5 * fraction of
+#               sources with a real value), rewarding genes supported broadly.
+
+default:
+  weights:
+    ot_assoc: 1.0 # Open Targets max disease-association score (0-1)
+    pmc_hits: 0.5 # Europe PMC gene mention count
+    clinvar_path: 1.0 # ClinVar pathogenic / likely-pathogenic variant count
+  midpoints:
+    pmc_hits: 50
+    clinvar_path: 5
+  coverage_bonus: false

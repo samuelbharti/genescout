@@ -1,98 +1,109 @@
-# Scoring and caveats. Phase 0 uses a light, transparent scheme over the Open
-# Targets evidence; later phases combine multi-source evidence and the full
-# caveats/veto logic (see prompts/scoring-rubric.md). Kept deterministic so the
-# ranking is reproducible and testable.
+# Composite technical ranking.
+#
+# Each source contributes a normalized [0,1] signal; the composite is a WEIGHTED
+# MEAN across all registry signals, where a missing signal contributes 0 to the
+# numerator but its weight stays in the denominator. So a gene supported broadly
+# but moderately outranks one that is famous in a single source - this is what
+# structurally defeats the familiar-gene bias.
+#
+# Weights and normalization midpoints live in rubric.yml (edit there to retune -
+# no code change). Everything here is pure and deterministic, so rankings are
+# reproducible run-to-run and independent of which other genes are in the list.
 
-# Grade thresholds on the best available association score (0-1).
+# Load the ranking rubric (per-signal weights + normalization midpoints).
+load_rubric <- function(path = "rubric.yml", profile = "default") {
+  if (!file.exists(path)) {
+    stop("Rubric file not found: ", path, call. = FALSE)
+  }
+  cfg <- yaml::read_yaml(path)
+  if (is.null(cfg[[profile]])) {
+    stop("Rubric profile not found: ", profile, call. = FALSE)
+  }
+  cfg[[profile]]
+}
+
+# --- Normalizers: raw signal -> [0,1]. NA or negative -> 0 (no positive signal).
+
+# Identity clamp, for signals already on a 0-1 scale (e.g. Open Targets score).
+normalize_identity <- function(x) {
+  x <- ifelse(is.na(x), 0, x)
+  pmin(pmax(x, 0), 1)
+}
+
+# Saturating x/(x+m): raw = m normalizes to 0.5, with diminishing returns above.
+# Absolute (not cohort-relative): adding or removing genes never changes a gene's
+# normalized value, so rankings stay reproducible.
+normalize_saturating <- function(m) {
+  force(m)
+  function(x) {
+    x <- ifelse(is.na(x) | x < 0, 0, x)
+    x / (x + m)
+  }
+}
+
+# Log-saturating, for heavy-tailed counts (e.g. PMID hits):
+# log1p(x) / (log1p(x) + log1p(m)).
+normalize_log_saturating <- function(m) {
+  force(m)
+  k <- log1p(m)
+  function(x) {
+    x <- ifelse(is.na(x) | x < 0, 0, x)
+    l <- log1p(x)
+    l / (l + k)
+  }
+}
+
+# --- Composite + rank -------------------------------------------------------
+
+# Weighted mean of the normalized per-signal columns (`<key>_n`) over the
+# registry. Missing signals count as 0 in the numerator; their weight stays in
+# the denominator. `coverage_bonus` optionally rewards genes supported broadly.
+compute_composite <- function(gene_matrix, registry, coverage_bonus = FALSE) {
+  if (nrow(gene_matrix) == 0) {
+    gene_matrix$composite <- numeric()
+    return(gene_matrix)
+  }
+  keys <- vapply(registry, function(s) s$key, character(1))
+  weights <- vapply(registry, function(s) s$weight, numeric(1))
+  ncols <- paste0(keys, "_n")
+  norm <- as.matrix(gene_matrix[, ncols, drop = FALSE])
+  norm[is.na(norm)] <- 0
+  composite <- as.numeric(norm %*% weights) / sum(weights)
+  if (isTRUE(coverage_bonus)) {
+    coverage <- gene_matrix$n_sources_present / length(registry)
+    composite <- composite * (0.5 + 0.5 * coverage)
+  }
+  gene_matrix$composite <- composite
+  gene_matrix
+}
+
+# The coverage-bonus toggle from the rubric, defaulting to FALSE when the rubric
+# file is not on the current path (e.g. in unit tests that pass a stub registry).
+rubric_coverage_bonus <- function() {
+  tryCatch(isTRUE(load_rubric()$coverage_bonus), error = function(e) FALSE)
+}
+
+# Deterministic rank by composite (descending); symbol is the stable tie-break.
+rank_genes <- function(gene_matrix) {
+  if (nrow(gene_matrix) == 0) {
+    gene_matrix$rank <- integer()
+    return(gene_matrix)
+  }
+  gene_matrix$rank <- rank(-gene_matrix$composite, ties.method = "min")
+  gene_matrix[order(gene_matrix$rank, gene_matrix$symbol), , drop = FALSE]
+}
+
+# Grade thresholds on the composite (0-1) - a UI badge only; rank is by composite.
 CANDID_GRADE_BREAKS <- c(high = 0.5, moderate = 0.2)
 
-# Score one candidate from its (already gated) multi-domain evidence + context
-# priors. Grade is driven by the best Open Targets association score;
-# literature and variant-effect items are counted as supporting evidence.
-# Returns list(score, grade, rationale, is_driver). `evidence` is the kept
-# normalized evidence tibble (see R/evidence.R).
-score_candidate <- function(evidence, context, symbol = NA_character_) {
-  drivers <- toupper(as.character(context$known_drivers %||% character()))
-  is_driver <- !is.na(symbol) && toupper(symbol) %in% drivers
-
-  if (is.null(evidence) || nrow(evidence) == 0) {
-    return(list(
-      score = 0,
-      grade = "Insufficient evidence",
-      rationale = "No grounded evidence was returned.",
-      is_driver = is_driver
-    ))
-  }
-  n_lit <- sum(evidence$domain == "literature")
-  n_var <- sum(evidence$domain == "variant-effect")
-  assoc <- evidence[
-    evidence$domain == "pathway-disease" & !is.na(evidence$score),
-    ,
-    drop = FALSE
-  ]
-
-  if (nrow(assoc) == 0) {
-    grade <- if (n_lit + n_var > 0) "Low" else "Insufficient evidence"
-    return(list(
-      score = 0,
-      grade = grade,
-      rationale = sprintf(
-        "No disease-association score; %d paper(s) and %d variant item(s).",
-        n_lit,
-        n_var
-      ),
-      is_driver = is_driver
-    ))
-  }
-  best <- max(assoc$score)
-  rationale <- sprintf(
-    "Top association score %.2f across %d disease(s); %d paper(s), %d variant item(s)%s.",
-    best,
-    nrow(assoc),
-    n_lit,
-    n_var,
-    if (is_driver) "; known driver in this context" else ""
-  )
-  list(
-    score = best,
-    grade = grade_for_score(best),
-    rationale = rationale,
-    is_driver = is_driver
-  )
-}
-
-# Map a numeric association score to a plausibility grade.
 grade_for_score <- function(score) {
-  if (is.na(score)) {
-    return("Insufficient evidence")
-  }
-  if (score >= CANDID_GRADE_BREAKS[["high"]]) {
-    "High"
-  } else if (score >= CANDID_GRADE_BREAKS[["moderate"]]) {
-    "Moderate"
-  } else {
-    "Low"
-  }
-}
-
-# Caveats / anti-bias stage. Phase 0 flags the FLAGS/artifact genes from the
-# context; the full down-rank/veto logic (gnomAD-common, unrelated-tissue-only,
-# single-weak-source) lands with the variant-effect and literature specialists.
-# Returns a character vector of caveat strings (possibly empty).
-apply_caveats <- function(evidence, context, symbol = NA_character_) {
-  caveats <- character()
-  flags <- toupper(as.character(context$flags_genes %||% character()))
-  if (!is.na(symbol) && toupper(symbol) %in% flags) {
-    caveats <- c(
-      caveats,
-      "Listed among recurrent-artifact (FLAGS) genes for this context; treat with caution."
+  ifelse(
+    is.na(score),
+    "Insufficient",
+    ifelse(
+      score >= CANDID_GRADE_BREAKS[["high"]],
+      "High",
+      ifelse(score >= CANDID_GRADE_BREAKS[["moderate"]], "Moderate", "Low")
     )
-  }
-  if (!is.null(evidence) && nrow(evidence) == 1) {
-    caveats <- c(
-      caveats,
-      "Supported by a single association; corroborate with other evidence."
-    )
-  }
-  caveats
+  )
 }
