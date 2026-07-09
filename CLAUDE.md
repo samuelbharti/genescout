@@ -65,7 +65,7 @@ run_review()  (R/orchestrate.R)
   ├─ builds agents       → R/agents.R (ellmer Chat per role + tool allowlist)
   ├─ spawns specialists (parallel_chat_structured), each isolated:
   │    ├─ variant-effect   → R/tools/variant_effect.R (VEP, gnomAD, ClinVar)
-  │    ├─ pathway-disease  → R/tools/pathways.R, R/tools/opentargets.R (+ PAGER)
+  │    ├─ pathway-disease  → R/tools/pathways.R, R/tools/opentargets.R
   │    └─ literature       → R/tools/literature.R (Europe PMC, PubTator)
   ├─ citation gate       → R/citation_gate.R (drop items with no source_id)
   ├─ scoring + caveats   → R/scoring.R (can down-rank / veto)

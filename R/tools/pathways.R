@@ -1,7 +1,7 @@
-# Pathway clients - Reactome and PAGER.
-# Endpoints: https://reactome.org/ContentService ; PAGER (see docs/data_sources.md)
-# Reactome gives per-gene pathway membership; PAGER gives set-level pathway/gene-set
-# enrichment. Pure clients through the shared HTTP wrapper; no {ellmer} imports.
+# Pathway client - Reactome.
+# Endpoint: https://reactome.org/ContentService (see docs/data_sources.md)
+# Reactome gives per-gene pathway membership. Pure client through the shared HTTP
+# wrapper; no {ellmer} imports.
 
 REACTOME_BASE <- "https://reactome.org/ContentService"
 REACTOME_WEB <- "https://reactome.org/content/detail/"
@@ -113,10 +113,4 @@ pathway_matches_context <- function(names, ctx_pathways) {
     logical(1),
     USE.NAMES = FALSE
   )
-}
-
-# Gene set -> enriched pathways / gene sets (PAGER). Set-level enrichment, a
-# distinct shape from the per-gene extractors; deferred until the set-level stage.
-pager_enrichment <- function(genes) {
-  not_implemented("pager_enrichment (PAGER)")
 }

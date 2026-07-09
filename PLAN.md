@@ -71,7 +71,7 @@ Tasks:
   evidence schema (every item has `source_id`).
 - Implement remaining tool clients (each with a fixture + test):
   `R/tools/variant_effect.R` (VEP/gnomAD/ClinVar), `R/tools/pathways.R`
-  (Reactome/PAGER), `R/tools/literature.R` (Europe PMC/PubTator),
+  (Reactome), `R/tools/literature.R` (Europe PMC/PubTator),
   `R/tools/mygene.R`.
 - Fan the three specialists out with `parallel_chat_structured()` in
   `run_review()` and collect distilled evidence per candidate.

@@ -12,8 +12,8 @@ Combine, per candidate:
 - **Functional evidence** - predicted consequence (VEP), rarity (gnomAD),
   ClinVar research evidence.
 - **Disease/pathway fit** - association strength (Open Targets) and membership in
-  a context pathway (Reactome/PAGER); membership in a known driver or context
-  pathway raises the grade.
+  a context pathway (Reactome); membership in a known driver or context pathway
+  raises the grade.
 - **Literature support** - number, recency, and directness of grounded citations.
 
 Grades: **High / Moderate / Low / Insufficient evidence**. "Insufficient
