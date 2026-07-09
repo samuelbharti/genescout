@@ -18,6 +18,7 @@ default:
     dgidb: 0.5 # DGIdb drug-gene interaction count (druggability, evidence)
     gnomad_loeuf: 0.75 # gnomAD LOEUF constraint (annotation, lower is better)
     pharos_tdl: 0.5 # Pharos target development level (annotation)
+    reactome: 0.5 # Reactome disease-pathway membership (annotation)
     panelapp: 1.0 # Genomics England PanelApp confidence (discovery mode only)
     diseases: 0.75 # DISEASES / Jensen Lab association (discovery mode only)
   midpoints:
@@ -25,6 +26,7 @@ default:
     clinvar_path: 5
     dgidb: 5 # ~5 interactions normalizes to 0.5
     gnomad_loeuf: 0.35 # LOEUF 0.35 -> 0.5; strongly constrained (<0.35) scores higher
+    reactome: 2 # ~2 relevant disease pathways normalizes to 0.5
     diseases: 2 # DISEASES confidence ~2 (of 0-5) normalizes to 0.5
   coverage_bonus: false
   # Caveats / veto: the deterministic anti-familiar-gene-bias override (R/caveats.R;

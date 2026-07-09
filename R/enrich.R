@@ -114,6 +114,15 @@ candid_signal_registry <- function(
       normalize = normalize_identity,
       weight = w$pharos_tdl %||% 0.5,
       role = "annotation"
+    ),
+    candid_signal(
+      "reactome",
+      "Reactome disease pathways",
+      "Reactome",
+      extractor = extract_reactome,
+      normalize = normalize_saturating(m$reactome %||% 2),
+      weight = w$reactome %||% 0.5,
+      role = "annotation"
     )
   )
   if (isTRUE(disease_mode)) {
@@ -421,6 +430,46 @@ extract_pharos_tdl <- function(resolved, context = list()) {
       score = NA_real_,
       source_id = r$source_id,
       source_url = r$source_url
+    )
+  )
+}
+
+# Reactome: mechanistic pathway membership. Counts the gene's disease-associated
+# Reactome pathways (isInDisease) plus any that match a context pathway prior
+# (context$priors$pathways), with each relevant pathway as grounded evidence.
+# Annotation (nudges up, never penalizes): a gene with no relevant pathway is a
+# miss, not a demotion - so a gene in only generic pathways (e.g. TTN in muscle
+# pathways) gets no spurious pathway boost.
+extract_reactome <- function(resolved, context = list()) {
+  r <- reactome_pathways(resolved$symbol)
+  if (!isTRUE(r$ok) || nrow(r$pathways) == 0) {
+    return(signal_miss())
+  }
+  hits <- reactome_relevant(
+    r$pathways,
+    pluck_at(context, "priors", "pathways")
+  )
+  if (nrow(hits) == 0) {
+    return(signal_miss())
+  }
+  list(
+    ok = TRUE,
+    raw = nrow(hits),
+    source_id = hits$source_id[1],
+    source_url = hits$source_url[1],
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "reactome",
+      domain = "pathway-disease",
+      title = hits$name,
+      detail = ifelse(
+        hits$in_disease,
+        "Reactome disease-associated pathway",
+        "Reactome pathway matching the study context"
+      ),
+      score = NA_real_,
+      source_id = hits$source_id,
+      source_url = hits$source_url
     )
   )
 }

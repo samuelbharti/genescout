@@ -20,7 +20,7 @@ This table is what a reviewer will ask for and what makes the method reproducibl
 | Ensembl VEP | variant mode (dormant) | <https://rest.ensembl.org> | REST (GRCh38) | 2026-07-09 | Yes | Functional consequence (by rsID); reserved for a future variant mode, not in the gene-list ranking |
 | gnomAD | ranking signal | <https://gnomad.broadinstitute.org/api> | gnomad_r4 (GraphQL) | 2026-07-09 | Yes | LOEUF loss-of-function constraint (annotation, lower is better). Variant-level allele frequency reserved for a future variant mode |
 | PubTator | ranking signal (planned) | <https://www.ncbi.nlm.nih.gov/research/pubtator3-api> | TBD | TBD | Yes | Gene-tagged literature count; precise successor to the Europe PMC symbol count |
-| Reactome | ranking signal (planned) | <https://reactome.org/ContentService> | TBD | TBD | Yes | Pathway membership |
+| Reactome | ranking signal | <https://reactome.org/ContentService> | Release 97 (ContentService) | 2026-07-09 | Yes | Per-gene pathway membership via HGNC mapping. Signal = count of the gene's disease-associated pathways (`isInDisease`) + pathways matching a context pathway prior (annotation, nudges up only). Each pathway is grounded evidence (Reactome stable id) |
 | PAGER | ranking signal (planned) | TBD | TBD | TBD | TBD | Pathway / gene-set enrichment |
 | STRING | ranking signal (planned) | <https://string-db.org/api> | TBD | TBD | Yes | Within-list interaction connectivity |
 

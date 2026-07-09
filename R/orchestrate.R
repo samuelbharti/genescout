@@ -190,7 +190,8 @@ candid_provenance <- function(context = list()) {
     list(source = "ClinVar (NCBI E-utilities)", endpoint = CLINVAR_EUTILS_BASE),
     list(source = "DGIdb", endpoint = DGIDB_URL),
     list(source = "gnomAD", endpoint = GNOMAD_URL),
-    list(source = "Pharos", endpoint = PHAROS_URL)
+    list(source = "Pharos", endpoint = PHAROS_URL),
+    list(source = "Reactome", endpoint = REACTOME_BASE)
   )
   disease <- pluck_at(context, "disease")
   if (!is.null(disease) && !is_blank(disease$id)) {
