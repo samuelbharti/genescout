@@ -1,0 +1,28 @@
+# Brand configuration: CANDID's colors, fonts, and logo in one place.
+# Consumed automatically by bslib via `bs_theme(brand = TRUE)` (see ui.R).
+# Spec: https://posit-dev.github.io/brand-yml/
+
+meta:
+  name: CANDID
+
+color:
+  palette:
+    indigo: "#3b4cca"
+    teal: "#0e8a8a"
+    slate: "#5b6770"
+  primary: indigo
+  secondary: teal
+  foreground: "#141821"
+  background: "#ffffff"
+
+typography:
+  fonts:
+    - family: Inter
+      source: google
+      weight: [400, 500, 600, 700]
+  base:
+    family: Inter
+    size: 16px
+  headings:
+    family: Inter
+    weight: 600

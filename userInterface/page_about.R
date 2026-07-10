@@ -1,0 +1,47 @@
+# About page: what CANDID is, and the research-use-only disclaimer.
+about_page <- fluidPage(
+  titlePanel("About CANDID"),
+  hr(),
+  fluidRow(
+    column(
+      width = 8,
+      p(
+        "CANDID (Candidate Annotation aNd Disease-informed Interpretation of",
+        "eviDence) takes a gene list and prioritizes it for any disease or",
+        "phenotype. It pulls a signal from each of several public sources,",
+        "merges and de-duplicates them, and ranks the genes by a transparent",
+        "composite score - every value traceable to its source."
+      ),
+      p(
+        "Bring your own gene list from an analysis, or start from a disease and",
+        "let CANDID discover candidate genes for it (Open Targets, PanelApp,",
+        "DISEASES) - or do both and merge. With a disease context the ranking",
+        "becomes disease-specific rather than measuring a gene's general",
+        "prominence."
+      ),
+      div(
+        class = "alert alert-warning",
+        role = "alert",
+        tags$strong("Research use only. "),
+        "CANDID is a hypothesis-prioritization aid for researchers. It is not a",
+        "clinical decision-support tool and does not provide diagnosis,",
+        "treatment guidance, or ACMG/AMP variant classification."
+      )
+    ),
+    column(
+      width = 4,
+      tags$h4("How it works"),
+      tags$ol(
+        tags$li("Resolve every gene to a canonical id and de-duplicate."),
+        tags$li(
+          "Pull a per-source signal: Open Targets association, Europe PMC",
+          "mentions, ClinVar pathogenic variants."
+        ),
+        tags$li(
+          "Gate every value on a source, then rank by a weighted composite."
+        ),
+        tags$li("Drill into any gene to see the evidence behind each signal.")
+      )
+    )
+  )
+)

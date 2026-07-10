@@ -1,0 +1,53 @@
+# Continuous integration for CANDID.
+#
+# Jobs:
+#   format   - checks R code is formatted with air (config in air.toml)
+#   test     - installs dependencies from DESCRIPTION and runs the testthat suite
+#   markdown - lints Markdown files (config in .markdownlint.json)
+#
+# Follows the r-lib/actions pattern for R/Shiny projects; kept lean.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+name: CI
+
+permissions: read-all
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: posit-dev/setup-air@v1
+      - name: Check formatting
+        run: air format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat
+      - name: Run tests
+        run: testthat::test_dir("tests/testthat", stop_on_failure = TRUE)
+        shell: Rscript {0}
+
+  markdown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint markdown files
+        uses: DavidAnson/markdownlint-cli2-action@v20
+        with:
+          globs: |
+            **/*.md
+            !renv

@@ -1,0 +1,53 @@
+# Git hooks for CANDID, managed with prek (a drop-in pre-commit replacement).
+#   Setup:  prek install --hook-type pre-commit --hook-type commit-msg
+#   Run on everything:  prek run --all-files
+# prek reads this same .pre-commit-config.yaml format.
+# Docs: https://prek.j178.dev / https://pre-commit.com
+
+# Generated/vendored paths that hooks should never touch.
+exclude: "^(renv/|data/|docs/|secrets/)"
+
+repos:
+  # R code formatting with air (matches air.toml). air is the single R
+  # style/formatting gate; it also fails on unparseable R.
+  - repo: https://github.com/posit-dev/air
+    rev: v0.9.0
+    hooks:
+      - id: air-format
+
+  # Secret scanning - block credentials before they are committed.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  # Generic hygiene + secret/key safety.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-added-large-files
+        args: ["--maxkb=2000"]
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: ["--branch", "main"]
+
+  # Catch common spelling mistakes in code and docs.
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.3.0
+    hooks:
+      - id: codespell
+        args: ["--ignore-words-list=ans,fo,nd"]
+
+  # Enforce Conventional Commit messages.
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.20.0
+    hooks:
+      - id: commitlint
+        stages: [commit-msg]
+        additional_dependencies: ["@commitlint/config-conventional"]

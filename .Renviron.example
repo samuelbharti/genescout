@@ -1,0 +1,24 @@
+# Example environment file. Copy to `.Renviron` (git-ignored) and fill in the
+# credential for the provider set in config.yml. R reads `.Renviron` on startup.
+
+# --- Google Gemini API (API key - default provider) -------------------------
+# ellmer chat_google_gemini() (Gemini Developer API). API-key path: key only - no
+# project id, no location, no service-account file. Get a key at
+# https://aistudio.google.com/apikey . GOOGLE_API_KEY works as an alias.
+GEMINI_API_KEY=
+
+# --- Anthropic (direct API) -------------------------------------------------
+# Only if you set provider: anthropic in config.yml (Claude models).
+ANTHROPIC_API_KEY=
+
+# --- OpenAI (direct API) ----------------------------------------------------
+# Only if you set provider: openai in config.yml (GPT models).
+OPENAI_API_KEY=
+
+# --- Google Vertex AI (only for provider: google_vertex) --------------------
+# Vertex uses Application Default Credentials, NOT an API key: a service-account
+# JSON (via GOOGLE_APPLICATION_CREDENTIALS) or `gcloud auth application-default
+# login`, plus project + region. Fill these only for provider: google_vertex.
+# GOOGLE_CLOUD_PROJECT=
+# GOOGLE_CLOUD_LOCATION=us-central1
+# GOOGLE_APPLICATION_CREDENTIALS=secrets/vertex-service-account.json

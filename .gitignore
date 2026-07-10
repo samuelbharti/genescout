@@ -1,0 +1,51 @@
+# --- R ---
+*.Rproj
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# renv local library/cache (keep renv.lock tracked)
+renv/library/
+renv/staging/
+renv/sandbox/
+
+# Quarto / knitr build artifacts
+.quarto/
+
+# Local development helpers
+dev/.Rhistory
+
+# --- Secrets & local config ---
+# Generic patterns only. Never list a specific secret file by name here - naming
+# it leaks the name. Put anything sensitively named inside secrets/ (ignored
+# wholesale below), or add a local-only rule to .git/info/exclude.
+.env
+.env.*
+.Renviron
+*.local
+*.key
+*.pem
+*.p12
+*.pfx
+*.credentials
+secrets/
+.secrets/
+
+# Local Claude Code settings (per-machine)
+.claude/settings.local.json
+
+# Local-only working docs (planning notes, scratch design docs). Kept in the repo
+# tree for convenience but never committed.
+docs/local/
+
+# --- Generated reports / artifacts ---
+report.html
+*_report.html
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+
+# --- Presentations / decks (personal, not tracked) ---
+presentations/
