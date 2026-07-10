@@ -381,6 +381,92 @@ evidence_domain_table <- function(sub) {
   )
 }
 
+# --- Input-agent proposal (for the confirm panel) ---------------------------
+
+# A plain display data frame of the agent's per-token decisions (for a CLI/table).
+proposal_display <- function(proposal) {
+  t <- proposal$tokens
+  if (is.null(t) || nrow(t) == 0) {
+    return(data.frame())
+  }
+  data.frame(
+    Source = t$source_label,
+    Input = t$original,
+    Symbol = ifelse(is.na(t$symbol), "", t$symbol),
+    Action = t$action,
+    Reason = t$reason,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+# A compact table of the tokens the agent corrected / flagged / dropped.
+proposal_changes_table <- function(changed) {
+  rows <- lapply(seq_len(nrow(changed)), function(i) {
+    htmltools::tags$tr(
+      htmltools::tags$td(changed$action[i]),
+      htmltools::tags$td(changed$original[i]),
+      htmltools::tags$td(changed$symbol[i] %||% ""),
+      htmltools::tags$td(changed$reason[i])
+    )
+  })
+  htmltools::tags$table(
+    class = "table table-sm",
+    htmltools::tags$thead(htmltools::tags$tr(
+      htmltools::tags$th("Action"),
+      htmltools::tags$th("Input"),
+      htmltools::tags$th("Symbol"),
+      htmltools::tags$th("Reason")
+    )),
+    htmltools::tags$tbody(rows)
+  )
+}
+
+# The proposal summary shown in the confirm panel: an AI/pass-through banner, the
+# overall notes, any suggested disease context, and a table of the changes. Pure
+# htmltools (no output bindings), so it drops straight into a modal.
+render_proposal_summary <- function(proposal) {
+  ai <- isTRUE(attr(proposal, "ai_used"))
+  t <- proposal$tokens
+  changed <- if (!is.null(t) && nrow(t) > 0) {
+    t[t$action != "keep", , drop = FALSE]
+  } else {
+    t
+  }
+  disease <- proposal$proposed_disease
+  htmltools::tagList(
+    htmltools::div(
+      class = if (ai) "alert alert-info py-2" else "alert alert-secondary py-2",
+      if (ai) {
+        "Reviewed by the input agent - edit anything below before ranking."
+      } else {
+        "AI unavailable - your input was passed through unchanged."
+      }
+    ),
+    if (!is_blank(proposal$notes)) {
+      htmltools::p(class = "text-muted", proposal$notes)
+    },
+    if (!is.null(disease) && !is_blank(disease$search_term)) {
+      htmltools::p(
+        htmltools::strong("Suggested disease context: "),
+        sprintf(
+          "%s - enter \"%s\" in the disease box to seed discovery.",
+          if (is_blank(disease$name)) disease$search_term else disease$name,
+          disease$search_term
+        )
+      )
+    },
+    if (!is.null(changed) && nrow(changed) > 0) {
+      proposal_changes_table(changed)
+    } else {
+      htmltools::p(
+        class = "text-muted fst-italic",
+        "No corrections, flags, or drops - nothing to review."
+      )
+    }
+  )
+}
+
 # --- Standalone HTML report -------------------------------------------------
 
 # Write the full standalone HTML report for `result` to `file`.

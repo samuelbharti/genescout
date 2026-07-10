@@ -230,3 +230,19 @@ test_that("resolve_proposed_disease() short-circuits a blank term (no network)",
   r <- resolve_proposed_disease("")
   expect_false(r$ok)
 })
+
+test_that("proposal_display() renders one row per token with the decision", {
+  cs <- candidate_set(candid_source(c("nf1", "junk"), label = "degs"))
+  decisions <- tibble::tibble(
+    original = c("nf1", "junk"),
+    symbol = c("NF1", NA),
+    action = c("correct", "drop"),
+    reason = c("alias", "not a gene"),
+    confidence = NA_real_
+  )
+  prop <- build_input_proposal(cs, decisions, empty_disease(), "n")
+  df <- proposal_display(prop)
+  expect_equal(nrow(df), 2)
+  expect_setequal(df$Action, c("correct", "drop"))
+  expect_equal(df$Symbol[df$Input == "junk"], "") # NA symbol shown blank
+})

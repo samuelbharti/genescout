@@ -38,6 +38,14 @@ uncertainty made explicit instead of hidden.
   anti-familiar-gene-bias mechanism, and it is a first-class stage, not a footnote.
 - **Auditable output.** The report is a reviewable artifact: per-candidate scores, the
   evidence behind each score, the caveats, and suggested next experiments.
+- **Bring genes from several analyses.** Tag each source by assay — your WES calls,
+  significant DEGs, ATAC-seq-enriched genes — and a gene corroborated across more of
+  your own sources ranks higher (*breadth beats a single loud source*). An optional
+  input agent can clean messy input (typos, aliases, non-genes) and propose a disease
+  context up front; it proposes, you confirm, then the deterministic run proceeds.
+- **UI-agnostic core.** The engine is plain data-in/data-out R functions
+  (`candidate_set` → `run_review_request`), so the same core backs the Shiny app, a
+  CLI, and a design-only HTTP API — and could back a Python or React front end.
 - **Context-driven, not NF1-locked.** The disease context is a config file; NF1 ships
   as the reference example, but any context can be dropped in.
 - **Provider-agnostic.** Orchestration runs on [ellmer](https://ellmer.tidyverse.org/),
@@ -149,8 +157,11 @@ See [`PLAN.md`](PLAN.md) for the full phased plan. Near-term:
 - [x] Multi-source deterministic enrichment + weighted-mean ranking (live sliders)
 - [x] Dual-mode discovery: seed genes from a disease, disease-aware scoring
 - [x] Scoring rubric + caveats/veto stage (deterministic: FLAGS veto, weak-source)
+- [x] Tagged multi-source input (WES · DEGs · ATAC-seq · …) with a UI-agnostic core
+- [x] Cross-source corroboration signal: breadth beats a single loud source
+- [x] Optional interpretive input agent (propose → confirm → run; never invents genes)
 - [x] AI curator: grounded, model-agnostic final compaction
-- [x] Shiny UI with per-candidate evidence cards
+- [x] Shiny UI with per-candidate evidence cards; CLI + design-only HTTP API
 - [x] Eval harness on known NF1 biology
 - [ ] Three parallel specialist agents with real data tools
 - [ ] Preprint + evaluation write-up

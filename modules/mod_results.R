@@ -17,10 +17,17 @@ results_ui <- function(id) {
 }
 
 # `result` is a reactive returning the run_review() output (or NULL). `config` is
-# the provider/model config the AI curator uses.
-results_server <- function(id, result, config = candid_config) {
+# the provider/model config the AI curator uses. `agent_mode` is a reactive of the
+# selected agent involvement; the final curator is offered only for final/both.
+results_server <- function(
+  id,
+  result,
+  config = candid_config,
+  agent_mode = reactive("final")
+) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    final_curator_on <- reactive(agent_mode() %in% c("final", "both"))
 
     output$empty_state <- renderUI({
       if (is.null(result())) {
@@ -62,6 +69,9 @@ results_server <- function(id, result, config = candid_config) {
 
     output$curate_control <- renderUI({
       req(result())
+      if (!final_curator_on()) {
+        return(NULL)
+      }
       div(
         class = "my-3",
         actionButton(
@@ -83,6 +93,7 @@ results_server <- function(id, result, config = candid_config) {
 
     observeEvent(input$do_curate, {
       req(result())
+      req(final_curator_on())
       cur <- tryCatch(
         withProgress(
           message = "Curating with the configured model...",

@@ -26,6 +26,16 @@ input_ui <- function(id, registry = candid_signal_registry()) {
       "...or upload a gene table (TSV/CSV)",
       accept = c(".tsv", ".csv", ".txt")
     ),
+    # Progressive disclosure: the paste box above is the default single source;
+    # "add a source" reveals named/typed rows for genes from a different analysis
+    # (WES calls, DEGs, ATAC-seq hits, ...). A gene found in more of your sources
+    # ranks higher (cross-source corroboration, applied automatically).
+    actionLink(
+      ns("add_source"),
+      "+ add another source (tag by assay)",
+      class = "small d-block mb-2"
+    ),
+    tags$div(id = ns("sources_anchor")),
     textAreaInput(
       ns("description"),
       "What are you studying? (optional)",
@@ -54,6 +64,7 @@ input_ui <- function(id, registry = candid_signal_registry()) {
       )
     ),
     uiOutput(ns("disease_matches")),
+    agent_mode_ui(ns),
     actionButton(ns("run"), "Rank genes", class = "btn-primary w-100"),
     bslib::accordion(
       class = "mt-3",
@@ -98,6 +109,72 @@ weight_sliders_ui <- function(ns, registry) {
   })
 }
 
+# One removable extra-source row: a name, an assay type, and a genes box.
+extra_source_row <- function(ns, rid) {
+  tags$div(
+    class = "border rounded p-2 mb-2",
+    id = ns(paste0("src_row_", rid)),
+    div(
+      class = "d-flex gap-2 mb-1",
+      textInput(
+        ns(paste0("src_name_", rid)),
+        label = NULL,
+        placeholder = "source name (e.g. my DEGs)"
+      ),
+      selectInput(
+        ns(paste0("src_type_", rid)),
+        label = NULL,
+        choices = candid_source_types(),
+        selected = "unspecified"
+      )
+    ),
+    textAreaInput(
+      ns(paste0("src_genes_", rid)),
+      label = NULL,
+      rows = 3,
+      placeholder = "genes for this source, one per line"
+    ),
+    actionLink(
+      ns(paste0("src_rm_", rid)),
+      "remove this source",
+      class = "small text-danger"
+    )
+  )
+}
+
+# The "Agent involvement" selector. The input/both modes are offered only when an
+# LLM key is set; the default "final" preserves today's behavior (final curator
+# only). Cross-source corroboration needs no toggle - it applies automatically
+# when the run has two or more sources.
+agent_mode_ui <- function(ns) {
+  llm_ok <- tryCatch(candid_llm_available(), error = function(e) FALSE)
+  choices <- if (llm_ok) {
+    c(
+      "None - deterministic only" = "none",
+      "Curate my input up front" = "input",
+      "Curate the final list (default)" = "final",
+      "Both (input + final)" = "both"
+    )
+  } else {
+    c(
+      "None - deterministic only" = "none",
+      "Curate the final list (default)" = "final"
+    )
+  }
+  tagList(
+    tags$hr(),
+    radioButtons(
+      ns("agent_mode"),
+      "Agent involvement",
+      choices = choices,
+      selected = "final"
+    ),
+    if (!llm_ok) {
+      helpText("Set an API key (.Renviron) to enable the input-curation agent.")
+    }
+  )
+}
+
 input_server <- function(id, registry = candid_registry) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
@@ -105,6 +182,34 @@ input_server <- function(id, registry = candid_registry) {
     # Discovery: resolve a free-text disease/phenotype to ontology candidates the
     # user confirms, then feed the chosen one into the pipeline as context.
     disease_matches <- reactiveVal(NULL)
+
+    # Extra tagged sources (beyond the paste box). Rows are added/removed with
+    # insertUI/removeUI so typed values survive; `extra_sources` tracks live ids.
+    extra_sources <- reactiveVal(character(0))
+    row_seq <- reactiveVal(0L)
+
+    observeEvent(input$add_source, {
+      n <- row_seq() + 1L
+      row_seq(n)
+      rid <- as.character(n)
+      extra_sources(c(extra_sources(), rid))
+      insertUI(
+        selector = paste0("#", session$ns("sources_anchor")),
+        where = "beforeEnd",
+        ui = extra_source_row(ns, rid)
+      )
+      observeEvent(
+        input[[paste0("src_rm_", rid)]],
+        {
+          removeUI(
+            selector = paste0("#", session$ns(paste0("src_row_", rid)))
+          )
+          extra_sources(setdiff(extra_sources(), rid))
+        },
+        ignoreInit = TRUE,
+        once = TRUE
+      )
+    })
 
     observeEvent(input$resolve_disease, {
       term <- input$disease
@@ -168,12 +273,47 @@ input_server <- function(id, registry = candid_registry) {
 
     keys <- vapply(registry, function(s) s$key, character(1))
 
+    # The canonical input: a candidate_set built from the paste box (source
+    # "pasted"), an optional upload ("uploaded"), and any extra tagged sources.
+    # Empty sources are dropped by collect_candidate_set().
+    candidate_set_r <- reactive({
+      specs <- list()
+      if (!is.null(input$paste) && nzchar(trimws(input$paste %||% ""))) {
+        specs[[length(specs) + 1L]] <- list(
+          name = "pasted",
+          type = "unspecified",
+          text = input$paste
+        )
+      }
+      fp <- input$file$datapath
+      if (!is.null(fp) && nzchar(fp)) {
+        specs[[length(specs) + 1L]] <- list(
+          name = "uploaded",
+          type = "unspecified",
+          file = fp
+        )
+      }
+      for (rid in extra_sources()) {
+        gv <- input[[paste0("src_genes_", rid)]]
+        if (!is.null(gv) && nzchar(trimws(gv %||% ""))) {
+          nm <- input[[paste0("src_name_", rid)]]
+          specs[[length(specs) + 1L]] <- list(
+            name = if (is_blank(nm)) paste0("source ", rid) else nm,
+            type = input[[paste0("src_type_", rid)]] %||% "unspecified",
+            text = gv
+          )
+        }
+      }
+      collect_candidate_set(specs)
+    })
+
     list(
       run = reactive(input$run),
-      gene_lists = reactive(collect_gene_lists(
-        input$paste,
-        input$file$datapath
-      )),
+      # The rich candidate_set (canonical) plus the old named-list view for any
+      # back-compat caller. run_enrich() accepts either.
+      candidate_set = candidate_set_r,
+      gene_lists = reactive(candidate_set_to_named_lists(candidate_set_r())),
+      agent_mode = reactive(input$agent_mode %||% "final"),
       description = reactive(input$description),
       # The confirmed disease context (list(id, name)) or NULL. NULL keeps the
       # run in plain enrichment mode.

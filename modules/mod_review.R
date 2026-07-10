@@ -23,25 +23,16 @@ review_server <- function(
   registry = candid_registry
 ) {
   moduleServer(id, function(input, output, session) {
+    ns <- session$ns
     inputs <- input_server("input", registry)
     # The enriched (unranked) result, recomputed only on a "Rank genes" click.
     enriched <- reactiveVal(NULL)
+    # The input agent's proposal awaiting user confirmation (input/both modes).
+    pending_proposal <- reactiveVal(NULL)
 
-    observeEvent(inputs$run(), {
-      lists <- inputs$gene_lists()
-      disease <- inputs$disease()
-      if (length(lists) == 0 && is.null(disease)) {
-        showNotification(
-          paste(
-            "Provide a gene list (paste or upload),",
-            "or pick a disease context for discovery."
-          ),
-          type = "error"
-        )
-        return()
-      }
-      # Discovery mode when a disease is confirmed: use the disease registry
-      # (adds PanelApp + DISEASES) and pass the disease as context.
+    # Run the expensive enrichment on a CONFIRMED candidate_set. Shared by the
+    # direct path (none/final) and the post-confirm path (input/both).
+    enrich_confirmed <- function(cs, disease) {
       active_registry <- if (!is.null(disease)) {
         candid_registry_disease
       } else {
@@ -57,7 +48,7 @@ review_server <- function(
         withProgress(
           message = message_txt,
           run_enrich(
-            lists,
+            cs,
             inputs$description(),
             config,
             active_registry,
@@ -73,6 +64,64 @@ review_server <- function(
         }
       )
       enriched(out)
+    }
+
+    observeEvent(inputs$run(), {
+      cs <- inputs$candidate_set()
+      disease <- inputs$disease()
+      if (length(cs) == 0 && is.null(disease)) {
+        showNotification(
+          paste(
+            "Provide a gene list (paste or upload),",
+            "or pick a disease context for discovery."
+          ),
+          type = "error"
+        )
+        return()
+      }
+      # Input agent (input/both): propose -> confirm -> run. The two-step path is
+      # taken only when the mode asks for it AND an LLM is available; otherwise the
+      # one-click path below runs immediately, exactly as before.
+      mode <- inputs$agent_mode()
+      if (mode %in% c("input", "both") && candid_llm_available(config)) {
+        proposal <- tryCatch(
+          withProgress(
+            message = "Reviewing your input with the agent...",
+            curate_input(cs, inputs$description(), config)
+          ),
+          error = function(e) {
+            showNotification(
+              paste("Input agent failed:", conditionMessage(e)),
+              type = "error"
+            )
+            NULL
+          }
+        )
+        if (is.null(proposal)) {
+          return()
+        }
+        pending_proposal(proposal)
+        show_confirm_modal(ns, proposal)
+      } else {
+        enrich_confirmed(cs, disease)
+      }
+    })
+
+    # "Confirm & rank": build the confirmed candidate_set from the (edited) confirm
+    # panel and run. User edits are treated as user-provided input.
+    observeEvent(input$confirm_run, {
+      proposal <- pending_proposal()
+      req(proposal)
+      removeModal()
+      cs <- confirmed_set_from_panel(proposal, input)
+      if (length(cs) == 0) {
+        showNotification(
+          "No genes left after confirmation - nothing to rank.",
+          type = "error"
+        )
+        return()
+      }
+      enrich_confirmed(cs, inputs$disease())
     })
 
     # The ranked result: pure, cheap, and recomputed whenever the enriched data
@@ -90,7 +139,63 @@ review_server <- function(
       )
     })
 
-    results_server("results", result, config)
+    results_server("results", result, config, agent_mode = inputs$agent_mode)
     report_server("report", result)
   })
+}
+
+# Open the confirm panel: the agent's proposal summary + one editable genes box
+# per source, pre-filled with the confirmed (kept/corrected) symbols. Editing is
+# allowed - a user's own change is treated as user-provided input.
+show_confirm_modal <- function(ns, proposal) {
+  confirmed <- confirm_input(proposal)
+  meta <- proposal$sources
+  genes_for <- function(sid) {
+    s <- Find(function(x) x$id == sid, confirmed)
+    if (is.null(s)) character() else s$genes
+  }
+  boxes <- lapply(seq_len(nrow(meta)), function(i) {
+    sid <- meta$id[i]
+    textAreaInput(
+      ns(paste0("confirm_", sid)),
+      label = sprintf("%s (%s)", meta$label[i], meta$type[i]),
+      value = paste(genes_for(sid), collapse = "\n"),
+      rows = 4
+    )
+  })
+  showModal(modalDialog(
+    title = "Review the agent's proposal",
+    render_proposal_summary(proposal),
+    tags$hr(),
+    tags$p(class = "fw-semibold", "Confirmed genes (edit if needed):"),
+    boxes,
+    footer = tagList(
+      modalButton("Cancel"),
+      actionButton(ns("confirm_run"), "Confirm & rank", class = "btn-primary")
+    ),
+    size = "l",
+    easyClose = FALSE
+  ))
+}
+
+# Build the confirmed candidate_set from the confirm panel's (edited) genes boxes,
+# preserving each source's label/type/id from the proposal.
+confirmed_set_from_panel <- function(proposal, input) {
+  meta <- proposal$sources
+  srcs <- list()
+  for (i in seq_len(nrow(meta))) {
+    txt <- input[[paste0("confirm_", meta$id[i])]]
+    genes <- trimws(strsplit(txt %||% "", "\r?\n")[[1]])
+    genes <- genes[nzchar(genes)]
+    if (length(genes) == 0) {
+      next
+    }
+    srcs[[length(srcs) + 1L]] <- candid_source(
+      genes,
+      label = meta$label[i],
+      type = meta$type[i],
+      id = meta$id[i]
+    )
+  }
+  new_candidate_set(srcs)
 }
