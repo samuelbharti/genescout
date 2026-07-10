@@ -217,3 +217,99 @@ test_that("source_auth_headers() builds bearer headers only when a key is presen
     expect_equal(h$Authorization, "Bearer tok123")
   })
 })
+
+# A stubbed STRING fetch so the >= 5-gene runs below stay offline.
+fake_string_fetch <- function(symbols, ...) {
+  list(
+    ok = TRUE,
+    edges = string_network_parse(read_fixture("string_network.json")),
+    queried = symbols,
+    source_url = "https://string-db.org/x"
+  )
+}
+
+test_that("a non-null gene-only selection still appends cross_source + STRING", {
+  # Regression (critical): the Shiny picker sends a non-null vector of GENE-source
+  # keys and can never include the runtime auto-signals (cross_source needs="input",
+  # string needs="network"). Those must still append, so a UI run matches the
+  # CLI/eval default (non-negotiables #3, #5) instead of silently dropping them.
+  reg <- stub_registry()
+  gene_keys <- vapply(reg, function(s) s$key, character(1))
+  enr <- run_enrich(
+    list(a = c("NF1", "SUZ12", "CDKN2A"), b = c("NF1", "TP53", "EED")),
+    registry = reg,
+    resolver = stub_resolver,
+    fetch_network = fake_string_fetch,
+    enabled = gene_keys # exactly what the picker sends by default
+  )
+  expect_true("cross_source" %in% enr$registry$key) # >= 2 user sources
+  expect_true("string" %in% enr$registry$key) # >= 5 genes
+  # Byte-for-byte with the default (enabled = NULL) run.
+  base <- run_enrich(
+    list(a = c("NF1", "SUZ12", "CDKN2A"), b = c("NF1", "TP53", "EED")),
+    registry = stub_registry(),
+    resolver = stub_resolver,
+    fetch_network = fake_string_fetch
+  )
+  expect_setequal(enr$registry$key, base$registry$key)
+})
+
+test_that("an explicit empty selection (deselect-all) queries nothing and errors", {
+  # Regression (high): a UI deselect-all arrives as character(0), which must error
+  # rather than silently fall back to the full default set. The STRING fetch must
+  # never fire (the error is raised before any append/enrichment).
+  expect_error(
+    run_enrich(
+      list(mine = c("NF1", "TP53", "AAA", "BBB", "CCC")),
+      registry = stub_registry(),
+      resolver = stub_resolver,
+      fetch_network = function(...) stop("must not query"),
+      enabled = character(0)
+    ),
+    "No data sources selected"
+  )
+})
+
+test_that("candid_provenance() audits GTEx only when gtex_tissue actually ran", {
+  # Regression: tissues set but GTEx deselected -> not queried -> must not appear.
+  off <- candid_provenance(list(
+    tissues_of_interest = "nerve",
+    active_sources = c("ot_assoc")
+  ))
+  expect_false(any(grepl(
+    "GTEx",
+    vapply(off, function(s) s$source, character(1))
+  )))
+  on <- candid_provenance(list(
+    tissues_of_interest = "nerve",
+    active_sources = c("ot_assoc", "gtex_tissue")
+  ))
+  expect_true(any(grepl(
+    "GTEx",
+    vapply(on, function(s) s$source, character(1))
+  )))
+})
+
+test_that("candid_provenance() audits disease seeding even if those signals are off", {
+  # Regression: in discovery mode the seeder always queries Open Targets, PanelApp
+  # and DISEASES, so the audit must list them even when their per-gene signal was
+  # deselected (else provenance under-reports what actually ran).
+  prov <- candid_provenance(list(
+    disease = list(id = "MONDO_0018975", name = "neurofibromatosis type 1"),
+    active_sources = c("gnomad_loeuf") # none of the three seeders selected
+  ))
+  labs <- vapply(prov, function(s) s$source, character(1))
+  expect_true(any(grepl("Open Targets", labs)))
+  expect_true(any(grepl("PanelApp", labs)))
+  expect_true(any(grepl("DISEASES", labs)))
+})
+
+test_that("candid_catalog_json() flags catalog-only stubs as not selectable", {
+  j <- candid_catalog_json(candid_source_catalog(load_rubric(rubric_path())))
+  by_key <- function(k) {
+    j[[which(vapply(j, function(s) s$key, character(1)) == k)]]
+  }
+  expect_true(by_key("oncokb")$stub) # key-gated stub, no live client yet
+  expect_false(by_key("ot_assoc")$stub) # a real, runnable source
+  expect_false(by_key("hpo")$stub) # opt-in but runnable
+})

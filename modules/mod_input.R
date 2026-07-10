@@ -108,8 +108,10 @@ input_ui <- function(id, registry = candid_signal_registry()) {
       bslib::accordion_panel(
         "Data sources",
         helpText(
-          "Choose which sources to query. An unchecked source is never called",
-          "(saving its network cost); the default set is a lean, fast core."
+          "Choose which sources to query for per-gene evidence. An unchecked",
+          "source is not fetched (saving its network cost); the default set is a",
+          "lean, fast core. In a disease-context review the disease still seeds",
+          "the candidate list."
         ),
         source_picker_ui(ns)
       ),
@@ -149,7 +151,13 @@ input_ui <- function(id, registry = candid_signal_registry()) {
 # checkbox. Built from candid_source_catalog(), so new connectors appear here for free.
 source_picker_ui <- function(ns) {
   catalog <- tryCatch(candid_source_catalog(), error = function(e) list())
-  sel_cat <- Filter(function(s) identical(s$needs %||% "gene", "gene"), catalog)
+  # Only runnable, per-gene connectors are selectable. Stubs (key-gated sources
+  # with no live client yet) are catalog/introspection-only - offering one as a
+  # checkbox would be a silent no-op, so they are listed separately as "planned".
+  sel_cat <- Filter(
+    function(s) identical(s$needs %||% "gene", "gene") && !isTRUE(s$stub),
+    catalog
+  )
   if (length(sel_cat) == 0) {
     return(NULL)
   }
@@ -167,11 +175,28 @@ source_picker_ui <- function(ns) {
     function(s) isTRUE(s$default_on %||% TRUE) && signal_available(s),
     logical(1)
   )]
-  checkboxGroupInput(
+  picker <- checkboxGroupInput(
     ns("sources"),
     NULL,
     choices = stats::setNames(keys, labels),
     selected = selected
+  )
+  # Key-gated sources CANDID knows about but cannot query yet (no client). Shown as
+  # an informational note, never a checkbox, so the picker offers only working ones.
+  stub_cat <- Filter(function(s) isTRUE(s$stub), catalog)
+  if (length(stub_cat) == 0) {
+    return(picker)
+  }
+  stub_names <- paste(
+    vapply(stub_cat, function(s) s$source, character(1)),
+    collapse = ", "
+  )
+  tagList(
+    picker,
+    helpText(
+      class = "fst-italic",
+      paste0("Planned (needs an API key): ", stub_names, ".")
+    )
   )
 }
 
@@ -260,6 +285,21 @@ agent_mode_ui <- function(ns) {
 input_server <- function(id, registry = candid_registry) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # The picker's selectable (runnable, per-gene) source keys - used only to tell a
+    # genuine deselect-all (character(0) -> query nothing) from a picker that never
+    # rendered (NULL -> fall back to defaults). Stubs are excluded (see the picker).
+    selectable_source_keys <- tryCatch(
+      vapply(
+        Filter(
+          function(s) identical(s$needs %||% "gene", "gene") && !isTRUE(s$stub),
+          candid_source_catalog()
+        ),
+        function(s) s$key,
+        character(1)
+      ),
+      error = function(e) character(0)
+    )
 
     # Discovery: resolve a free-text disease/phenotype to ontology candidates the
     # user confirms, then feed the chosen one into the pipeline as context.
@@ -432,9 +472,18 @@ input_server <- function(id, registry = candid_registry) {
       coverage_bonus = reactive(isTRUE(input$coverage_bonus)),
       # Caveats/veto on by default; NULL (pre-render) counts as on.
       caveats = reactive(isTRUE(input$caveats %||% TRUE)),
-      # The selected source-connector keys (the Data sources picker). NULL before
-      # the picker renders -> run_enrich() falls back to each source's default_on.
-      enabled = reactive(input$sources)
+      # The selected source-connector keys (the Data sources picker). The picker is
+      # statically rendered, so by the time "Rank genes" is clicked input$sources is
+      # the checked set, or NULL when every box was unchecked - which we map to
+      # character(0) so a deselect-all queries nothing (run_enrich errors) instead
+      # of silently falling back to the full default set. When the picker never
+      # rendered (no selectable sources), NULL correctly means "use defaults".
+      enabled = reactive({
+        if (length(selectable_source_keys) == 0) {
+          return(NULL)
+        }
+        input$sources %||% character(0)
+      })
     )
   })
 }

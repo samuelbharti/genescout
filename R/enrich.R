@@ -32,7 +32,8 @@ candid_signal <- function(
   domain = NULL,
   default_on = TRUE,
   auth = NULL,
-  key_env = NULL
+  key_env = NULL,
+  stub = FALSE
 ) {
   list(
     key = key,
@@ -58,7 +59,11 @@ candid_signal <- function(
     domain = domain,
     default_on = default_on,
     auth = auth,
-    key_env = key_env
+    key_env = key_env,
+    # A stub is catalog/introspection-only: it advertises a source CANDID knows
+    # about but has no live client for yet, so it is never a runnable/selectable
+    # source (the picker lists it separately, never as a working checkbox).
+    stub = stub
   )
 }
 
@@ -331,7 +336,8 @@ candid_source_stubs <- function() {
       domain = domain,
       default_on = FALSE,
       auth = auth,
-      key_env = key_env
+      key_env = key_env,
+      stub = TRUE
     )
   }
   list(
@@ -408,7 +414,10 @@ candid_catalog_json <- function(catalog = candid_source_catalog()) {
       role = s$role %||% "evidence",
       default_on = isTRUE(s$default_on %||% TRUE),
       auth = s$auth %||% "none",
-      available = signal_available(s)
+      available = signal_available(s),
+      # TRUE for a catalog-only stub (no live client) so a front end renders it as
+      # "planned / needs a key", not as a working, selectable source.
+      stub = isTRUE(s$stub)
     )
   })
 }
@@ -930,7 +939,11 @@ extract_hpo <- function(resolved, context = list()) {
       title = paste0("HPO gene-disease association: ", ev$name),
       detail = "Human Phenotype Ontology gene-disease annotation",
       score = NA_real_,
-      source_id = ifelse(nzchar(ev$id), ev$id, r$source_id),
+      # Fall back to the gene-level source_id when a disease has no per-disease id.
+      # nzchar(NA) is TRUE and ifelse() with an NA condition returns NA, so the
+      # is.na() guard is required - without it a null-id row carries source_id = NA
+      # and the citation gate drops it (still counted in raw): a grounding mismatch.
+      source_id = ifelse(!is.na(ev$id) & nzchar(ev$id), ev$id, r$source_id),
       source_url = r$source_url
     )
   )

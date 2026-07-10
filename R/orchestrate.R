@@ -107,19 +107,37 @@ run_enrich <- function(
     },
     registry
   )
+  # An EXPLICIT selection (sel not NULL) that keeps no gene source is an empty
+  # review - error now, BEFORE the derived auto-signals are appended, so a UI
+  # "deselect all" (which arrives as character(0)) queries nothing as the picker
+  # promises. A default run (sel = NULL) never trips this and is unchanged.
+  if (!is.null(sel) && length(registry) == 0) {
+    stop("No data sources selected for this review.", call. = FALSE)
+  }
   registry_keys <- vapply(registry, function(s) s$key, character(1))
-  # The runtime-data signals are appended fresh (they are not in the passed
-  # registry), each still gated on BOTH the selection and its data-condition, so an
-  # unspecified selection keeps today's behavior byte-for-byte.
+  has_gene_source <- length(registry) > 0
+  # The runtime-data auto-signals (cross_source, STRING) are appended fresh from run
+  # data. They are NOT offered in the source picker (needs != "gene"), so a positive
+  # gene-only selection can never list them - gating them on selection membership
+  # would silently drop them on every UI run (diverging from the CLI/eval default).
+  # Instead they run on their data-condition whenever the run has an active gene
+  # source (sel = NULL default, or an explicit selection that kept >= 1 source), so
+  # a UI run stays byte-for-byte identical to the default (non-negotiables #3, #5).
+  # gtex_tissue IS in the picker (needs = "gene"), so it stays selection-gated below.
+  auto_active <- function(key) {
+    is.null(sel) || key %in% sel || has_gene_source
+  }
   if (
     length(user_sources) >= 2 &&
-      source_is_active("cross_source", sel) &&
+      auto_active("cross_source") &&
       !("cross_source" %in% registry_keys)
   ) {
     registry <- c(registry, list(cross_source_signal()))
   }
   # Tissue-expression: append the GTEx signal only when the study named tissue(s)
   # of interest, so runs without a tissue context are byte-for-byte unchanged.
+  # Unlike the auto-signals above, GTEx is selectable in the picker, so it stays
+  # gated on the selection (unchecking it suppresses it even with tissues set).
   if (
     length(context_tissues(context)) > 0 &&
       source_is_active("gtex_tissue", sel) &&
@@ -133,7 +151,7 @@ run_enrich <- function(
   # provenance can report the source.
   if (
     nrow(flat) >= CANDID_STRING_MIN_GENES &&
-      source_is_active("string", sel) &&
+      auto_active("string") &&
       !("string" %in% registry_keys)
   ) {
     registry <- c(registry, list(string_signal()))
@@ -347,7 +365,19 @@ candid_provenance <- function(context = list()) {
   # Only the sources this run actually queried. `active_sources` (set by run_enrich)
   # is the selected key set; when absent (older callers), every source is listed.
   active <- pluck_at(context, "active_sources")
-  is_on <- function(key) is.null(active) || key %in% active
+  disease <- pluck_at(context, "disease")
+  disease_on <- !is.null(disease) && !is_blank(disease$id %||% "")
+  # In discovery mode the seeder ALWAYS queries Open Targets, PanelApp and DISEASES
+  # to build the candidate universe, independent of each one's per-gene signal
+  # selection - so the audit must count them as queried even when their per-gene
+  # signal is deselected (otherwise provenance UNDER-reports what actually ran).
+  seeded_sources <- if (disease_on) {
+    c("ot_assoc", "panelapp", "diseases")
+  } else {
+    character()
+  }
+  queried <- union(active %||% character(), seeded_sources)
+  is_on <- function(key) is.null(active) || key %in% queried
   base <- list(
     ot_assoc = list(
       source = "Open Targets Platform",
@@ -371,8 +401,7 @@ candid_provenance <- function(context = list()) {
     list(list(source = "MyGene.info", endpoint = MYGENE_BASE)),
     unname(base[vapply(names(base), is_on, logical(1))])
   )
-  disease <- pluck_at(context, "disease")
-  if (!is.null(disease) && !is_blank(disease$id)) {
+  if (disease_on) {
     if (is_on("panelapp")) {
       sources <- c(
         sources,
@@ -400,7 +429,10 @@ candid_provenance <- function(context = list()) {
     )
   }
   tissues <- context_tissues(context)
-  if (length(tissues) > 0) {
+  # Gate on is_on("gtex_tissue") like every other selectable source: with tissues
+  # set but GTEx deselected, the signal never appended and never queried, so it must
+  # not appear in the audit (mirrors how STRING is gated on context$network_signal).
+  if (length(tissues) > 0 && is_on("gtex_tissue")) {
     sources <- c(
       sources,
       list(list(

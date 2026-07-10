@@ -105,12 +105,16 @@ hpo_relevance <- function(diseases, disease_ctx = NULL) {
     return(list(present = TRUE, n = nrow(diseases), matched = diseases))
   }
   want_tokens <- hpo_disease_tokens(disease_ctx$name %||% "")
-  want_mondo <- toupper(as.character(disease_ctx$id %||% ""))
+  # Normalize the MONDO separator before comparing: the disease-context id is the
+  # Open Targets underscore form (MONDO_0018875) while HPO's mondoId is the colon
+  # form (MONDO:0018875). Canonicalize both to ':' so the id-match is not dead in
+  # production (it revives grounded matches when HPO labels a disease differently).
+  want_mondo <- gsub("_", ":", toupper(as.character(disease_ctx$id %||% "")))
   keep <- vapply(
     seq_len(nrow(diseases)),
     function(i) {
       mondo_hit <- nzchar(want_mondo) &&
-        identical(toupper(diseases$mondo[i]), want_mondo)
+        identical(gsub("_", ":", toupper(diseases$mondo[i])), want_mondo)
       name_hit <- length(want_tokens) > 0 &&
         length(intersect(gtex_tokens(diseases$name[i]), want_tokens)) > 0
       mondo_hit || name_hit
