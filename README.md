@@ -205,7 +205,8 @@ See [`PLAN.md`](PLAN.md) for the full phased plan. Near-term:
 - [x] AI curator: grounded, model-agnostic final compaction
 - [x] Shiny UI with per-candidate evidence cards; CLI + design-only HTTP API
 - [x] Eval harness on known NF1 biology
-- [ ] Three parallel specialist agents with real data tools
+- [x] Three parallel specialist agents (grounded synthesis + suggested next
+      experiment), layered on the deterministic ranking
 - [ ] Preprint + evaluation write-up
 
 ## Citation

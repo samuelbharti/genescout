@@ -18,6 +18,7 @@ results_ui <- function(id) {
       div(class = "mb-3", DT::DTOutput(ns("ranked_table"))),
       uiOutput(ns("curate_control")),
       uiOutput(ns("curation")),
+      uiOutput(ns("specialist_control")),
       div(class = "mt-3", uiOutput(ns("drilldown")))
     )
   )
@@ -162,7 +163,7 @@ results_server <- function(
             "Download curated list (CSV)",
             class = "btn-outline-secondary btn-sm mb-2"
           ),
-          render_curation(cur)
+          render_curation(cur, result()$genes)
         )
       )
     })
@@ -180,6 +181,59 @@ results_server <- function(
       }
     )
 
+    # --- Specialist analysis (optional LLM synthesis over the evidence) --------
+    specialists <- reactiveVal(NULL)
+    # Clear stale analysis when the ranking changes (ignoreNULL = FALSE so a failed
+    # re-run that clears the result also clears the specialist cards).
+    observeEvent(result(), specialists(NULL), ignoreNULL = FALSE)
+
+    output$specialist_control <- renderUI({
+      req(result())
+      if (!final_curator_on()) {
+        return(NULL)
+      }
+      div(
+        class = "my-3",
+        actionButton(
+          ns("do_specialists"),
+          "Analyze top candidates with specialists →",
+          class = "btn-outline-primary"
+        ),
+        span(
+          class = "text-muted small ms-2",
+          paste(
+            "Three grounded specialists (variant · pathway/disease · literature)",
+            "synthesize each top candidate's own evidence, then an orchestrator",
+            "rolls them into one verdict + a priority next experiment. Select a",
+            "gene row to read its analysis."
+          )
+        )
+      )
+    })
+
+    observeEvent(input$do_specialists, {
+      req(result())
+      req(final_curator_on())
+      sp <- tryCatch(
+        withProgress(
+          message = "Running specialists on the top candidates...",
+          run_specialists(result(), config)
+        ),
+        error = function(e) {
+          showNotification(
+            paste("Specialist analysis failed:", conditionMessage(e)),
+            type = "error"
+          )
+          NULL
+        }
+      )
+      # A graceful "no findings / no credentials" outcome is a notice, not an error.
+      if (!is.null(sp) && !isTRUE(sp$ai_used) && !is.null(sp$message)) {
+        showNotification(sp$message, type = "message")
+      }
+      specialists(sp)
+    })
+
     output$drilldown <- renderUI({
       req(result())
       sel <- input$ranked_table_rows_selected
@@ -189,9 +243,10 @@ results_server <- function(
           "Select a gene in the table to see the evidence behind its signals."
         )
       } else {
-        render_gene_evidence(
-          result()$genes[sel, , drop = FALSE],
-          result()$evidence
+        gene_row <- result()$genes[sel, , drop = FALSE]
+        tagList(
+          render_specialist_analysis(gene_row, specialists()),
+          render_gene_evidence(gene_row, result()$evidence)
         )
       }
       bslib::card(

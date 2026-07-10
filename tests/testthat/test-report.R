@@ -90,17 +90,20 @@ test_that("build_export_csv() flattens the ranked matrix with raw + norm cols", 
   expect_equal(df$input_lists, c("pasted", "pasted"))
 })
 
-test_that("render_curation() labels AI rationales as non-citation-gated", {
+test_that("render_curation() surfaces grounded source ids for each rationale", {
   curated <- tibble::tibble(
     gene_symbol = "NF1",
     include = TRUE,
     confidence = 0.9,
-    rationale = "Strong Open Targets association."
+    rationale = "Strong Open Targets association.",
+    source_ids = list("OpenTargets:ENSG1:MONDO_x")
   )
   attr(curated, "ai_used") <- TRUE
   html <- as.character(render_curation(curated))
   expect_match(html, "AI-curated selection")
-  expect_match(html, "not separately citation-gated", fixed = TRUE)
+  expect_match(html, "Grounded sources") # the citation column header
+  expect_match(html, "OpenTargets:ENSG1:MONDO_x", fixed = TRUE) # cited id shown
+  expect_match(html, "an ungrounded citation is dropped", fixed = TRUE) # caveat
 })
 
 test_that("render_curation() omits the AI caveat for the fallback selection", {
@@ -108,12 +111,34 @@ test_that("render_curation() omits the AI caveat for the fallback selection", {
     gene_symbol = "NF1",
     include = TRUE,
     confidence = NA_real_,
-    rationale = "Selected by composite rank (AI unavailable)."
+    rationale = "Selected by composite rank (AI unavailable).",
+    source_ids = list(character())
   )
   attr(curated, "ai_used") <- FALSE
   html <- as.character(render_curation(curated))
   expect_match(html, "Composite-rank selection")
-  expect_false(grepl("not separately citation-gated", html, fixed = TRUE))
+  expect_false(grepl("an ungrounded citation is dropped", html, fixed = TRUE))
+})
+
+test_that("render_curation() lists the non-curated genes with a reason", {
+  curated <- tibble::tibble(
+    gene_symbol = c("NF1", "TTN"),
+    include = c(TRUE, FALSE),
+    confidence = c(0.9, 0.2),
+    rationale = c("kept", "common sequencing-artifact gene"),
+    source_ids = list(character(), character())
+  )
+  attr(curated, "ai_used") <- TRUE
+  ranked <- tibble::tibble(
+    symbol = c("NF1", "TTN", "FOO"),
+    rank = 1:3,
+    grade = c("High", "Vetoed", "Low")
+  )
+  html <- as.character(render_curation(curated, ranked))
+  expect_match(html, "Not in the curated list")
+  expect_match(html, "common sequencing-artifact gene") # model's drop reason
+  expect_match(html, "FOO") # ranked but never on the curation shortlist
+  expect_match(html, "Not selected for the curated list", fixed = TRUE)
 })
 
 test_that("render_report() writes a self-contained HTML with the disclaimer", {

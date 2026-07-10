@@ -173,13 +173,33 @@ ranked_matrix_html <- function(genes, registry) {
 
 # --- AI curation panel ------------------------------------------------------
 
+# How many excluded genes to list in the "not curated" panel before collapsing the
+# rest to a count (the full ranking is always in the table above).
+CANDID_NONCURATED_MAX <- 50L
+
+# Render the grounded evidence ids a rationale cites as a compact cell (or an em
+# dash when none survived grounding).
+curation_ids_cell <- function(ids) {
+  ids <- ids %||% character()
+  if (length(ids) == 0) {
+    return(htmltools::span(class = "text-muted", "—"))
+  }
+  htmltools::tags$span(
+    class = "small font-monospace",
+    paste(ids, collapse = ", ")
+  )
+}
+
 # Render a curated selection (from curate_gene_list()) as a card: a banner
 # stating whether the AI ran or the deterministic fallback was used, then the
-# included genes with confidence + grounded rationale. Pure htmltools (the
-# download button is added by the module).
-render_curation <- function(curated) {
+# included genes with confidence, rationale, and the grounded source ids each
+# rationale cites. When `ranked` (result$genes) is supplied, a collapsed panel
+# lists the genes that did NOT make the curated list, with the reason. Pure
+# htmltools (the download button is added by the module).
+render_curation <- function(curated, ranked = NULL) {
   ai_used <- isTRUE(attr(curated, "ai_used"))
   note <- attr(curated, "message") %||% attr(curated, "error")
+  has_ids <- "source_ids" %in% names(curated)
   inc <- curated[which(curated$include), , drop = FALSE]
 
   banner <- htmltools::div(
@@ -198,6 +218,7 @@ render_curation <- function(curated) {
     htmltools::p(class = "text-muted fst-italic", "No genes selected.")
   } else {
     rows <- lapply(seq_len(nrow(inc)), function(i) {
+      ids <- if (has_ids) inc$source_ids[[i]] else character()
       htmltools::tags$tr(
         htmltools::tags$td(inc$gene_symbol[i]),
         htmltools::tags$td(
@@ -207,7 +228,8 @@ render_curation <- function(curated) {
             sprintf("%.2f", inc$confidence[i])
           }
         ),
-        htmltools::tags$td(inc$rationale[i])
+        htmltools::tags$td(inc$rationale[i]),
+        htmltools::tags$td(curation_ids_cell(ids))
       )
     })
     htmltools::tags$table(
@@ -215,23 +237,27 @@ render_curation <- function(curated) {
       htmltools::tags$thead(htmltools::tags$tr(
         htmltools::tags$th("Gene"),
         htmltools::tags$th("Confidence"),
-        htmltools::tags$th("Rationale")
+        htmltools::tags$th("Rationale"),
+        htmltools::tags$th("Grounded sources")
       )),
       htmltools::tags$tbody(rows)
     )
   }
 
-  # The gene SELECTION is structurally gated to the ranked candidates, but the
-  # free-text rationale is model-written. Say so, so it is never mistaken for an
-  # independently citation-gated evidence item (the grounded, source-linked
-  # evidence lives in the ranked table + per-gene drill-down).
+  # The gene SELECTION is structurally gated to the ranked candidates AND each
+  # rationale's cited ids are grounded (kept only when they match the evidence
+  # gathered for that gene - a fabricated citation is dropped). Say so, so the
+  # "Grounded sources" column is understood as a validated trail back to the
+  # ranked table + per-gene drill-down, not a free-text claim.
   caveat <- if (ai_used && nrow(inc) > 0) {
     htmltools::p(
       class = "small text-muted fst-italic mt-1",
       paste(
-        "Rationales are the model's summary of the evidence shown for each",
-        "gene, not separately citation-gated claims. See the ranked table and",
-        "per-gene drill-down for the grounded, source-linked evidence."
+        "Each rationale is the model's summary of the evidence shown for that",
+        "gene; the Grounded sources column lists the exact evidence ids it cites,",
+        "kept only when they match the evidence gathered for that gene (an",
+        "ungrounded citation is dropped). See the ranked table and per-gene",
+        "drill-down for the full source-linked evidence."
       )
     )
   }
@@ -243,19 +269,263 @@ render_curation <- function(curated) {
     ),
     banner,
     body,
-    caveat
+    caveat,
+    render_noncurated(curated, ranked, toupper(inc$gene_symbol))
   )
 }
 
-# A flat data frame of the curated (included) genes for CSV export.
+# The genes that did NOT make the curated list: every ranked gene minus the
+# included set, sorted by rank, with the reason (the model's exclusion rationale
+# when it gave one, else its rank/grade). Rendered as a collapsed accordion so it
+# never crowds the curated list but the drops stay transparent. NULL when there is
+# nothing to show or no ranking was supplied.
+render_noncurated <- function(curated, ranked, included_syms) {
+  if (is.null(ranked) || nrow(ranked) == 0) {
+    return(NULL)
+  }
+  ex <- ranked[!toupper(ranked$symbol) %in% included_syms, , drop = FALSE]
+  if (nrow(ex) == 0) {
+    return(NULL)
+  }
+  if ("rank" %in% names(ex)) {
+    ex <- ex[order(ex$rank), , drop = FALSE]
+  }
+  n_total <- nrow(ex)
+  shown <- utils::head(ex, CANDID_NONCURATED_MAX)
+
+  # The model's own exclusion rationales, keyed by uppercased symbol.
+  excl_rat <- character()
+  if (
+    !is.null(curated) && all(c("include", "gene_symbol") %in% names(curated))
+  ) {
+    dropped <- curated[
+      !is.na(curated$include) & !curated$include,
+      ,
+      drop = FALSE
+    ]
+    if (nrow(dropped) > 0) {
+      excl_rat <- stats::setNames(
+        dropped$rationale,
+        toupper(dropped$gene_symbol)
+      )
+    }
+  }
+
+  rows <- lapply(seq_len(nrow(shown)), function(i) {
+    sym <- shown$symbol[i]
+    r <- excl_rat[toupper(sym)]
+    reason <- if (is.na(r)) "Not selected for the curated list." else unname(r)
+    htmltools::tags$tr(
+      htmltools::tags$td(sym),
+      htmltools::tags$td(
+        if ("rank" %in% names(shown)) as.character(shown$rank[i]) else ""
+      ),
+      htmltools::tags$td(
+        if ("grade" %in% names(shown)) shown$grade[i] else ""
+      ),
+      htmltools::tags$td(reason)
+    )
+  })
+  overflow <- if (n_total > nrow(shown)) {
+    htmltools::p(
+      class = "small text-muted fst-italic",
+      sprintf(
+        "+ %d more below in the ranked table above.",
+        n_total - nrow(shown)
+      )
+    )
+  }
+
+  bslib::accordion(
+    class = "mt-2",
+    open = FALSE,
+    bslib::accordion_panel(
+      sprintf(
+        "Not in the curated list (%d gene%s)",
+        n_total,
+        if (n_total == 1) "" else "s"
+      ),
+      htmltools::tags$table(
+        class = "table table-sm",
+        htmltools::tags$thead(htmltools::tags$tr(
+          htmltools::tags$th("Gene"),
+          htmltools::tags$th("Rank"),
+          htmltools::tags$th("Grade"),
+          htmltools::tags$th("Reason")
+        )),
+        htmltools::tags$tbody(rows)
+      ),
+      overflow
+    )
+  )
+}
+
+# A flat data frame of the curated (included) genes for CSV export, with the
+# grounded evidence ids (";"-joined) each rationale cites.
 build_curated_csv <- function(curated) {
   inc <- curated[which(curated$include), , drop = FALSE]
+  ids <- if ("source_ids" %in% names(inc)) {
+    vapply(
+      inc$source_ids,
+      function(x) paste(x %||% character(), collapse = "; "),
+      character(1)
+    )
+  } else {
+    rep("", nrow(inc))
+  }
   data.frame(
     gene = inc$gene_symbol,
     confidence = round(inc$confidence, 3),
     rationale = inc$rationale,
+    source_ids = ids,
     stringsAsFactors = FALSE,
     check.names = FALSE
+  )
+}
+
+# --- Specialist analysis (optional LLM synthesis) ---------------------------
+
+# Canonical display order for the specialists.
+CANDID_SPECIALIST_ORDER <- c("variant-effect", "pathway-disease", "literature")
+
+# A colored badge for a specialist's domain-support strength.
+specialist_strength_badge <- function(strength) {
+  cls <- switch(
+    strength %||% "moderate",
+    strong = "text-bg-success",
+    moderate = "text-bg-primary",
+    weak = "text-bg-warning",
+    none = "text-bg-secondary",
+    "text-bg-secondary"
+  )
+  htmltools::span(class = paste("badge", cls), strength %||% "moderate")
+}
+
+# A colored badge for the synthesized overall research plausibility.
+plausibility_badge <- function(plausibility) {
+  cls <- switch(
+    plausibility %||% "uncertain",
+    compelling = "text-bg-success",
+    plausible = "text-bg-primary",
+    uncertain = "text-bg-warning",
+    weak = "text-bg-secondary",
+    "text-bg-warning"
+  )
+  htmltools::span(
+    class = paste("badge", cls),
+    plausibility %||% "uncertain"
+  )
+}
+
+# The synthesized per-gene verdict (from run_synthesis): the integrated read, its
+# plausibility, cross-domain caveats, the priority next experiment, and the ids it
+# leans on. NULL when the gene has no verdict. Pure htmltools.
+render_verdict <- function(verdict) {
+  if (is.null(verdict) || !nzchar(verdict$verdict %||% "")) {
+    return(NULL)
+  }
+  caveats <- if (length(verdict$caveats) > 0) {
+    htmltools::div(
+      class = "small mt-1",
+      htmltools::strong("Caveats: "),
+      htmltools::tags$ul(
+        class = "small mb-0",
+        lapply(verdict$caveats, htmltools::tags$li)
+      )
+    )
+  }
+  priority <- if (nzchar(verdict$next_experiment %||% "")) {
+    htmltools::div(
+      class = "small mt-1 fst-italic",
+      htmltools::strong("Priority next experiment: "),
+      verdict$next_experiment
+    )
+  }
+  ids <- if (length(verdict$source_ids) > 0) {
+    htmltools::div(
+      class = "small text-muted font-monospace mt-1",
+      paste0("[", paste(verdict$source_ids, collapse = ", "), "]")
+    )
+  }
+  htmltools::div(
+    class = "alert alert-primary py-2 mb-2",
+    htmltools::div(
+      class = "d-flex align-items-center gap-2 mb-1",
+      htmltools::strong("Verdict"),
+      plausibility_badge(verdict$plausibility)
+    ),
+    htmltools::p(class = "mb-1", verdict$verdict),
+    caveats,
+    priority,
+    ids
+  )
+}
+
+# Render one gene's specialist analysis (from run_specialists()): a card per domain
+# with the grounded assessment, the findings + their cited ids, the strength, and a
+# suggested next experiment. NULL when this gene was not analyzed. Pure htmltools.
+render_specialist_analysis <- function(gene_row, specialists) {
+  if (is.null(specialists) || is.null(specialists$by_gene)) {
+    return(NULL)
+  }
+  g <- specialists$by_gene[[toupper(gene_row$symbol)]]
+  if (is.null(g) || length(g) == 0) {
+    return(NULL)
+  }
+  ordered <- intersect(CANDID_SPECIALIST_ORDER, names(g))
+  cards <- lapply(ordered, function(k) {
+    sp <- g[[k]]
+    findings <- if (length(sp$findings) > 0) {
+      htmltools::tags$ul(
+        class = "small mb-1",
+        lapply(sp$findings, function(f) {
+          htmltools::tags$li(
+            f$point,
+            htmltools::span(
+              class = "text-muted font-monospace ms-1 small",
+              paste0("[", paste(f$source_ids, collapse = ", "), "]")
+            )
+          )
+        })
+      )
+    }
+    next_exp <- if (nzchar(sp$next_experiment %||% "")) {
+      htmltools::div(
+        class = "small mt-1 fst-italic",
+        htmltools::strong("Suggested next experiment: "),
+        sp$next_experiment
+      )
+    }
+    htmltools::div(
+      class = "mb-2 pb-2 border-bottom",
+      htmltools::div(
+        class = "d-flex align-items-center gap-2 mb-1",
+        htmltools::strong(sp$label),
+        specialist_strength_badge(sp$strength)
+      ),
+      if (nzchar(sp$assessment %||% "")) {
+        htmltools::p(class = "small mb-1", sp$assessment)
+      },
+      findings,
+      next_exp
+    )
+  })
+  htmltools::div(
+    class = "card mb-3",
+    htmltools::div(
+      class = "card-body",
+      htmltools::tags$h5(class = "h6 mb-1", "Specialist analysis"),
+      htmltools::p(
+        class = "small text-muted fst-italic mb-2",
+        paste(
+          "Each specialist synthesizes ONLY this gene's grounded evidence in its",
+          "domain; every cited id is validated against that evidence, and an",
+          "ungrounded finding is dropped."
+        )
+      ),
+      render_verdict(g$verdict),
+      cards
+    )
   )
 }
 
