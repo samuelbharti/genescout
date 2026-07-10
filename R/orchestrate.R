@@ -161,23 +161,14 @@ run_review <- function(
 }
 
 # Coerce assorted inputs into the named list of character vectors that
-# flatten_gene_lists() expects. Accepts a named list (passed through), a bare
-# character vector (one list), or a candidate/gene data frame (its gene column).
+# flatten_gene_lists() expects. The canonical model is now a `candidate_set`
+# (R/parse_input.R); this is a thin back-compat shim over it. Dispatch runs
+# through as_candidate_set(), which keys on the candidate_set / candid_source S3
+# classes FIRST - a candidate_set is itself a list, so the old bare
+# `if (is.list(x)) return(x)` passthrough would have handed a list of
+# candid_source records straight to flatten and corrupted the run.
 as_gene_lists <- function(x) {
-  if (is.data.frame(x)) {
-    col <- intersect(c("gene", "candidate", "symbol"), names(x))[1]
-    if (!is.na(col)) {
-      return(list(input = as.character(x[[col]])))
-    }
-    return(list())
-  }
-  if (is.list(x)) {
-    return(x)
-  }
-  if (is.character(x)) {
-    return(list(input = x))
-  }
-  list()
+  candidate_set_to_named_lists(as_candidate_set(x))
 }
 
 # Provenance for the sources the deterministic pipeline queries. `context` may

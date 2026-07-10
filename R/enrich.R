@@ -643,14 +643,19 @@ seed_disease_genes <- function(disease, ot_size = 250, max_seed = 200) {
 
 # --- Flatten, resolve, dedupe -----------------------------------------------
 
-# Union many named gene lists into unique tokens, remembering which list(s) each
-# came from. `lists` is a named list of character vectors. Blank lines and lines
-# starting with '#' are dropped. Returns tibble(token, input_lists = list-col).
-flatten_gene_lists <- function(lists) {
+# Union the sources of a candidate_set into unique tokens, remembering which
+# source label(s) / id(s) / type(s) each token came from. Dedup by uppercased
+# token, first-seen order preserved. Blank/NA tokens and '#' comments are
+# dropped. Returns tibble(token, input_lists, input_source_ids,
+# input_source_types) with sorted list-cols. `input_lists` (source labels) is
+# byte-identical to the old flatten_gene_lists output, so existing provenance is
+# unchanged; the id/type columns are additive (report/provenance only).
+flatten_candidate_set <- function(cs) {
+  cs <- as_candidate_set(cs)
   membership <- list()
   order <- character()
-  for (nm in names(lists)) {
-    toks <- trimws(as.character(lists[[nm]]))
+  for (src in cs) {
+    toks <- trimws(as.character(src$genes))
     # Drop NA first: nzchar(NA) is TRUE and startsWith(NA, "#") is NA, so an NA
     # token would survive the filter and later crash the membership lookup. NAs
     # reach here from a seeded gene with a null source symbol or an empty CSV cell.
@@ -658,14 +663,29 @@ flatten_gene_lists <- function(lists) {
     for (t in toks) {
       key <- toupper(t)
       if (is.null(membership[[key]])) {
-        membership[[key]] <- list(token = t, lists = character())
+        membership[[key]] <- list(
+          token = t,
+          labels = character(),
+          ids = character(),
+          types = character()
+        )
         order <- c(order, key)
       }
-      membership[[key]]$lists <- union(membership[[key]]$lists, nm)
+      membership[[key]]$labels <- union(membership[[key]]$labels, src$label)
+      membership[[key]]$ids <- union(membership[[key]]$ids, src$id)
+      membership[[key]]$types <- union(membership[[key]]$types, src$type)
     }
   }
   if (length(order) == 0) {
-    return(tibble::tibble(token = character(), input_lists = list()))
+    return(tibble::tibble(
+      token = character(),
+      input_lists = list(),
+      input_source_ids = list(),
+      input_source_types = list()
+    ))
+  }
+  pull_sorted <- function(field) {
+    unname(lapply(order, function(k) sort(membership[[k]][[field]])))
   }
   tibble::tibble(
     token = vapply(
@@ -674,8 +694,17 @@ flatten_gene_lists <- function(lists) {
       character(1),
       USE.NAMES = FALSE
     ),
-    input_lists = unname(lapply(order, function(k) sort(membership[[k]]$lists)))
+    input_lists = pull_sorted("labels"),
+    input_source_ids = pull_sorted("ids"),
+    input_source_types = pull_sorted("types")
   )
+}
+
+# Back-compat shim: a named list of character vectors is one source per name.
+# Delegates to flatten_candidate_set so the two share one implementation and the
+# `token` + sorted `input_lists` columns stay byte-identical to before.
+flatten_gene_lists <- function(lists) {
+  flatten_candidate_set(lists)
 }
 
 # Resolve every token to a canonical gene id (MyGene ensembl_gene) and dedupe by
@@ -685,28 +714,41 @@ resolve_genes <- function(flat, resolver = resolve_symbol) {
   if (nrow(flat) == 0) {
     return(empty_resolved())
   }
+  has_ids <- "input_source_ids" %in% names(flat)
+  has_types <- "input_source_types" %in% names(flat)
   rows <- lapply(seq_len(nrow(flat)), function(i) {
     token <- flat$token[i]
     r <- resolver(token)
-    if (isTRUE(r$ok) && !is_blank(r$ensembl_gene)) {
+    prov <- list(
+      token = token,
+      input_lists = flat$input_lists[[i]],
+      input_source_ids = if (has_ids) {
+        flat$input_source_ids[[i]]
+      } else {
+        character()
+      },
+      input_source_types = if (has_types) {
+        flat$input_source_types[[i]]
+      } else {
+        character()
+      }
+    )
+    resolved <- if (isTRUE(r$ok) && !is_blank(r$ensembl_gene)) {
       list(
         gene_id = r$ensembl_gene,
         symbol = r$symbol %||% token,
         entrez = as.character(r$entrez %||% NA),
-        resolved = TRUE,
-        token = token,
-        input_lists = flat$input_lists[[i]]
+        resolved = TRUE
       )
     } else {
       list(
         gene_id = paste0("UNRESOLVED:", toupper(token)),
         symbol = token,
         entrez = NA_character_,
-        resolved = FALSE,
-        token = token,
-        input_lists = flat$input_lists[[i]]
+        resolved = FALSE
       )
     }
+    c(resolved, prov)
   })
   merge_resolved(rows)
 }
@@ -724,14 +766,27 @@ merge_resolved <- function(rows) {
         entrez = r$entrez,
         resolved = r$resolved,
         input_symbols = character(),
-        input_lists = character()
+        input_lists = character(),
+        input_source_ids = character(),
+        input_source_types = character()
       )
       order <- c(order, id)
     }
     by_id[[id]]$input_symbols <- union(by_id[[id]]$input_symbols, r$token)
     by_id[[id]]$input_lists <- union(by_id[[id]]$input_lists, r$input_lists)
+    by_id[[id]]$input_source_ids <- union(
+      by_id[[id]]$input_source_ids,
+      r$input_source_ids %||% character()
+    )
+    by_id[[id]]$input_source_types <- union(
+      by_id[[id]]$input_source_types,
+      r$input_source_types %||% character()
+    )
   }
   pull <- function(f) vapply(order, f, character(1), USE.NAMES = FALSE)
+  pull_list <- function(field) {
+    unname(lapply(order, function(k) sort(by_id[[k]][[field]])))
+  }
   tibble::tibble(
     gene_id = pull(function(k) by_id[[k]]$gene_id),
     symbol = pull(function(k) by_id[[k]]$symbol),
@@ -742,12 +797,10 @@ merge_resolved <- function(rows) {
       logical(1),
       USE.NAMES = FALSE
     ),
-    input_symbols = unname(lapply(order, function(k) {
-      sort(by_id[[k]]$input_symbols)
-    })),
-    input_lists = unname(lapply(order, function(k) {
-      sort(by_id[[k]]$input_lists)
-    }))
+    input_symbols = pull_list("input_symbols"),
+    input_lists = pull_list("input_lists"),
+    input_source_ids = pull_list("input_source_ids"),
+    input_source_types = pull_list("input_source_types")
   )
 }
 
@@ -758,7 +811,9 @@ empty_resolved <- function() {
     entrez = character(),
     resolved = logical(),
     input_symbols = list(),
-    input_lists = list()
+    input_lists = list(),
+    input_source_ids = list(),
+    input_source_types = list()
   )
 }
 
@@ -873,6 +928,14 @@ assemble_matrix <- function(
     resolved = resolved_flag,
     input_lists = input_lists
   )
+  # Carry per-source provenance when present (report / drill-down only). Guarded
+  # so a hand-built resolved tibble without these columns still assembles.
+  if ("input_source_ids" %in% names(resolved)) {
+    mat$input_source_ids <- resolved$input_source_ids
+  }
+  if ("input_source_types" %in% names(resolved)) {
+    mat$input_source_types <- resolved$input_source_types
+  }
   for (k in keys) {
     sub <- signals_long[signals_long$signal_key == k, , drop = FALSE]
     raw_by <- stats::setNames(sub$raw, sub$gene_id)
