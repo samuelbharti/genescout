@@ -28,6 +28,9 @@ default:
     caveats: gemini-2.5-flash
     # The retrieval specialists: a faster model for speed + cost.
     specialist: gemini-2.5-flash
+    # The optional input-curation agent (front-of-pipeline QA): a fast, cheap
+    # model, since cleaning tokens is a light interpretive task.
+    input_curator: gemini-2.5-flash
 
 # To use Anthropic (Claude) instead, replace the block above with:
 #   provider: anthropic
@@ -35,6 +38,7 @@ default:
 #     orchestrator: claude-opus-4-8
 #     caveats: claude-opus-4-8
 #     specialist: claude-sonnet-5
+#     input_curator: claude-haiku-4-5
 #
 # To use OpenAI (GPT) instead:
 #   provider: openai
@@ -42,3 +46,4 @@ default:
 #     orchestrator: gpt-5
 #     caveats: gpt-5
 #     specialist: gpt-5-mini
+#     input_curator: gpt-5-mini
