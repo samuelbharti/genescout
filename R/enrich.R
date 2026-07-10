@@ -122,6 +122,15 @@ candid_signal_registry <- function(
       role = "evidence"
     ),
     candid_signal(
+      "pubtator",
+      "PubTator3 gene mentions",
+      "PubTator3",
+      extractor = extract_pubtator,
+      normalize = normalize_log_saturating(m$pubtator %||% 300),
+      weight = w$pubtator %||% 0.5,
+      role = "evidence"
+    ),
+    candid_signal(
       "clinvar_path",
       "ClinVar pathogenic variants",
       "ClinVar",
@@ -348,6 +357,42 @@ extract_pmc_hits <- function(resolved, context = list()) {
       domain = "literature",
       title = title,
       detail = sprintf("query %s", q),
+      score = NA_real_,
+      source_id = r$source_id,
+      source_url = r$source_url
+    )
+  )
+}
+
+# PubTator3: count of PubMed/PMC articles in which the gene ENTITY is tagged - the
+# entity-precise literature signal alongside the Europe PMC symbol count. Uses the
+# resolved NCBI Gene id when available (`@GENE_<entrez>`) so aliases disambiguate
+# exactly, else the symbol. Gene-level (not disease-scoped): the documented role is
+# the precise successor to the gene-level Europe PMC count. A real 0 is a genuine
+# zero (kept), only a failed fetch is a miss.
+extract_pubtator <- function(resolved, context = list()) {
+  r <- pubtator_gene_literature(resolved$symbol, entrez = resolved$entrez)
+  if (!isTRUE(r$ok)) {
+    return(signal_miss())
+  }
+  list(
+    ok = TRUE,
+    raw = r$count,
+    source_id = r$source_id,
+    source_url = r$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "pubtator",
+      domain = "literature",
+      title = sprintf(
+        "%d PubTator3-tagged articles for %s",
+        r$count,
+        resolved$symbol
+      ),
+      detail = sprintf(
+        "entity %s (entity-tagged, not a string match)",
+        r$entity
+      ),
       score = NA_real_,
       source_id = r$source_id,
       source_url = r$source_url

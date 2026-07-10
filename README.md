@@ -96,8 +96,8 @@ dates are tracked in [`docs/data_sources.md`](docs/data_sources.md) for reproduc
 | Pathway & disease | Open Targets Platform | Gene–disease associations |
 | Pathway & disease | Reactome | Pathway membership |
 | Expression | GTEx | Tissue-of-interest expression relevance |
-| Literature | Europe PMC | Citation retrieval |
-| Literature | PubTator | Pre-annotated gene/disease/variant mentions |
+| Literature | Europe PMC | Gene mention count (recall) |
+| Literature | PubTator3 | Entity-tagged article count (precision) |
 
 ## Quickstart
 

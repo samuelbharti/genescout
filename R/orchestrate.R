@@ -285,6 +285,7 @@ candid_provenance <- function(context = list()) {
     list(source = "MyGene.info", endpoint = MYGENE_BASE),
     list(source = "Open Targets Platform", endpoint = OPENTARGETS_URL),
     list(source = "Europe PMC", endpoint = EUROPEPMC_BASE),
+    list(source = "PubTator3", endpoint = PUBTATOR_BASE),
     list(source = "ClinVar (NCBI E-utilities)", endpoint = CLINVAR_EUTILS_BASE),
     list(source = "DGIdb", endpoint = DGIDB_URL),
     list(source = "gnomAD", endpoint = GNOMAD_URL),

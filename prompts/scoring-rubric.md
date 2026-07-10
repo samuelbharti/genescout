@@ -18,7 +18,9 @@ Combine, per candidate:
   expression in the study's tissue(s) of interest, relative to the gene's peak
   across all tissues. Expression in the relevant tissue raises the grade
   (annotation); expression only in unrelated tissues is a caveat (below).
-- **Literature support** - number, recency, and directness of grounded citations.
+- **Literature support** - grounded gene-level literature signal from two angles:
+  the Europe PMC symbol-mention count (recall) and the PubTator3 entity-tagged
+  article count (precision, so ambiguous names are not over-counted).
 - **Cross-source corroboration** *(multi-source runs only)* - how many of the
   user's OWN input sources (e.g. their WES calls, DEGs, ATAC-seq hits) a gene
   appears in. This is an *evidence* signal, so breadth is rewarded: a gene

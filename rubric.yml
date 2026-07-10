@@ -13,7 +13,8 @@
 default:
   weights:
     ot_assoc: 1.0 # Open Targets max disease-association score (0-1)
-    pmc_hits: 0.5 # Europe PMC gene mention count
+    pmc_hits: 0.5 # Europe PMC gene mention count (string match, recall)
+    pubtator: 0.5 # PubTator3 entity-tagged article count (precision, evidence)
     clinvar_path: 1.0 # ClinVar pathogenic / likely-pathogenic variant count
     dgidb: 0.5 # DGIdb drug-gene interaction count (druggability, evidence)
     gnomad_loeuf: 0.75 # gnomAD LOEUF constraint (annotation, lower is better)
@@ -33,6 +34,7 @@ default:
     gtex_tissue: 0.5
   midpoints:
     pmc_hits: 50
+    pubtator: 300 # ~300 entity-tagged articles normalizes to 0.5 (log-saturating)
     clinvar_path: 5
     dgidb: 5 # ~5 interactions normalizes to 0.5
     gnomad_loeuf: 0.35 # LOEUF 0.35 -> 0.5; strongly constrained (<0.35) scores higher
