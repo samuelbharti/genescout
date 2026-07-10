@@ -45,14 +45,40 @@ candid_signal <- function(
   )
 }
 
+# The cross-source corroboration signal: a gene's value is how many of the USER'S
+# OWN input sources it appears in - a breadth measure derived from the input
+# structure, not a network call. Role = evidence, so breadth is rewarded through
+# the weighted-mean denominator and can out-rank a single loud external source;
+# but the saturating normalizer caps a breadth-only gene below the High grade, so
+# a top grade still requires some external evidence (the "Balanced" calibration).
+# needs = "input": enrich_genes() runs only needs = "gene" extractors and skips
+# this; enrich_input_signals() fills it from resolved$input_lists.
+cross_source_signal <- function(rubric = NULL) {
+  # Tolerate a missing rubric (fall back to the same defaults) so run_enrich's
+  # internal call never hard-fails when rubric.yml is off the current path.
+  rubric <- rubric %||% tryCatch(load_rubric(), error = function(e) list())
+  candid_signal(
+    "cross_source",
+    "Cross-source corroboration",
+    "Your input sources",
+    extractor = NULL,
+    normalize = normalize_corroboration(rubric$midpoints$cross_source %||% 1),
+    weight = rubric$weights$cross_source %||% 2,
+    role = "evidence",
+    needs = "input"
+  )
+}
+
 # The active signal registry, wired from the rubric (weights + normalization
 # midpoints). Registry order is the column order in the results table. When
 # `disease_mode` is TRUE (a disease context is set), the disease-keyed PanelApp
-# and DISEASES signals are appended; they are omitted in plain enrichment so
-# their absence never penalizes a gene.
+# and DISEASES signals are appended; when `multi_source` is TRUE (the user gave
+# >= 2 sources) the cross-source signal is appended. Both are omitted otherwise
+# so their absence never penalizes a gene (single-source runs are unchanged).
 candid_signal_registry <- function(
   rubric = load_rubric(),
-  disease_mode = FALSE
+  disease_mode = FALSE,
+  multi_source = FALSE
 ) {
   w <- rubric$weights %||% list()
   m <- rubric$midpoints %||% list()
@@ -151,6 +177,9 @@ candid_signal_registry <- function(
         )
       )
     )
+  }
+  if (isTRUE(multi_source)) {
+    base <- c(base, list(cross_source_signal(rubric)))
   }
   base
 }
@@ -890,6 +919,82 @@ enrich_genes <- function(
       )
       if (!is.null(res$evidence) && nrow(res$evidence) > 0) {
         evidence[[length(evidence) + 1]] <- res$evidence
+      }
+    }
+  }
+  list(
+    signals_long = if (length(signals)) {
+      dplyr::bind_rows(signals)
+    } else {
+      empty_signals_long()
+    },
+    evidence_long = if (length(evidence)) {
+      dplyr::bind_rows(evidence)
+    } else {
+      empty_evidence_long()
+    }
+  )
+}
+
+# Fill the `needs = "input"` signals (currently just cross_source) from the input
+# structure - no network. For each such signal and every resolved gene, the raw
+# value is the count of the user's OWN sources the gene appears in
+# (resolved$input_lists intersected with context$user_sources, which EXCLUDES any
+# engine-seeded disease source). A gene corroborated by >= 2 user sources is
+# "present" and emits one grounded provenance evidence row per corroborating
+# source (domain "input-provenance", source_id "user-list:<label>"), so the
+# citation gate keeps it and the drill-down can show it. Returns the same
+# signals_long / evidence_long shapes enrich_genes() does, ready to bind.
+enrich_input_signals <- function(resolved, registry, context = list()) {
+  input_signals <- Filter(
+    function(s) identical(s$needs %||% "gene", "input"),
+    registry
+  )
+  if (length(input_signals) == 0 || nrow(resolved) == 0) {
+    return(list(
+      signals_long = empty_signals_long(),
+      evidence_long = empty_evidence_long()
+    ))
+  }
+  user_sources <- context$user_sources %||% character()
+  has_input_lists <- "input_lists" %in% names(resolved)
+  signals <- list()
+  evidence <- list()
+  for (i in seq_len(nrow(resolved))) {
+    lists_i <- if (has_input_lists) resolved$input_lists[[i]] else character()
+    corroborating <- sort(intersect(lists_i, user_sources))
+    n <- length(corroborating)
+    present <- n >= 2
+    for (sig in input_signals) {
+      raw <- as.numeric(n)
+      signals[[length(signals) + 1]] <- tibble::tibble(
+        gene_id = resolved$gene_id[i],
+        symbol = resolved$symbol[i],
+        signal_key = sig$key,
+        label = sig$label,
+        raw = raw,
+        normalized = as.numeric(sig$normalize(raw)),
+        present = present,
+        source_id = if (present) {
+          paste0("user-list:", paste(corroborating, collapse = "|"))
+        } else {
+          ""
+        },
+        source_url = ""
+      )
+      if (present) {
+        for (src in corroborating) {
+          evidence[[length(evidence) + 1]] <- evidence_long_rows(
+            resolved$gene_id[i],
+            sig$key,
+            "input-provenance",
+            paste0("Listed in your source: ", src),
+            "One of your own candidate sources",
+            NA_real_,
+            paste0("user-list:", src),
+            ""
+          )
+        }
       }
     }
   }

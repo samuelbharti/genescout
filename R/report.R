@@ -18,7 +18,8 @@ CANDID_DOMAIN_LABELS <- c(
   literature = "Literature",
   `variant-effect` = "Variant / ClinVar",
   constraint = "Constraint (gnomAD)",
-  druggability = "Druggability"
+  druggability = "Druggability",
+  `input-provenance` = "Corroborating sources (your input)"
 )
 
 # --- Ranked gene x signal table ---------------------------------------------
@@ -352,14 +353,21 @@ evidence_sections <- function(evidence) {
 # One domain's evidence rows as a table (finding, detail, source link).
 evidence_domain_table <- function(sub) {
   rows <- lapply(seq_len(nrow(sub)), function(i) {
-    htmltools::tags$tr(
-      htmltools::tags$td(sub$title[i]),
-      htmltools::tags$td(sub$detail[i]),
+    # A blank URL (e.g. input-provenance rows, whose "source" is the user's own
+    # list) renders as plain text rather than a dead link.
+    source_cell <- if (is_blank(sub$source_url[i])) {
+      htmltools::tags$td(sub$source_id[i])
+    } else {
       htmltools::tags$td(htmltools::tags$a(
         href = sub$source_url[i],
         target = "_blank",
         sub$source_id[i]
       ))
+    }
+    htmltools::tags$tr(
+      htmltools::tags$td(sub$title[i]),
+      htmltools::tags$td(sub$detail[i]),
+      source_cell
     )
   })
   htmltools::tags$table(

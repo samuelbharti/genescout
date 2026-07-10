@@ -78,19 +78,45 @@ run_enrich <- function(
       )
     }
   }
+  # Cross-source corroboration: the labels of the user's OWN (non-seeded) sources.
+  # When the user gave >= 2, append the cross-source signal so a gene appearing in
+  # more of their sources ranks higher. Captured from the `seeded` flag, so the
+  # disease-discovery universe is never counted as user corroboration.
+  user_sources <- vapply(
+    Filter(function(s) !isTRUE(s$seeded), unclass(cs)),
+    function(s) s$label,
+    character(1)
+  )
+  context$user_sources <- user_sources
+  registry_keys <- vapply(registry, function(s) s$key, character(1))
+  if (length(user_sources) >= 2 && !("cross_source" %in% registry_keys)) {
+    registry <- c(registry, list(cross_source_signal()))
+  }
+
   flat <- flatten_candidate_set(cs)
   if (nrow(flat) == 0) {
     stop("No genes to review.", call. = FALSE)
   }
   resolved <- resolve_genes(flat, resolver = resolver)
   enriched <- enrich_genes(resolved, registry, context = context)
-  gated <- validate_evidence(enriched$evidence_long)
-  genes <- assemble_matrix(enriched$signals_long, resolved, registry)
+  # Fill the input-derived signals (cross_source) and fold their tidy rows +
+  # grounded provenance evidence into the same tables the network signals produce.
+  input_enr <- enrich_input_signals(resolved, registry, context = context)
+  signals_long <- dplyr::bind_rows(
+    enriched$signals_long,
+    input_enr$signals_long
+  )
+  evidence_long <- dplyr::bind_rows(
+    enriched$evidence_long,
+    input_enr$evidence_long
+  )
+  gated <- validate_evidence(evidence_long)
+  genes <- assemble_matrix(signals_long, resolved, registry)
 
   list(
     description = description %||% "",
     genes = genes,
-    signals = enriched$signals_long,
+    signals = signals_long,
     evidence = gated$kept,
     rejected = gated$rejected,
     registry = registry_summary(registry),

@@ -28,6 +28,50 @@ test_that("normalize_saturating_desc(m): 1 at x=0, 0.5 at x=m, lower x scores up
   expect_true(f(0.1) > f(1.0)) # lower LOEUF (more constrained) -> higher score
 })
 
+test_that("normalize_corroboration(m): 1 source is neutral, breadth saturates", {
+  f <- normalize_corroboration(1)
+  expect_equal(f(1), 0) # one source: no bonus, never sub-baseline
+  expect_equal(f(2), 0.5)
+  expect_equal(f(3), 2 / 3)
+  expect_equal(f(NA), 0)
+  expect_equal(f(0), 0)
+  expect_true(f(4) > f(3)) # monotone in breadth
+  expect_true(all(f(2:100) < 1)) # bounded below 1
+})
+
+test_that("cross-source is Balanced: breadth beats a loud source, capped below High", {
+  # Inline rubric so the test is independent of the working directory; the
+  # unspecified weights fall back to their code defaults (matching rubric.yml).
+  rubric <- list(
+    weights = list(cross_source = 2),
+    midpoints = list(cross_source = 1)
+  )
+  reg <- candid_signal_registry(rubric = rubric, multi_source = TRUE)
+  keys <- vapply(reg, function(s) s$key, character(1))
+  # A one-gene matrix row from a named list of normalized values (0 elsewhere).
+  mk <- function(vals) {
+    row <- tibble::tibble(symbol = "X")
+    for (k in keys) {
+      v <- vals[[k]] %||% 0
+      row[[paste0(k, "_n")]] <- v
+      row[[paste0(k, "_present")]] <- v > 0
+    }
+    row
+  }
+  norm3 <- normalize_corroboration(1)(3) # a gene in 3 user sources
+  loud <- mk(list(ot_assoc = 1)) # one strong external association
+  broad <- mk(list(cross_source = norm3)) # breadth across 3 sources, nothing else
+  capped <- mk(list(cross_source = 1)) # breadth fully saturated
+  scored <- compute_composite(dplyr::bind_rows(loud, broad, capped), reg)
+
+  # Breadth across 3 of the user's own sources out-ranks a single loud source ...
+  expect_gt(scored$composite[2], scored$composite[1])
+  # ... but stays Moderate (external evidence is still required for a High grade) ...
+  expect_equal(grade_for_score(scored$composite[2]), "Moderate")
+  # ... and breadth ALONE can never reach the High threshold, even saturated.
+  expect_lt(scored$composite[3], CANDID_GRADE_BREAKS[["high"]])
+})
+
 test_that("compute_composite() is the weighted mean of normalized signals", {
   registry <- list(
     list(key = "a", weight = 1),

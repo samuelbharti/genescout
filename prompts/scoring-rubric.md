@@ -15,6 +15,15 @@ Combine, per candidate:
   a context pathway (Reactome); membership in a known driver or context pathway
   raises the grade.
 - **Literature support** - number, recency, and directness of grounded citations.
+- **Cross-source corroboration** *(multi-source runs only)* - how many of the
+  user's OWN input sources (e.g. their WES calls, DEGs, ATAC-seq hits) a gene
+  appears in. This is an *evidence* signal, so breadth is rewarded: a gene
+  corroborated across several of the user's sources out-ranks one that is loud in
+  a single external source. It is appended only when the user provides two or more
+  sources (so single-source runs are unchanged), the disease-discovery seed set is
+  never counted, and the saturating normalizer caps a breadth-only gene *below*
+  the High grade - a top grade still needs external evidence. Each corroboration
+  is grounded provenance (`user-list:<label>`), not an external biological claim.
 
 Grades: **High / Moderate / Low / Insufficient evidence**. "Insufficient
 evidence" is a valid, first-class outcome - never inflate a grade to avoid it.

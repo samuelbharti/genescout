@@ -21,6 +21,12 @@ default:
     reactome: 0.5 # Reactome disease-pathway membership (annotation)
     panelapp: 1.0 # Genomics England PanelApp confidence (discovery mode only)
     diseases: 0.75 # DISEASES / Jensen Lab association (discovery mode only)
+    # Cross-source corroboration (evidence, multi-source runs only): how many of
+    # the user's OWN sources a gene appears in. Weight 2.0 is above ot_assoc so a
+    # gene in >= 3 sources out-ranks a single strong external association; the
+    # saturating normalizer still caps breadth-only genes below the High grade, so
+    # a top grade needs external evidence too ("Balanced" calibration).
+    cross_source: 2.0
   midpoints:
     pmc_hits: 50
     clinvar_path: 5
@@ -28,6 +34,7 @@ default:
     gnomad_loeuf: 0.35 # LOEUF 0.35 -> 0.5; strongly constrained (<0.35) scores higher
     reactome: 2 # ~2 relevant disease pathways normalizes to 0.5
     diseases: 2 # DISEASES confidence ~2 (of 0-5) normalizes to 0.5
+    cross_source: 1 # 2 sources -> 0.5, 3 -> 0.667, saturating (count - 1)
   coverage_bonus: false
   # Caveats / veto: the deterministic anti-familiar-gene-bias override (R/caveats.R;
   # spec in prompts/scoring-rubric.md). Retune here - no code change.

@@ -22,6 +22,7 @@ This table is what a reviewer will ask for and what makes the method reproducibl
 | PubTator | ranking signal (planned) | <https://www.ncbi.nlm.nih.gov/research/pubtator3-api> | TBD | TBD | Yes | Gene-tagged literature count; precise successor to the Europe PMC symbol count |
 | Reactome | ranking signal | <https://reactome.org/ContentService> | Release 97 (ContentService) | 2026-07-09 | Yes | Per-gene pathway membership via HGNC mapping. Signal = count of the gene's disease-associated pathways (`isInDisease`) + pathways matching a context pathway prior (annotation, nudges up only). Each pathway is grounded evidence (Reactome stable id) |
 | STRING | ranking signal (planned) | <https://string-db.org/api> | TBD | TBD | Yes | Within-list interaction connectivity |
+| Cross-source corroboration | ranking signal | (user input; no network) | n/a | n/a | n/a | Multi-source runs only: count of the user's OWN input sources a gene appears in (evidence; breadth beats a single loud source, capped below High). Grounded in the user's provenance (`user-list:<label>`), not an external claim; the disease-discovery seed source is excluded |
 
 ## Reproducibility checklist
 

@@ -1,8 +1,11 @@
 # run_review spine - deterministic merge -> rank, offline via helper stubs.
 
+# Single source here so the spine test stays isolated from the cross-source
+# signal (which only appends with >= 2 user sources); multi-source behavior is
+# covered in test-cross-source.R.
 test_that("run_review() resolves, dedupes, enriches, and ranks", {
   out <- run_review(
-    list(mine = c("NF1", "p53"), other = c("TP53")),
+    list(mine = c("NF1", "p53", "TP53")),
     description = "studying peripheral nerve tumors",
     registry = stub_registry(),
     resolver = stub_resolver
