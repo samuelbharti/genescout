@@ -394,7 +394,16 @@ candid_provenance <- function(context = list()) {
     pharos_tdl = list(source = "Pharos", endpoint = PHAROS_URL),
     reactome = list(source = "Reactome", endpoint = REACTOME_BASE),
     hpo = list(source = "Human Phenotype Ontology", endpoint = HPO_BASE),
-    hpa = list(source = "Human Protein Atlas", endpoint = HPA_BASE)
+    hpa = list(source = "Human Protein Atlas", endpoint = HPA_BASE),
+    cbioportal = list(
+      source = "cBioPortal (MSK-IMPACT)",
+      endpoint = CBIOPORTAL_BASE
+    ),
+    civic = list(source = "CIViC", endpoint = CIVIC_GRAPHQL),
+    clingen = list(
+      source = "ClinGen gene-disease validity",
+      endpoint = CLINGEN_GV_URL
+    )
   )
   # MyGene is always used (symbol resolution, not a rankable signal).
   sources <- c(

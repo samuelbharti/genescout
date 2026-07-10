@@ -29,6 +29,7 @@ Imports:
     tibble,
     yaml
 Suggests:
+    plumber,
     quarto,
     testthat (>= 3.0.0),
     thematic

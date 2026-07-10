@@ -9,6 +9,17 @@
 #       caveats:      <model>
 #       specialist:   <model>
 
+# Absolute path to a file that lives under the app root. The Shiny app, the CLI,
+# and the tests all run with the app root as the working directory, so a plain
+# relative path works and CANDID_APP_ROOT is unset. A hosted service, though (the
+# plumber engine in dev/serve.R), serves requests with a working directory it does
+# not control, so it sets CANDID_APP_ROOT once at startup and the lazily-loaded
+# files (rubric.yml, context/*.yaml) resolve regardless of the request-time CWD.
+candid_app_path <- function(rel) {
+  root <- Sys.getenv("CANDID_APP_ROOT", "")
+  if (nzchar(root)) file.path(root, rel) else rel
+}
+
 # Load the active configuration profile as a plain list.
 load_config <- function(path = "config.yml", profile = "default") {
   if (!file.exists(path)) {

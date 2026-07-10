@@ -304,6 +304,18 @@ test_that("candid_provenance() audits disease seeding even if those signals are 
   expect_true(any(grepl("DISEASES", labs)))
 })
 
+test_that("candid_provenance() audits the cancer connectors when they ran", {
+  # A selected opt-in connector that produced evidence must appear in the audit
+  # trail (the base provenance list has to know its endpoint).
+  prov <- candid_provenance(list(
+    active_sources = c("ot_assoc", "cbioportal", "civic", "clingen")
+  ))
+  labs <- vapply(prov, function(s) s$source, character(1))
+  expect_true(any(grepl("cBioPortal", labs)))
+  expect_true(any(grepl("CIViC", labs)))
+  expect_true(any(grepl("ClinGen", labs)))
+})
+
 test_that("candid_catalog_json() flags catalog-only stubs as not selectable", {
   j <- candid_catalog_json(candid_source_catalog(load_rubric(rubric_path())))
   by_key <- function(k) {

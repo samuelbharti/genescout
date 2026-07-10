@@ -18,6 +18,17 @@
 #   * The propose -> confirm -> run flow is a pure DATA contract (curate_input /
 #     confirm_input / run_review_request), identical to the CLI and the Shiny UI.
 
+# plumber evaluates this file with the working directory set to its own folder
+# (api/), but the engine's global.R - and every path it reads (R/, rubric.yml,
+# context/, data/) - is relative to the app ROOT. Hop up to the root so a launch
+# via plumber::pr("api/plumber.R") from the app root resolves correctly.
+if (!file.exists("global.R") && file.exists(file.path("..", "global.R"))) {
+  setwd("..")
+}
+# Anchor the file-based loaders (rubric.yml, context/) to the app root: plumber
+# serves each request with a working directory of its own choosing, so a plain
+# relative path would fail at request time. candid_app_path() reads this.
+Sys.setenv(CANDID_APP_ROOT = normalizePath(getwd()))
 source("global.R")
 
 # --- (de)serialization helpers ---------------------------------------------

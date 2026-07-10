@@ -134,6 +134,30 @@ Rscript dev/run_review.R \
   --out report.html
 ```
 
+### Run the engine as an HTTP service (usable outside R)
+
+The core engine is UI-agnostic: the source connectors and the selection API are
+driven over plain JSON, so a Python / React / any front end can use them with zero
+R. The Shiny app, the CLI, and this service all call the same core functions.
+
+```bash
+# One-time: install the dev-only server dependency
+Rscript -e 'install.packages("plumber")'
+
+# Start the engine (endpoints: GET /catalog, POST /propose, /confirm,
+# /resolve-disease, /review). Swagger docs at http://127.0.0.1:8000/__docs__/
+Rscript dev/serve.R 8000
+```
+
+Then drive it from any language. A client discovers the source **catalog** (each
+entry carries `domain`, `default_on`, `available`, `stub`), picks a subset, and
+posts a candidate list + that selection to `/review`:
+
+```bash
+python dev/engine_client_demo.py     # stdlib-only Python demo (catalog -> review)
+dev/engine_client_demo.sh            # the same, raw curl
+```
+
 ## Repository layout
 
 See [`docs/project_structure.md`](docs/project_structure.md) for the full map.

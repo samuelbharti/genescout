@@ -11,7 +11,10 @@
 # reproducible run-to-run and independent of which other genes are in the list.
 
 # Load the ranking rubric (per-signal weights + normalization midpoints).
-load_rubric <- function(path = "rubric.yml", profile = "default") {
+load_rubric <- function(
+  path = candid_app_path("rubric.yml"),
+  profile = "default"
+) {
   if (!file.exists(path)) {
     stop("Rubric file not found: ", path, call. = FALSE)
   }
