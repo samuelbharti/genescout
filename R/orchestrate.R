@@ -362,7 +362,9 @@ candid_provenance <- function(context = list()) {
     dgidb = list(source = "DGIdb", endpoint = DGIDB_URL),
     gnomad_loeuf = list(source = "gnomAD", endpoint = GNOMAD_URL),
     pharos_tdl = list(source = "Pharos", endpoint = PHAROS_URL),
-    reactome = list(source = "Reactome", endpoint = REACTOME_BASE)
+    reactome = list(source = "Reactome", endpoint = REACTOME_BASE),
+    hpo = list(source = "Human Phenotype Ontology", endpoint = HPO_BASE),
+    hpa = list(source = "Human Protein Atlas", endpoint = HPA_BASE)
   )
   # MyGene is always used (symbol resolution, not a rankable signal).
   sources <- c(

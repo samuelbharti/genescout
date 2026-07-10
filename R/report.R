@@ -15,6 +15,8 @@ CANDID_DISCLAIMER <- paste(
 # Human-readable labels for the evidence domains, in display order.
 CANDID_DOMAIN_LABELS <- c(
   `pathway-disease` = "Pathway & disease",
+  `gene-disease` = "Gene–disease association",
+  cancer = "Cancer relevance",
   literature = "Literature",
   `variant-effect` = "Variant / ClinVar",
   constraint = "Constraint (gnomAD)",

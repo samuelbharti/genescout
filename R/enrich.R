@@ -248,6 +248,30 @@ candid_signal_registry <- function(
       normalize = normalize_saturating(m$reactome %||% 2),
       weight = w$reactome %||% 0.5,
       role = "annotation"
+    ),
+    # Opt-in keyless connectors (default_on = FALSE): in the catalog + selectable,
+    # but off unless a review selects them, so default runs stay lean + unchanged.
+    candid_signal(
+      "hpo",
+      "HPO gene-disease",
+      "Human Phenotype Ontology",
+      extractor = extract_hpo,
+      normalize = normalize_saturating(m$hpo %||% 3),
+      weight = w$hpo %||% 0.75,
+      role = "evidence",
+      domain = "gene-disease",
+      default_on = FALSE
+    ),
+    candid_signal(
+      "hpa",
+      "HPA disease/cancer class",
+      "Human Protein Atlas",
+      extractor = extract_hpa,
+      normalize = normalize_saturating(m$hpa %||% 2),
+      weight = w$hpa %||% 0.5,
+      role = "annotation",
+      domain = "cancer",
+      default_on = FALSE
     )
   )
   if (isTRUE(disease_mode)) {
@@ -856,6 +880,70 @@ extract_diseases <- function(resolved, context = list()) {
       score = row$raw,
       source_id = row$source_id,
       source_url = row$source_url
+    )
+  )
+}
+
+# HPO: the Mendelian / phenotype diseases the Human Phenotype Ontology associates
+# with the gene (each grounded by an OMIM / ORPHA id). In a disease-scoped review
+# the raw value is the count of associated diseases MATCHING the study context
+# (strong, context-specific gene-disease evidence); otherwise the count of all
+# associated diseases. Uses the resolved NCBI Gene id. Opt-in (default_on FALSE).
+extract_hpo <- function(resolved, context = list()) {
+  r <- hpo_gene_diseases(resolved$entrez)
+  if (!isTRUE(r$ok) || nrow(r$diseases) == 0) {
+    return(signal_miss())
+  }
+  rel <- hpo_relevance(r$diseases, pluck_at(context, "disease"))
+  if (!isTRUE(rel$present)) {
+    return(signal_miss())
+  }
+  ev <- rel$matched
+  list(
+    ok = TRUE,
+    raw = rel$n,
+    source_id = r$source_id,
+    source_url = r$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "hpo",
+      domain = "gene-disease",
+      title = paste0("HPO gene-disease association: ", ev$name),
+      detail = "Human Phenotype Ontology gene-disease annotation",
+      score = NA_real_,
+      source_id = ifelse(nzchar(ev$id), ev$id, r$source_id),
+      source_url = r$source_url
+    )
+  )
+}
+
+# HPA: how many disease/cancer classifications the Human Protein Atlas assigns the
+# gene (e.g. "Cancer-related genes", "Tumor suppressor", "Disease related genes").
+# A disease/cancer-relevance ANNOTATION (nudges up, never gates), grounded by the
+# HPA gene page. Uses the resolved Ensembl id. Opt-in (default_on FALSE).
+extract_hpa <- function(resolved, context = list()) {
+  r <- hpa_gene(resolved$gene_id)
+  if (!isTRUE(r$ok)) {
+    return(signal_miss())
+  }
+  rel <- hpa_relevance(r)
+  if (!isTRUE(rel$present)) {
+    return(signal_miss())
+  }
+  list(
+    ok = TRUE,
+    raw = rel$n,
+    source_id = r$source_id,
+    source_url = r$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "hpa",
+      domain = "cancer",
+      title = paste0("HPA classification: ", rel$tags),
+      detail = "Human Protein Atlas curated disease/cancer classification",
+      score = NA_real_,
+      source_id = r$source_id,
+      source_url = r$source_url
     )
   )
 }
