@@ -203,6 +203,13 @@ candidate_set <- function(...) {
   new_candidate_set(sources)
 }
 
+# Append a candid_source to a candidate_set, returning a new set (ids re-deduped).
+# Used to fold an engine-injected source (e.g. the disease-discovery universe)
+# into the user's set without mutating it.
+candidate_set_add <- function(cs, source) {
+  new_candidate_set(c(unclass(as_candidate_set(cs)), list(source)))
+}
+
 # Coerce assorted inputs into a candidate_set. Supersedes as_gene_lists(): passes
 # a candidate_set through; wraps a single candid_source; a bare character vector
 # -> one source "input"; a gene/candidate/symbol data frame -> one source; and a

@@ -36,7 +36,7 @@ run_enrich <- function(
   context = list(),
   seeder = seed_disease_genes
 ) {
-  lists <- as_gene_lists(gene_lists)
+  cs <- as_candidate_set(gene_lists)
   # Optional disease-context priors (context/*.yaml: FLAGS genes, tissues, drivers)
   # for the caveats stage. Accept an already-loaded `priors` list or a `priors_id`
   # to load; a bad id degrades to no priors rather than crashing the run.
@@ -47,15 +47,26 @@ run_enrich <- function(
     )
   }
   # Discovery: with a disease context, seed candidate genes from the disease-keyed
-  # sources (union with the user's list) and stash their per-gene tables for the
-  # disease-mode extractors. `seeder` is injectable for offline tests.
+  # sources (union with the user's set) and stash their per-gene tables for the
+  # disease-mode extractors. The seeded genes go in as their own candid_source
+  # marked `seeded = TRUE` (id prefixed `seed:`), so a later stage can tell the
+  # engine's own universe from the user's real sources. `seeder` is injectable.
   disease <- pluck_at(context, "disease")
   if (!is.null(disease)) {
     seeded <- seeder(disease)
     context$seed_data <- seeded$data
     if (length(seeded$symbols) > 0) {
       label <- paste0("disease: ", disease$name %||% disease$id)
-      lists[[label]] <- seeded$symbols
+      cs <- candidate_set_add(
+        cs,
+        candid_source(
+          seeded$symbols,
+          label = label,
+          id = paste0("seed:disease:", disease$id %||% slugify(label)),
+          type = "disease_seed",
+          seeded = TRUE
+        )
+      )
     }
     # Record when the seeded universe was capped, so the truncation is audited in
     # the provenance rather than being a silent limit.
@@ -67,7 +78,7 @@ run_enrich <- function(
       )
     }
   }
-  flat <- flatten_gene_lists(lists)
+  flat <- flatten_candidate_set(cs)
   if (nrow(flat) == 0) {
     stop("No genes to review.", call. = FALSE)
   }
