@@ -197,6 +197,63 @@ run_review <- function(
   )
 }
 
+# Coerce whatever a request carries as `sources` into a candidate_set: a
+# candidate_set passes through; a plain list-of-source-objects (the JSON form a
+# non-R frontend posts, each element carrying `genes`) is rebuilt via
+# candidate_set_from_list(); anything else (named list, vector, data frame) goes
+# through as_candidate_set(). The JSON form must be detected FIRST - as_candidate_
+# set() would otherwise read each source OBJECT as a gene vector.
+coerce_request_sources <- function(sources) {
+  if (inherits(sources, "candid_candidate_set")) {
+    return(sources)
+  }
+  looks_json <- is.list(sources) &&
+    length(sources) > 0 &&
+    is.list(sources[[1]]) &&
+    !is.null(sources[[1]]$genes)
+  if (looks_json) {
+    return(candidate_set_from_list(sources))
+  }
+  as_candidate_set(sources)
+}
+
+# One review from a single, serializable request envelope - the ONE call a
+# plumber route or the CLI wraps, so every frontend (Shiny, CLI, React/Python via
+# the API) shares one contract. `req` is
+#   list(sources = <candidate_set | JSON source list | named list | vector | df>,
+#        description = <chr>, disease = <resolved list(id, name) | NULL>,
+#        options = list(weights, coverage_bonus, caveats))
+# The disease is assumed ALREADY RESOLVED (the confirm step grounds it), so this
+# stays deterministic. Returns the ranked run_review() result.
+run_review_request <- function(
+  req,
+  config = NULL,
+  registry = candid_signal_registry(),
+  resolver = resolve_symbol
+) {
+  cs <- coerce_request_sources(req$sources)
+  context <- list()
+  disease <- req$disease
+  if (!is.null(disease) && !is_blank(disease$id %||% disease$name)) {
+    context$disease <- disease
+  }
+  opts <- req$options %||% list()
+  enriched <- run_enrich(
+    cs,
+    description = req$description %||% "",
+    config = config,
+    registry = registry,
+    resolver = resolver,
+    context = context
+  )
+  rank_result(
+    enriched,
+    weights = opts$weights,
+    coverage_bonus = isTRUE(opts$coverage_bonus),
+    caveats = opts$caveats %||% TRUE
+  )
+}
+
 # Coerce assorted inputs into the named list of character vectors that
 # flatten_gene_lists() expects. The canonical model is now a `candidate_set`
 # (R/parse_input.R); this is a thin back-compat shim over it. Dispatch runs

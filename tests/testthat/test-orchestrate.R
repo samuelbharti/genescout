@@ -55,6 +55,34 @@ test_that("run_review() carries grounded evidence through the citation gate", {
   expect_true(all(nzchar(out$evidence$source_id)))
 })
 
+test_that("run_review_request() unpacks an envelope (candidate_set + JSON form)", {
+  req <- list(
+    sources = candidate_set(candid_source(c("NF1", "TP53"), label = "mine")),
+    description = "peripheral nerve tumors",
+    options = list(caveats = FALSE)
+  )
+  out <- run_review_request(
+    req,
+    registry = stub_registry(),
+    resolver = stub_resolver
+  )
+  expect_equal(nrow(out$genes), 2)
+  expect_setequal(out$genes$rank, c(1, 2))
+
+  # The plain list-of-source-objects a non-R frontend posts (must NOT be read as
+  # a bare named list - each element is a source object, not a gene vector).
+  json_sources <- candidate_set_to_list(
+    candidate_set(candid_source(c("NF1"), label = "mine"))
+  )
+  out2 <- run_review_request(
+    list(sources = json_sources),
+    registry = stub_registry(),
+    resolver = stub_resolver
+  )
+  expect_equal(nrow(out2$genes), 1)
+  expect_equal(out2$genes$symbol, "NF1")
+})
+
 test_that("run_enrich() + rank_result() split re-ranks without re-enriching", {
   enr <- run_enrich(
     list(mine = c("NF1", "TP53")),
