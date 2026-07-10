@@ -40,7 +40,10 @@ run_case <- function(case) {
     case$description %||% "",
     candid_config,
     registry,
-    context = context
+    context = context,
+    # Optional per-case source selection (a character vector of connector keys),
+    # e.g. an explicit cancer-axis subset. Absent -> the default source set.
+    enabled = case$sources
   )
   ranks <- stats::setNames(result$genes$rank, toupper(result$genes$symbol))
   grades <- stats::setNames(result$genes$grade, toupper(result$genes$symbol))

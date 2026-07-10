@@ -34,3 +34,15 @@
   expect_high: [NF1]
   expect_grade: High
   expect_below: TTN
+
+# Selection end-to-end: the same candidates ranked with an explicit CANCER-AXIS
+# subset (the opt-in cancer connectors + a few strong evidence sources), proving a
+# per-run source selection still ranks the drivers High and vetoes the passenger.
+# `sources` is threaded to run_enrich as the query-time selection (only these are
+# queried); it exercises the cBioPortal / CIViC / ClinGen connectors.
+- description: NF1/MPNST cancer-axis selection - drivers grade High, TTN vetoed.
+  candidates: [NF1, SUZ12, CDKN2A, TP53, TTN]
+  sources: [ot_assoc, clinvar_path, gnomad_loeuf, cbioportal, civic, clingen]
+  expect_high: [NF1, TP53, CDKN2A]
+  expect_grade: High
+  expect_below: TTN

@@ -158,6 +158,22 @@ python dev/engine_client_demo.py     # stdlib-only Python demo (catalog -> revie
 dev/engine_client_demo.sh            # the same, raw curl
 ```
 
+### Evaluation
+
+The eval set is the spine of the method (it hits live APIs, so run it on demand):
+
+```bash
+Rscript evals/run_evals.R       # pass/fail: known drivers grade High, passenger vetoed
+Rscript evals/run_benchmark.R   # the caveats benchmark (novelty hook, below)
+```
+
+`run_benchmark.R` quantifies the contribution: it enriches each case once, then ranks
+it **with and without** the deterministic caveats/veto stage. The demonstrable
+effect is that a prominent sequencing-artifact gene (TTN) grades **High** among the
+NF1 drivers in the no-caveats baseline, and the caveats stage sinks it to **Vetoed,
+last** — so the stage measurably changes outcomes, and the benchmark fails if it ever
+stops doing so.
+
 ## Repository layout
 
 See [`docs/project_structure.md`](docs/project_structure.md) for the full map.
