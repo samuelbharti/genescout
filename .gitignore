@@ -35,6 +35,10 @@ secrets/
 # Local Claude Code settings (per-machine)
 .claude/settings.local.json
 
+# Local-only working docs (planning notes, scratch design docs). Kept in the repo
+# tree for convenience but never committed.
+docs/local/
+
 # --- Generated reports / artifacts ---
 report.html
 *_report.html
