@@ -46,7 +46,14 @@ test_that("cross-source is Balanced: breadth beats a loud source, capped below H
     weights = list(cross_source = 2),
     midpoints = list(cross_source = 1)
   )
-  reg <- candid_signal_registry(rubric = rubric, multi_source = TRUE)
+  # Score against the DEFAULT registry (what a real default run uses after selection
+  # filtering), not the full catalog: opt-in connectors (default_on = FALSE) are not
+  # queried by default, so they must not enlarge the evidence denominator here - this
+  # keeps the calibration stable as more opt-in connectors are added to the catalog.
+  reg <- Filter(
+    function(s) isTRUE(s$default_on %||% TRUE),
+    candid_signal_registry(rubric = rubric, multi_source = TRUE)
+  )
   keys <- vapply(reg, function(s) s$key, character(1))
   # A one-gene matrix row from a named list of normalized values (0 elsewhere).
   mk <- function(vals) {

@@ -74,6 +74,73 @@ http_post_json <- function(
   })
 }
 
+# GET a text endpoint (some sources ship a bulk flat file - CSV/TSV - rather than a
+# per-record JSON API; e.g. ClinGen's gene-validity download). Same timeout / retry /
+# cache / header-redaction as http_get_json, but the body is returned verbatim as a
+# string in `text` (list(ok, status, text, error)) instead of parsed JSON in `data`.
+# The success-only cache means a bulk file is fetched once per URL and every later
+# per-gene lookup hits the in-process cache.
+http_get_text <- function(
+  base_url,
+  path = NULL,
+  query = list(),
+  source = "API",
+  timeout = 30,
+  max_tries = 3,
+  headers = NULL
+) {
+  if (length(query) > 0) {
+    query <- query[!vapply(query, is_blank, logical(1))]
+  }
+  key <- candid_cache_key("GET_TEXT", base_url, path, query)
+
+  candid_cached(key, function() {
+    req <- httr2::request(base_url)
+    if (!is.null(path)) {
+      req <- httr2::req_url_path_append(req, path)
+    }
+    if (length(query) > 0) {
+      req <- do.call(httr2::req_url_query, c(list(req), query))
+    }
+    req <- candid_req_defaults(req, timeout, max_tries, headers)
+    candid_perform_text(req, source)
+  })
+}
+
+# Perform a request and normalize into an ok/status/text/error list (text variant
+# of candid_perform, for non-JSON bodies).
+candid_perform_text <- function(req, source) {
+  tryCatch(
+    {
+      resp <- httr2::req_perform(req)
+      status <- httr2::resp_status(resp)
+      if (status >= 200 && status < 300) {
+        list(
+          ok = TRUE,
+          status = status,
+          text = httr2::resp_body_string(resp),
+          error = NULL
+        )
+      } else {
+        list(
+          ok = FALSE,
+          status = status,
+          text = NULL,
+          error = paste0(source, " returned HTTP ", status, ".")
+        )
+      }
+    },
+    error = function(e) {
+      list(
+        ok = FALSE,
+        status = NA_integer_,
+        text = NULL,
+        error = paste0("Could not reach ", source, ": ", conditionMessage(e))
+      )
+    }
+  )
+}
+
 # Return a cached successful result for `key`, otherwise run `fetch()` and cache
 # it only when it succeeded.
 candid_cached <- function(key, fetch) {

@@ -63,6 +63,15 @@ test_that("candid_req_defaults() attaches auth headers and redacts the secret", 
   expect_false(grepl("SUPERSECRETTOKEN", printed))
 })
 
+test_that("http_get_text uses a cache key distinct from http_get_json", {
+  # The text and JSON GETs must not collide in the shared cache (different prefix),
+  # or a bulk CSV could be served where parsed JSON is expected and vice versa.
+  expect_false(identical(
+    candid_cache_key("GET", "https://x", NULL, list()),
+    candid_cache_key("GET_TEXT", "https://x", NULL, list())
+  ))
+})
+
 test_that("the cache key excludes auth headers (secret never enters the hash)", {
   # candid_cache_key is computed from method/url/path/query only - headers are not
   # passed to it, so the same request caches identically with or without a token.

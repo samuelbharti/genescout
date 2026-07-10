@@ -277,6 +277,39 @@ candid_signal_registry <- function(
       role = "annotation",
       domain = "cancer",
       default_on = FALSE
+    ),
+    candid_signal(
+      "cbioportal",
+      "cBioPortal mutation frequency",
+      "cBioPortal (MSK-IMPACT)",
+      extractor = extract_cbioportal,
+      normalize = normalize_saturating(m$cbioportal %||% 0.05),
+      weight = w$cbioportal %||% 0.5,
+      role = "evidence",
+      domain = "cancer",
+      default_on = FALSE
+    ),
+    candid_signal(
+      "civic",
+      "CIViC clinical evidence",
+      "CIViC",
+      extractor = extract_civic,
+      normalize = normalize_log_saturating(m$civic %||% 15),
+      weight = w$civic %||% 0.5,
+      role = "evidence",
+      domain = "cancer",
+      default_on = FALSE
+    ),
+    candid_signal(
+      "clingen",
+      "ClinGen gene-disease validity",
+      "ClinGen",
+      extractor = extract_clingen,
+      normalize = normalize_saturating(m$clingen %||% 2),
+      weight = w$clingen %||% 0.75,
+      role = "evidence",
+      domain = "gene-disease",
+      default_on = FALSE
     )
   )
   if (isTRUE(disease_mode)) {
@@ -976,6 +1009,122 @@ extract_hpa <- function(resolved, context = list()) {
       score = NA_real_,
       source_id = r$source_id,
       source_url = r$source_url
+    )
+  )
+}
+
+# cBioPortal: the gene's somatic mutation frequency across a large pan-cancer cohort
+# (MSK-IMPACT). raw is the mutated fraction (0..1); higher = more recurrently mutated
+# in cancer. Research evidence (recurrence), never a clinical call. Opt-in (off by
+# default). Uses the HUGO symbol.
+extract_cbioportal <- function(resolved, context = list()) {
+  r <- cbioportal_gene_frequency(resolved$symbol)
+  if (!isTRUE(r$ok) || r$mutated <= 0) {
+    return(signal_miss())
+  }
+  pct <- format(round(100 * r$frequency, 1), nsmall = 1)
+  list(
+    ok = TRUE,
+    raw = r$frequency,
+    source_id = r$source_id,
+    source_url = r$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "cbioportal",
+      domain = "cancer",
+      title = paste0(
+        "Somatic mutation frequency (MSK-IMPACT): ",
+        pct,
+        "% of ",
+        r$total,
+        " tumors"
+      ),
+      detail = "cBioPortal cross-cancer somatic mutation frequency (research evidence)",
+      score = r$frequency,
+      source_id = r$source_id,
+      source_url = r$source_url
+    )
+  )
+}
+
+# CIViC: the count of expert-curated clinical evidence items for the gene - a grounded
+# measure of curated cancer variant-interpretation weight. raw = evidence-item count.
+# Research evidence (curated literature), never a clinical call. Opt-in. HUGO symbol.
+extract_civic <- function(resolved, context = list()) {
+  r <- civic_gene_evidence(resolved$symbol)
+  if (!isTRUE(r$ok) || r$evidence_items <= 0) {
+    return(signal_miss())
+  }
+  list(
+    ok = TRUE,
+    raw = r$evidence_items,
+    source_id = r$source_id,
+    source_url = r$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "civic",
+      domain = "cancer",
+      title = paste0(
+        "CIViC curated clinical evidence: ",
+        r$evidence_items,
+        " item(s)"
+      ),
+      detail = "CIViC expert-curated cancer variant clinical evidence (CC0)",
+      score = r$evidence_items,
+      source_id = r$source_id,
+      source_url = r$source_url
+    )
+  )
+}
+
+# ClinGen: the strength of expert-curated gene-disease validity (Definitive..Limited),
+# scoped to the study disease when one is given. raw = the strongest matching
+# classification (ordinal 0..4). Research evidence (curated validity), never a
+# clinical call. Opt-in. Uses the HUGO symbol against the bulk CSV.
+extract_clingen <- function(resolved, context = list()) {
+  r <- clingen_gene_validity(resolved$symbol)
+  if (!isTRUE(r$ok) || r$n == 0) {
+    return(signal_miss())
+  }
+  rel <- clingen_relevance(r$curations, pluck_at(context, "disease"))
+  if (!isTRUE(rel$present)) {
+    return(signal_miss())
+  }
+  m <- rel$matched
+  top <- m[which.max(clingen_strength(m$classification)), , drop = FALSE]
+  sig_source_id <- if (!is.na(top$report_url) && nzchar(top$report_url)) {
+    top$report_url
+  } else {
+    paste0("ClinGen:", top$hgnc)
+  }
+  list(
+    ok = TRUE,
+    raw = rel$strength,
+    source_id = sig_source_id,
+    source_url = if (!is.na(top$report_url) && nzchar(top$report_url)) {
+      top$report_url
+    } else {
+      CLINGEN_GV_URL
+    },
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "clingen",
+      domain = "gene-disease",
+      title = paste0("ClinGen validity: ", m$classification, " - ", m$disease),
+      detail = "ClinGen expert-curated gene-disease validity classification",
+      score = clingen_strength(m$classification),
+      # Ground each row on its assertion URL; fall back to the HGNC id (with the
+      # is.na guard - nzchar(NA) is TRUE, so ifelse alone would keep an NA id).
+      source_id = ifelse(
+        !is.na(m$report_url) & nzchar(m$report_url),
+        m$report_url,
+        paste0("ClinGen:", m$hgnc)
+      ),
+      source_url = ifelse(
+        !is.na(m$report_url) & nzchar(m$report_url),
+        m$report_url,
+        CLINGEN_GV_URL
+      )
     )
   )
 }
