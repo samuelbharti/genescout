@@ -1162,9 +1162,12 @@ enrich_input_signals <- function(resolved, registry, context = list()) {
 # edge with); a connected gene is "present" and emits one grounded evidence row per
 # interacting partner (domain "interaction", source_id "STRING:<a>-<b>"). Only
 # genes that RESOLVED are sent to STRING (junk tokens are skipped). `fetch_network`
-# is injectable so the fill is testable offline. A failed/absent network leaves
-# every gene absent (annotation neutral - composites unchanged). Returns the same
-# signals_long / evidence_long shapes enrich_genes() does, ready to bind.
+# is injectable so the fill is testable offline. A failed/absent network (or a gene
+# past the STRING_MAX_NODES cap) leaves that gene's raw value NA - so it reads "no
+# data" in the report, never a measured "0 interactions" - and absent (annotation
+# neutral, composites unchanged); only a gene STRING was actually asked about and
+# returned isolated gets a grounded degree 0. Returns signals_long / evidence_long
+# (as enrich_genes() does) plus `capped` (non-NULL when the query was truncated).
 enrich_network_signals <- function(
   resolved,
   registry,
@@ -1200,6 +1203,14 @@ enrich_network_signals <- function(
     NULL
   }
   net_url <- if (isTRUE(net$ok)) net$source_url %||% "" else ""
+  # The exact symbol set STRING was asked about, so a gene queried and found
+  # isolated (grounded degree 0) is distinguishable from one never queried (fetch
+  # failed, or dropped past STRING_MAX_NODES), which must read NA rather than 0.
+  queried <- if (isTRUE(net$ok)) {
+    toupper(as.character(net$queried %||% query_syms))
+  } else {
+    character()
+  }
 
   signals <- list()
   evidence <- list()
@@ -1220,9 +1231,10 @@ enrich_network_signals <- function(
     } else {
       character()
     }
-    present <- isTRUE(net$ok) && degree >= 1
+    measured <- isTRUE(net$ok) && (sym %in% queried)
+    present <- measured && degree >= 1
     for (sig in net_signals) {
-      raw <- as.numeric(degree)
+      raw <- if (measured) as.numeric(degree) else NA_real_
       signals[[length(signals) + 1]] <- tibble::tibble(
         gene_id = resolved$gene_id[i],
         symbol = resolved$symbol[i],
@@ -1262,6 +1274,13 @@ enrich_network_signals <- function(
       }
     }
   }
+  # Audit a truncated query (more resolved genes than STRING_MAX_NODES) the same way
+  # the seed cap is audited, so the dropped genes are a recorded limit, not silent.
+  capped <- if (isTRUE(net$truncated)) {
+    list(kept = net$n_query, total = net$n_query + (net$n_dropped %||% 0L))
+  } else {
+    NULL
+  }
   list(
     signals_long = if (length(signals)) {
       dplyr::bind_rows(signals)
@@ -1272,7 +1291,8 @@ enrich_network_signals <- function(
       dplyr::bind_rows(evidence)
     } else {
       empty_evidence_long()
-    }
+    },
+    capped = capped
   )
 }
 

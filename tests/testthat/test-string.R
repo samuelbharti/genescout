@@ -65,6 +65,7 @@ test_that("enrich_network_signals() nudges connected genes, leaves isolates alon
     list(
       ok = TRUE,
       edges = string_network_parse(read_fixture("string_network.json")),
+      queried = symbols,
       source_url = "https://string-db.org/cgi/network?x"
     )
   }
@@ -78,10 +79,57 @@ test_that("enrich_network_signals() nudges connected genes, leaves isolates alon
   expect_true(sig$present[sig$symbol == "TP53"])
   expect_true(sig$present[sig$symbol == "NF1"])
   expect_false(sig$present[sig$symbol == "TTN"])
+  # A queried gene has a measured raw degree (TTN's genuine isolate is a real 0).
+  expect_equal(sig$raw[sig$symbol == "TTN"], 0)
   # A connected gene emits grounded interaction evidence; the isolate emits none.
   expect_true(all(out$evidence_long$domain == "interaction"))
   expect_true(any(grepl("TP53", out$evidence_long$source_id)))
   expect_false(any(grepl("TTN", out$evidence_long$source_id)))
+})
+
+test_that("enrich_network_signals() emits NA (not 0) when the STRING fetch fails", {
+  # A failed/absent network must read as 'no data' (NA -> renders '—'), never as a
+  # measured '0 within-list interactions' for every gene (grounding non-negotiable).
+  resolved <- tibble::tibble(
+    gene_id = c("G_TP53", "G_NF1"),
+    symbol = c("TP53", "NF1"),
+    resolved = c(TRUE, TRUE)
+  )
+  registry <- list(string_signal(list(midpoints = list(string = 3))))
+  out <- enrich_network_signals(
+    resolved,
+    registry,
+    fetch_network = function(...) list(ok = FALSE, error = "503")
+  )
+  expect_true(all(is.na(out$signals_long$raw)))
+  expect_false(any(out$signals_long$present))
+  expect_equal(nrow(out$evidence_long), 0)
+})
+
+test_that("string_ids_parse() maps queryItem -> preferredName", {
+  m <- string_ids_parse(read_fixture("string_ids.json"))
+  expect_true(all(c("query", "preferred", "string_id") %in% names(m)))
+  expect_equal(m$preferred[m$query == "SEPTIN9"], "SEPT9")
+  expect_equal(m$preferred[m$query == "TP53"], "TP53")
+})
+
+test_that("string_reconcile_edges() rewrites preferredName back to the query symbol", {
+  # STRING reports the SEPTIN9 edge under its preferredName SEPT9; reconciliation
+  # must credit it to SEPTIN9 so the candidate is not scored as an isolate.
+  edges <- tibble::tibble(
+    gene_a = c("SEPT9", "TP53"),
+    gene_b = c("TP53", "MDM2"),
+    score = c(0.9, 0.95)
+  )
+  id_map <- tibble::tibble(
+    query = c("SEPTIN9", "TP53", "MDM2"),
+    preferred = c("SEPT9", "TP53", "MDM2"),
+    string_id = c("9606.a", "9606.b", "9606.c")
+  )
+  out <- string_reconcile_edges(edges, id_map)
+  expect_equal(out$gene_a, c("SEPTIN9", "TP53"))
+  # An unmapped endpoint is left untouched; a NULL/empty map is a no-op.
+  expect_identical(string_reconcile_edges(edges, NULL), edges)
 })
 
 test_that("enrich_network_signals() is a clean no-op without a network signal", {
@@ -99,4 +147,47 @@ test_that("enrich_network_signals() is a clean no-op without a network signal", 
   )
   expect_equal(nrow(out$signals_long), 0)
   expect_equal(nrow(out$evidence_long), 0)
+})
+
+test_that("run_enrich() appends STRING for a >= 5-token list and audits provenance", {
+  # The gate fires at CANDID_STRING_MIN_GENES tokens; the network fetch is injected
+  # so this end-to-end path stays offline. Two tokens resolve (NF1, TP53) and
+  # interact in the fixture; three are junk and never queried.
+  fake_fetch <- function(symbols, ...) {
+    list(
+      ok = TRUE,
+      edges = string_network_parse(read_fixture("string_network.json")),
+      queried = symbols,
+      source_url = "https://string-db.org/cgi/network?x"
+    )
+  }
+  enr <- run_enrich(
+    list(mine = c("NF1", "TP53", "AAA", "BBB", "CCC")),
+    registry = stub_registry(),
+    resolver = stub_resolver,
+    fetch_network = fake_fetch
+  )
+  expect_true(all(
+    c("string", "string_n", "string_present") %in% names(enr$genes)
+  ))
+  g <- enr$genes
+  expect_true(g$string_present[g$symbol == "NF1"])
+  expect_true(g$string_present[g$symbol == "TP53"])
+  # An unresolved (never-queried) token reads NA, not a measured 0.
+  expect_true(is.na(g$string[g$symbol == "AAA"]))
+  prov <- vapply(enr$provenance, function(s) s$source, character(1))
+  expect_true(any(grepl("STRING", prov)))
+})
+
+test_that("run_enrich() does NOT append STRING for a small list (fetch never fires)", {
+  enr <- run_enrich(
+    list(mine = c("NF1", "TP53")),
+    registry = stub_registry(),
+    resolver = stub_resolver,
+    fetch_network = function(...) {
+      stop("STRING must not be queried for a small list")
+    }
+  )
+  expect_false("string" %in% names(enr$genes))
+  expect_false("string_n" %in% names(enr$genes))
 })

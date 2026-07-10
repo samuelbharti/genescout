@@ -34,7 +34,8 @@ run_enrich <- function(
   registry = candid_signal_registry(),
   resolver = resolve_symbol,
   context = list(),
-  seeder = seed_disease_genes
+  seeder = seed_disease_genes,
+  fetch_network = string_network
 ) {
   cs <- as_candidate_set(gene_lists)
   # Optional disease-context priors (context/*.yaml: FLAGS genes, tissues, drivers)
@@ -119,7 +120,17 @@ run_enrich <- function(
   # more than one gene at a time, so they run outside the per-gene enrich_genes loop
   # - and fold their tidy rows + grounded evidence into the same tables.
   input_enr <- enrich_input_signals(resolved, registry, context = context)
-  network_enr <- enrich_network_signals(resolved, registry, context = context)
+  network_enr <- enrich_network_signals(
+    resolved,
+    registry,
+    context = context,
+    fetch_network = fetch_network
+  )
+  # Record a truncated STRING query so the dropped genes are an audited limit
+  # (surfaced by candid_provenance below), mirroring the discovery seed cap.
+  if (!is.null(network_enr$capped)) {
+    context$string_capped <- network_enr$capped
+  }
   signals_long <- dplyr::bind_rows(
     enriched$signals_long,
     input_enr$signals_long,
@@ -199,7 +210,8 @@ run_review <- function(
   resolver = resolve_symbol,
   coverage_bonus = rubric_coverage_bonus(),
   caveats = TRUE,
-  context = list()
+  context = list(),
+  fetch_network = string_network
 ) {
   enriched <- run_enrich(
     gene_lists,
@@ -207,7 +219,8 @@ run_review <- function(
     config = config,
     registry = registry,
     resolver = resolver,
-    context = context
+    context = context,
+    fetch_network = fetch_network
   )
   rank_result(
     enriched,
@@ -249,7 +262,8 @@ run_review_request <- function(
   req,
   config = NULL,
   registry = candid_signal_registry(),
-  resolver = resolve_symbol
+  resolver = resolve_symbol,
+  fetch_network = string_network
 ) {
   cs <- coerce_request_sources(req$sources)
   context <- list()
@@ -269,7 +283,8 @@ run_review_request <- function(
     config = config,
     registry = registry,
     resolver = resolver,
-    context = context
+    context = context,
+    fetch_network = fetch_network
   )
   rank_result(
     enriched,
@@ -362,6 +377,21 @@ candid_provenance <- function(context = list()) {
           "Discovery seeding: kept top %d of %d seeded candidate genes",
           cap$kept,
           cap$total
+        ),
+        endpoint = ""
+      ))
+    )
+  }
+  scap <- pluck_at(context, "string_capped")
+  if (!is.null(scap)) {
+    sources <- c(
+      sources,
+      list(list(
+        source = sprintf(
+          "STRING connectivity: queried %d of %d genes (list exceeds the %d-gene cap)",
+          scap$kept,
+          scap$total,
+          STRING_MAX_NODES
         ),
         endpoint = ""
       ))
