@@ -28,7 +28,11 @@ candid_signal <- function(
   direction = "higher_better",
   role = "evidence",
   needs = "gene",
-  seed_key = NULL
+  seed_key = NULL,
+  domain = NULL,
+  default_on = TRUE,
+  auth = NULL,
+  key_env = NULL
 ) {
   list(
     key = key,
@@ -44,8 +48,28 @@ candid_signal <- function(
     # context$seed_data table (a disease seeder already fetched it). Such signals
     # still run for an unresolved gene, so a seeded gene MyGene could not resolve
     # keeps its already-in-hand grounded evidence instead of being blanked.
-    seed_key = seed_key
+    seed_key = seed_key,
+    # Catalog metadata (see candid_source_catalog / resolve_active_sources). All
+    # optional and back-compatible: a signal with defaults behaves exactly as before.
+    #   domain     - grouping label for the UI picker / report (e.g. "cancer").
+    #   default_on - TRUE if this source runs when the caller selects nothing.
+    #   auth       - NULL (keyless), "query" (NCBI-style key), or "header"/"bearer".
+    #   key_env    - Sys.getenv name of the API key for a key-gated source.
+    domain = domain,
+    default_on = default_on,
+    auth = auth,
+    key_env = key_env
   )
+}
+
+# TRUE if a signal can actually run: keyless signals are always available; a
+# key-gated one is available only when its key is present in the environment (so a
+# keyless deploy silently skips it instead of erroring - mirrors candid_llm_available).
+signal_available <- function(sig) {
+  if (is.null(sig$auth) || is.null(sig$key_env)) {
+    return(TRUE)
+  }
+  nzchar(Sys.getenv(sig$key_env))
 }
 
 # The cross-source corroboration signal: a gene's value is how many of the USER'S
@@ -237,6 +261,59 @@ candid_signal_registry <- function(
     base <- c(base, list(cross_source_signal(rubric)))
   }
   base
+}
+
+# --- Source catalog + selection --------------------------------------------
+# The catalog is the full set of connectors CANDID knows about; a run activates a
+# SELECTED subset. Selection gates which extractors are QUERIED (unlike a weight of
+# 0, which mutes ranking but still pays the network cost). This is the extensibility
+# surface a non-R front end introspects (candid_source_catalog) and chooses from.
+
+# The full ordered source catalog: every registry signal (base + disease-keyed +
+# cross-source) plus the tissue (GTEx) and network (STRING) signals. New connectors
+# are added to candid_signal_registry() as default_on = FALSE (opt-in) and flow in
+# here automatically. This is the introspectable universe of selectable sources.
+candid_source_catalog <- function(rubric = load_rubric()) {
+  c(
+    candid_signal_registry(rubric, disease_mode = TRUE, multi_source = TRUE),
+    list(
+      gtex_tissue_signal(rubric),
+      string_signal(rubric)
+    )
+  )
+}
+
+# The effective source selection, NULL meaning "use each source's default_on".
+# Precedence: an explicit `selection` (envelope / CLI / UI) > a deploy default
+# (config `sources:`) > NULL. Returned as a character vector of keys, or NULL.
+source_selection <- function(selection = NULL, config = NULL) {
+  if (!is.null(selection)) {
+    return(as.character(selection))
+  }
+  cs <- if (!is.null(config)) config$sources else NULL
+  if (!is.null(cs)) as.character(cs) else NULL
+}
+
+# Whether a source key is active for a run, given the effective selection `sel`
+# (NULL -> fall back to the source's default_on) and its default_on flag.
+source_is_active <- function(key, sel, default_on = TRUE) {
+  if (is.null(sel)) isTRUE(default_on) else key %in% sel
+}
+
+# The concrete active key set over a catalog (for provenance and the /catalog API):
+# selected (or default_on) AND available (a key-gated source with no key is dropped,
+# never errors). Order follows the catalog.
+resolve_active_sources <- function(catalog, selection = NULL, config = NULL) {
+  sel <- source_selection(selection, config)
+  keep <- vapply(
+    catalog,
+    function(s) {
+      source_is_active(s$key, sel, s$default_on %||% TRUE) &&
+        signal_available(s)
+    },
+    logical(1)
+  )
+  vapply(catalog[keep], function(s) s$key, character(1), USE.NAMES = FALSE)
 }
 
 # A compact registry description for the UI legend / result object.

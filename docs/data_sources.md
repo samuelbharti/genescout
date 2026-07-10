@@ -25,6 +25,17 @@ This table is what a reviewer will ask for and what makes the method reproducibl
 | STRING | ranking signal | <https://string-db.org/api> | v12 (`json/network` + `json/get_string_ids`) | 2026-07-10 | Yes | Within-list interaction connectivity: one `json/network` call over the resolved candidate set (`required_score=700`, i.e. combined score ≥0.7); per gene, the count of OTHER candidates it interacts with (degree). A `get_string_ids` call reconciles STRING's preferredName back to the queried HGNC symbol so a renamed gene (e.g. SEPTIN9→SEPT9) is credited, not dropped. Annotation, and COHORT-RELATIVE (the one signal whose value depends on the rest of the list), so it only nudges a connected gene up, never penalizes an isolate. Appended only for a multi-gene list (≥5 input tokens); a genuinely queried isolate scores a grounded degree 0 while a failed/un-queried gene reads NA. The query is capped at 500 genes, and any overflow is audited in the provenance. Each edge is grounded evidence (`STRING:<a>-<b>`) |
 | Cross-source corroboration | ranking signal | (user input; no network) | n/a | n/a | n/a | Multi-source runs only: count of the user's OWN input sources a gene appears in (evidence; breadth beats a single loud source, capped below High). Grounded in the user's provenance (`user-list:<label>`), not an external claim; the disease-discovery seed source is excluded |
 
+## Source selection
+
+Sources form a **catalog** (`candid_source_catalog()`); each run activates a
+**selected subset**, gated at query time — a deselected source is never called (a
+weight of 0 only mutes its ranking contribution, still paying the network cost).
+The active set resolves by precedence: an explicit selection (the review-request
+`options$sources`, the Shiny picker, or `dev/run_review.R --sources`) **>** a deploy
+default (`config.yml` `sources:`) **>** each source's built-in `default_on`. A
+key-gated source with no key present is dropped silently, so a keyless deploy runs
+the keyless subset. The active set is recorded in the run provenance.
+
 ## Reproducibility checklist
 
 - [ ] Every integrated source has a real version/release and access date above.

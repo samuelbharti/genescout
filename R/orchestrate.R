@@ -35,7 +35,8 @@ run_enrich <- function(
   resolver = resolve_symbol,
   context = list(),
   seeder = seed_disease_genes,
-  fetch_network = string_network
+  fetch_network = string_network,
+  enabled = NULL
 ) {
   cs <- as_candidate_set(gene_lists)
   # Optional disease-context priors (context/*.yaml: FLAGS genes, tissues, drivers)
@@ -93,14 +94,35 @@ run_enrich <- function(
   if (nrow(flat) == 0) {
     stop("No genes to review.", call. = FALSE)
   }
+  # Source selection: which connectors this run may query. Precedence
+  # (source_selection): explicit `enabled` > config `sources:` > each source's
+  # default_on. Filtering the registry BEFORE enrichment gates at QUERY time - a
+  # deselected source is never called (a weight of 0 would still pay its network
+  # cost). A key-gated source whose key is absent is dropped by signal_available().
+  sel <- source_selection(enabled, config)
+  registry <- Filter(
+    function(s) {
+      source_is_active(s$key, sel, s$default_on %||% TRUE) &&
+        signal_available(s)
+    },
+    registry
+  )
   registry_keys <- vapply(registry, function(s) s$key, character(1))
-  if (length(user_sources) >= 2 && !("cross_source" %in% registry_keys)) {
+  # The runtime-data signals are appended fresh (they are not in the passed
+  # registry), each still gated on BOTH the selection and its data-condition, so an
+  # unspecified selection keeps today's behavior byte-for-byte.
+  if (
+    length(user_sources) >= 2 &&
+      source_is_active("cross_source", sel) &&
+      !("cross_source" %in% registry_keys)
+  ) {
     registry <- c(registry, list(cross_source_signal()))
   }
   # Tissue-expression: append the GTEx signal only when the study named tissue(s)
   # of interest, so runs without a tissue context are byte-for-byte unchanged.
   if (
     length(context_tissues(context)) > 0 &&
+      source_is_active("gtex_tissue", sel) &&
       !("gtex_tissue" %in% registry_keys)
   ) {
     registry <- c(registry, list(gtex_tissue_signal()))
@@ -109,10 +131,19 @@ run_enrich <- function(
   # needs several nodes to be informative), so a tiny list makes no STRING call and
   # every small offline test is byte-for-byte unchanged. Recorded in context so the
   # provenance can report the source.
-  if (nrow(flat) >= CANDID_STRING_MIN_GENES && !("string" %in% registry_keys)) {
+  if (
+    nrow(flat) >= CANDID_STRING_MIN_GENES &&
+      source_is_active("string", sel) &&
+      !("string" %in% registry_keys)
+  ) {
     registry <- c(registry, list(string_signal()))
     context$network_signal <- TRUE
   }
+  if (length(registry) == 0) {
+    stop("No data sources selected for this review.", call. = FALSE)
+  }
+  # Record the active source set (post-filter, post-append) for the audit.
+  context$active_sources <- vapply(registry, function(s) s$key, character(1))
 
   resolved <- resolve_genes(flat, resolver = resolver)
   enriched <- enrich_genes(resolved, registry, context = context)
@@ -211,7 +242,8 @@ run_review <- function(
   coverage_bonus = rubric_coverage_bonus(),
   caveats = TRUE,
   context = list(),
-  fetch_network = string_network
+  fetch_network = string_network,
+  enabled = NULL
 ) {
   enriched <- run_enrich(
     gene_lists,
@@ -220,7 +252,8 @@ run_review <- function(
     registry = registry,
     resolver = resolver,
     context = context,
-    fetch_network = fetch_network
+    fetch_network = fetch_network,
+    enabled = enabled
   )
   rank_result(
     enriched,
@@ -255,9 +288,11 @@ coerce_request_sources <- function(sources) {
 # the API) shares one contract. `req` is
 #   list(sources = <candidate_set | JSON source list | named list | vector | df>,
 #        description = <chr>, disease = <resolved list(id, name) | NULL>,
-#        options = list(weights, coverage_bonus, caveats))
-# The disease is assumed ALREADY RESOLVED (the confirm step grounds it), so this
-# stays deterministic. Returns the ranked run_review() result.
+#        tissues = <chr>, options = list(weights, coverage_bonus, caveats, sources))
+# `options$sources` is the source SELECTION - a character vector of connector keys
+# (from candid_source_catalog); omitted -> the catalog's default_on subset. The
+# disease is assumed ALREADY RESOLVED (the confirm step grounds it), so this stays
+# deterministic. Returns the ranked run_review() result.
 run_review_request <- function(
   req,
   config = NULL,
@@ -284,7 +319,8 @@ run_review_request <- function(
     registry = registry,
     resolver = resolver,
     context = context,
-    fetch_network = fetch_network
+    fetch_network = fetch_network,
+    enabled = opts$sources
   )
   rank_result(
     enriched,
@@ -308,32 +344,57 @@ as_gene_lists <- function(x) {
 # Provenance for the sources the deterministic pipeline queries. `context` may
 # carry a resolved disease (PR2 discovery mode), recorded here for the audit.
 candid_provenance <- function(context = list()) {
-  sources <- list(
-    list(source = "MyGene.info", endpoint = MYGENE_BASE),
-    list(source = "Open Targets Platform", endpoint = OPENTARGETS_URL),
-    list(source = "Europe PMC", endpoint = EUROPEPMC_BASE),
-    list(source = "PubTator3", endpoint = PUBTATOR_BASE),
-    list(source = "ClinVar (NCBI E-utilities)", endpoint = CLINVAR_EUTILS_BASE),
-    list(source = "DGIdb", endpoint = DGIDB_URL),
-    list(source = "gnomAD", endpoint = GNOMAD_URL),
-    list(source = "Pharos", endpoint = PHAROS_URL),
-    list(source = "Reactome", endpoint = REACTOME_BASE)
+  # Only the sources this run actually queried. `active_sources` (set by run_enrich)
+  # is the selected key set; when absent (older callers), every source is listed.
+  active <- pluck_at(context, "active_sources")
+  is_on <- function(key) is.null(active) || key %in% active
+  base <- list(
+    ot_assoc = list(
+      source = "Open Targets Platform",
+      endpoint = OPENTARGETS_URL
+    ),
+    pmc_hits = list(source = "Europe PMC", endpoint = EUROPEPMC_BASE),
+    pubtator = list(source = "PubTator3", endpoint = PUBTATOR_BASE),
+    clinvar_path = list(
+      source = "ClinVar (NCBI E-utilities)",
+      endpoint = CLINVAR_EUTILS_BASE
+    ),
+    dgidb = list(source = "DGIdb", endpoint = DGIDB_URL),
+    gnomad_loeuf = list(source = "gnomAD", endpoint = GNOMAD_URL),
+    pharos_tdl = list(source = "Pharos", endpoint = PHAROS_URL),
+    reactome = list(source = "Reactome", endpoint = REACTOME_BASE)
+  )
+  # MyGene is always used (symbol resolution, not a rankable signal).
+  sources <- c(
+    list(list(source = "MyGene.info", endpoint = MYGENE_BASE)),
+    unname(base[vapply(names(base), is_on, logical(1))])
   )
   disease <- pluck_at(context, "disease")
   if (!is.null(disease) && !is_blank(disease$id)) {
-    sources <- c(
-      sources,
-      list(
-        list(
+    if (is_on("panelapp")) {
+      sources <- c(
+        sources,
+        list(list(
           source = "Genomics England PanelApp",
           endpoint = PANELAPP_BASE
-        ),
-        list(source = "DISEASES (Jensen Lab)", endpoint = DISEASES_BASE),
-        list(
-          source = paste0("Disease context: ", disease$name %||% disease$id),
-          endpoint = disease$id
-        )
+        ))
       )
+    }
+    if (is_on("diseases")) {
+      sources <- c(
+        sources,
+        list(list(
+          source = "DISEASES (Jensen Lab)",
+          endpoint = DISEASES_BASE
+        ))
+      )
+    }
+    sources <- c(
+      sources,
+      list(list(
+        source = paste0("Disease context: ", disease$name %||% disease$id),
+        endpoint = disease$id
+      ))
     )
   }
   tissues <- context_tissues(context)

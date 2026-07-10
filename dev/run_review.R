@@ -29,6 +29,7 @@ usage <- function() {
     "  --description  <text>   free-text study description             (optional)\n",
     "  --disease      <term>   disease context to seed/score against   (optional)\n",
     "  --tissue  <t1,t2>       tissue(s) of interest for GTEx scoring   (optional)\n",
+    "  --sources <k1,k2>       connector keys to query (default: catalog default_on)\n",
     "  --agent  <none|input|final|both>  agent involvement   (default: none)\n",
     "  --out          <file>   output HTML report path    (default: report.html)\n",
     "  --help                  show this message and exit\n",
@@ -201,13 +202,21 @@ main <- function() {
   } else {
     character()
   }
+  # Source selection: --sources k1,k2 restricts which connectors are queried;
+  # omitted -> the catalog's default_on subset. run_enrich filters the base
+  # registry (which carries every gene-level connector) + gates the runtime signals.
+  sources_sel <- if (!is.null(opt$sources) && !is_blank(opt$sources)) {
+    trimws(strsplit(opt$sources, ",")[[1]])
+  } else {
+    NULL
+  }
   result <- run_review_request(
     list(
       sources = cs,
       description = description,
       disease = disease_ctx,
       tissues = tissues,
-      options = list(caveats = TRUE)
+      options = list(caveats = TRUE, sources = sources_sel)
     ),
     config = candid_config,
     registry = registry

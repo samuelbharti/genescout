@@ -31,6 +31,11 @@ default:
     # The optional input-curation agent (front-of-pipeline QA): a fast, cheap
     # model, since cleaning tokens is a light interpretive task.
     input_curator: gemini-2.5-flash
+  # OPTIONAL source selection: the default set of connector keys this deploy runs
+  # when a review names none. Omit to use each source's built-in default_on. Keys
+  # come from candid_source_catalog(); an explicit envelope/UI/CLI selection still
+  # overrides this. Example (a lean cancer-research default):
+  #   sources: [ot_assoc, clinvar_path, pmc_hits, pubtator, cbioportal, civic]
 
 # To use Anthropic (Claude) instead, replace the block above with:
 #   provider: anthropic
