@@ -8,11 +8,18 @@ results_ui <- function(id) {
 
   tagList(
     uiOutput(ns("empty_state")),
-    uiOutput(ns("legend")),
-    DT::DTOutput(ns("ranked_table")),
-    uiOutput(ns("curate_control")),
-    uiOutput(ns("curation")),
-    uiOutput(ns("drilldown"))
+    # The whole results block appears only once there is a ranking, so the layout
+    # stays clean (no empty cards) before the first run.
+    conditionalPanel(
+      condition = "output.has_result == true",
+      ns = ns,
+      div(class = "mb-3", uiOutput(ns("results_header"))),
+      div(class = "mb-3", uiOutput(ns("legend"))),
+      div(class = "mb-3", DT::DTOutput(ns("ranked_table"))),
+      uiOutput(ns("curate_control")),
+      uiOutput(ns("curation")),
+      div(class = "mt-3", uiOutput(ns("drilldown")))
+    )
   )
 }
 
@@ -32,16 +39,46 @@ results_server <- function(
     output$empty_state <- renderUI({
       if (is.null(result())) {
         div(
-          class = "text-muted p-4",
+          class = "text-muted p-5 text-center",
           h5("No ranking yet"),
-          p("Paste genes (optionally describe your study), then Rank genes.")
+          p(
+            "Add candidate genes (and, optionally, a study context), then Rank genes."
+          )
         )
       }
     })
 
+    # Drives the conditionalPanel that reveals the results block.
+    output$has_result <- reactive(!is.null(result()))
+    outputOptions(output, "has_result", suspendWhenHidden = FALSE)
+
+    output$results_header <- renderUI({
+      req(result())
+      n <- nrow(result()$genes)
+      div(
+        h4("Ranked candidates", class = "mb-1"),
+        tags$p(
+          class = "text-muted small mb-0",
+          sprintf(
+            "%d gene%s scored - select a row to see the evidence behind each signal.",
+            n,
+            if (n == 1) "" else "s"
+          )
+        )
+      )
+    })
+
+    # The scoring legend is reference material, so it is tucked into a collapsed
+    # accordion rather than pushing the table down the page.
     output$legend <- renderUI({
       req(result())
-      registry_legend_html(result()$registry)
+      bslib::accordion(
+        open = FALSE,
+        bslib::accordion_panel(
+          "How the composite score works",
+          registry_legend_html(result()$registry)
+        )
+      )
     })
 
     ranked_display <- reactive({
@@ -146,15 +183,20 @@ results_server <- function(
     output$drilldown <- renderUI({
       req(result())
       sel <- input$ranked_table_rows_selected
-      if (is.null(sel) || length(sel) == 0) {
-        return(div(
-          class = "text-muted p-2 fst-italic",
+      body <- if (is.null(sel) || length(sel) == 0) {
+        div(
+          class = "text-muted fst-italic",
           "Select a gene in the table to see the evidence behind its signals."
-        ))
+        )
+      } else {
+        render_gene_evidence(
+          result()$genes[sel, , drop = FALSE],
+          result()$evidence
+        )
       }
-      render_gene_evidence(
-        result()$genes[sel, , drop = FALSE],
-        result()$evidence
+      bslib::card(
+        bslib::card_header("Evidence"),
+        bslib::card_body(body)
       )
     })
   })

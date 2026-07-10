@@ -8,12 +8,16 @@ review_ui <- function(id) {
 
   layout_sidebar(
     sidebar = sidebar(
-      title = "Genes & study",
-      width = 360,
+      title = "Set up your review",
+      width = 400,
       input_ui(ns("input")),
-      report_ui(ns("report"))
+      bslib::card(
+        class = "mb-2",
+        bslib::card_header("Export"),
+        bslib::card_body(report_ui(ns("report")))
+      )
     ),
-    results_ui(ns("results"))
+    div(class = "p-2", results_ui(ns("results")))
   )
 }
 

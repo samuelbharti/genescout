@@ -10,67 +10,93 @@ input_ui <- function(id, registry = candid_signal_registry()) {
   ns <- NS(id)
 
   tagList(
-    textAreaInput(
-      ns("paste"),
-      "Paste gene symbols (one per line)",
-      rows = 6,
-      placeholder = "NF1\nSUZ12\nCDKN2A"
-    ),
-    actionButton(
-      ns("load_example"),
-      "Load NF1 example genes",
-      class = "btn-outline-secondary btn-sm mb-3"
-    ),
-    fileInput(
-      ns("file"),
-      "...or upload a gene table (TSV/CSV)",
-      accept = c(".tsv", ".csv", ".txt")
-    ),
-    # Progressive disclosure: the paste box above is the default single source;
-    # "add a source" reveals named/typed rows for genes from a different analysis
-    # (WES calls, DEGs, ATAC-seq hits, ...). A gene found in more of your sources
-    # ranks higher (cross-source corroboration, applied automatically).
-    actionLink(
-      ns("add_source"),
-      "+ add another source (tag by assay)",
-      class = "small d-block mb-2"
-    ),
-    tags$div(id = ns("sources_anchor")),
-    textAreaInput(
-      ns("description"),
-      "What are you studying? (optional)",
-      rows = 3,
-      placeholder = paste(
-        "e.g. germline drivers of NF1-associated MPNST",
-        "in peripheral nerve"
+    # 1 - Candidate genes ----------------------------------------------------
+    bslib::card(
+      class = "mb-3",
+      bslib::card_header("Candidate genes"),
+      bslib::card_body(
+        textAreaInput(
+          ns("paste"),
+          NULL,
+          rows = 6,
+          placeholder = "Paste gene symbols, one per line\nNF1\nSUZ12\nCDKN2A"
+        ),
+        div(
+          class = "d-flex gap-2 align-items-center mb-2",
+          actionButton(
+            ns("load_example"),
+            "Load NF1 example",
+            class = "btn-outline-secondary btn-sm"
+          ),
+          tags$span(class = "text-muted small", "or upload a table below")
+        ),
+        fileInput(
+          ns("file"),
+          NULL,
+          accept = c(".tsv", ".csv", ".txt"),
+          placeholder = "gene table (TSV/CSV)"
+        ),
+        # Progressive disclosure: the paste box above is the default single source;
+        # "add a source" reveals named/typed rows for genes from a different
+        # analysis (WES calls, DEGs, ATAC-seq hits, ...). A gene found in more of
+        # your sources ranks higher (cross-source corroboration, automatic).
+        actionLink(
+          ns("add_source"),
+          "+ add another source (tag by assay)",
+          class = "small d-block"
+        ),
+        tags$div(id = ns("sources_anchor"), class = "mt-2")
       )
     ),
-    tags$hr(),
-    tags$label(
-      class = "form-label",
-      "Discovery (optional): seed genes from a disease"
-    ),
-    div(
-      class = "input-group input-group-sm mb-2",
-      textInput(
-        ns("disease"),
-        label = NULL,
-        placeholder = "e.g. neurofibromatosis type 1"
-      ),
-      actionButton(
-        ns("resolve_disease"),
-        "Find",
-        class = "btn-outline-secondary"
+    # 2 - Study context ------------------------------------------------------
+    bslib::card(
+      class = "mb-3",
+      bslib::card_header("Study context"),
+      bslib::card_body(
+        textAreaInput(
+          ns("description"),
+          "What are you studying? (optional)",
+          rows = 3,
+          placeholder = paste(
+            "e.g. germline drivers of NF1-associated MPNST",
+            "in peripheral nerve"
+          )
+        ),
+        tags$label(
+          class = "form-label small text-muted mb-1",
+          "Discovery (optional): seed genes from a disease"
+        ),
+        div(
+          class = "input-group input-group-sm",
+          textInput(
+            ns("disease"),
+            label = NULL,
+            placeholder = "e.g. neurofibromatosis type 1"
+          ),
+          actionButton(
+            ns("resolve_disease"),
+            "Find",
+            class = "btn-outline-secondary"
+          )
+        ),
+        uiOutput(ns("disease_matches"))
       )
     ),
-    uiOutput(ns("disease_matches")),
-    agent_mode_ui(ns),
-    actionButton(ns("run"), "Rank genes", class = "btn-primary w-100"),
+    # 3 - Run ----------------------------------------------------------------
+    bslib::card(
+      class = "mb-3",
+      bslib::card_header("Run"),
+      bslib::card_body(
+        agent_mode_ui(ns),
+        actionButton(ns("run"), "Rank genes", class = "btn-primary w-100 mt-2")
+      )
+    ),
+    # Advanced (collapsed) ---------------------------------------------------
     bslib::accordion(
-      class = "mt-3",
+      class = "mb-3",
       open = FALSE,
       bslib::accordion_panel(
-        "Ranking weights",
+        "Advanced - weights & caveats",
         helpText(
           "Adjust how much each source counts; the table re-ranks instantly",
           "with no re-query."
@@ -91,7 +117,10 @@ input_ui <- function(id, registry = candid_signal_registry()) {
         )
       )
     ),
-    helpText("Research use only. Not for clinical or diagnostic use.")
+    helpText(
+      class = "small",
+      "Research use only. Not for clinical or diagnostic use."
+    )
   )
 }
 
@@ -162,7 +191,6 @@ agent_mode_ui <- function(ns) {
     )
   }
   tagList(
-    tags$hr(),
     radioButtons(
       ns("agent_mode"),
       "Agent involvement",
@@ -170,7 +198,10 @@ agent_mode_ui <- function(ns) {
       selected = "final"
     ),
     if (!llm_ok) {
-      helpText("Set an API key (.Renviron) to enable the input-curation agent.")
+      helpText(
+        class = "small",
+        "Set an API key (.Renviron) to enable the input-curation agent."
+      )
     }
   )
 }
