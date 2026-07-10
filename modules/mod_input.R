@@ -106,6 +106,14 @@ input_ui <- function(id, registry = candid_signal_registry()) {
       class = "mb-3",
       open = FALSE,
       bslib::accordion_panel(
+        "Data sources",
+        helpText(
+          "Choose which sources to query. An unchecked source is never called",
+          "(saving its network cost); the default set is a lean, fast core."
+        ),
+        source_picker_ui(ns)
+      ),
+      bslib::accordion_panel(
         "Advanced - weights & caveats",
         helpText(
           "Adjust how much each source counts; the table re-ranks instantly",
@@ -131,6 +139,39 @@ input_ui <- function(id, registry = candid_signal_registry()) {
       class = "small",
       "Research use only. Not for clinical or diagnostic use."
     )
+  )
+}
+
+# A checkbox picker of the selectable (per-gene) source connectors, pre-checked to
+# the default_on + available subset. Key-gated sources with no key are shown but
+# labeled "needs API key" (and left unchecked). The input/network auto-signals
+# (cross-source, STRING) are not shown - they append from the run data, not a
+# checkbox. Built from candid_source_catalog(), so new connectors appear here for free.
+source_picker_ui <- function(ns) {
+  catalog <- tryCatch(candid_source_catalog(), error = function(e) list())
+  sel_cat <- Filter(function(s) identical(s$needs %||% "gene", "gene"), catalog)
+  if (length(sel_cat) == 0) {
+    return(NULL)
+  }
+  keys <- vapply(sel_cat, function(s) s$key, character(1))
+  labels <- vapply(
+    sel_cat,
+    function(s) {
+      lab <- paste0(s$label, " · ", s$source)
+      if (!signal_available(s)) paste0(lab, " (needs API key)") else lab
+    },
+    character(1)
+  )
+  selected <- keys[vapply(
+    sel_cat,
+    function(s) isTRUE(s$default_on %||% TRUE) && signal_available(s),
+    logical(1)
+  )]
+  checkboxGroupInput(
+    ns("sources"),
+    NULL,
+    choices = stats::setNames(keys, labels),
+    selected = selected
   )
 }
 
@@ -390,7 +431,10 @@ input_server <- function(id, registry = candid_registry) {
       }),
       coverage_bonus = reactive(isTRUE(input$coverage_bonus)),
       # Caveats/veto on by default; NULL (pre-render) counts as on.
-      caveats = reactive(isTRUE(input$caveats %||% TRUE))
+      caveats = reactive(isTRUE(input$caveats %||% TRUE)),
+      # The selected source-connector keys (the Data sources picker). NULL before
+      # the picker renders -> run_enrich() falls back to each source's default_on.
+      enabled = reactive(input$sources)
     )
   })
 }

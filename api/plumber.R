@@ -55,6 +55,15 @@ proposal_response <- function(p) {
 #* @apiTitle CANDID
 #* @apiDescription Research-use-only gene-list prioritization. Not clinical.
 
+#* The source catalog: every connector + its selection metadata, so a front end can
+#* render a grouped picker and post the chosen keys back as options.sources on
+#* /review. Plain data (no closures) - the introspection surface of the core engine.
+#* @get /catalog
+#* @serializer unboxedJSON
+function() {
+  list(sources = candid_catalog_json())
+}
+
 #* Interpret + clean multi-source input into a proposal (front-of-pipeline agent).
 #* @post /propose
 #* @serializer unboxedJSON

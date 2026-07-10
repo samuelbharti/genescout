@@ -62,7 +62,8 @@ review_server <- function(
             inputs$description(),
             config,
             active_registry,
-            context = context
+            context = context,
+            enabled = inputs$enabled()
           )
         ),
         error = function(e) {

@@ -394,6 +394,25 @@ candid_source_catalog <- function(rubric = load_rubric()) {
   )
 }
 
+# The catalog as plain, serializable data for introspection - the /catalog API and
+# the UI source picker. One record per source with its selection metadata + whether
+# it is currently `available` (a key-gated source needs its key). No closures, so it
+# is safe to serialize to JSON for a non-R front end to render a grouped picker.
+candid_catalog_json <- function(catalog = candid_source_catalog()) {
+  lapply(catalog, function(s) {
+    list(
+      key = s$key,
+      label = s$label,
+      source = s$source,
+      domain = s$domain %||% "other",
+      role = s$role %||% "evidence",
+      default_on = isTRUE(s$default_on %||% TRUE),
+      auth = s$auth %||% "none",
+      available = signal_available(s)
+    )
+  })
+}
+
 # The effective source selection, NULL meaning "use each source's default_on".
 # Precedence: an explicit `selection` (envelope / CLI / UI) > a deploy default
 # (config `sources:`) > NULL. Returned as a character vector of keys, or NULL.

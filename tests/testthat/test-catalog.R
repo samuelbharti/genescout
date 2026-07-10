@@ -163,6 +163,40 @@ test_that("candid_source_stubs() are catalog-visible but off + unavailable keyle
   )
 })
 
+test_that("candid_catalog_json() is plain, JSON-serializable data with metadata", {
+  j <- candid_catalog_json(candid_source_catalog(load_rubric(rubric_path())))
+  expect_gt(length(j), 8)
+  one <- j[[1]]
+  expect_true(all(
+    c(
+      "key",
+      "label",
+      "source",
+      "domain",
+      "role",
+      "default_on",
+      "auth",
+      "available"
+    ) %in%
+      names(one)
+  ))
+  # No closures survive - every field is an atomic scalar, so jsonlite serializes it.
+  expect_silent(jsonlite::toJSON(j, auto_unbox = TRUE))
+  keys <- vapply(j, function(s) s$key, character(1))
+  hpa <- j[[which(keys == "hpa")]]
+  expect_equal(hpa$domain, "cancer")
+  expect_false(hpa$default_on) # opt-in
+  # A key-gated stub is unavailable without its key.
+  withr::with_envvar(c(ONCOKB_API_KEY = ""), {
+    oncokb <- candid_catalog_json(candid_source_catalog(load_rubric(rubric_path())))
+    ok <- oncokb[[which(
+      vapply(oncokb, function(s) s$key, character(1)) == "oncokb"
+    )]]
+    expect_false(ok$available)
+    expect_equal(ok$auth, "bearer")
+  })
+})
+
 test_that("source_auth_headers() builds bearer headers only when a key is present", {
   keyless <- candid_signal("k", "K", "S", NULL, normalize_identity)
   expect_null(source_auth_headers(keyless))
