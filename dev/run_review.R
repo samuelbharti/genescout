@@ -28,6 +28,7 @@ usage <- function() {
     "  --source  <name[=TYPE]:path>  a tagged source; repeatable for many\n",
     "  --description  <text>   free-text study description             (optional)\n",
     "  --disease      <term>   disease context to seed/score against   (optional)\n",
+    "  --tissue  <t1,t2>       tissue(s) of interest for GTEx scoring   (optional)\n",
     "  --agent  <none|input|final|both>  agent involvement   (default: none)\n",
     "  --out          <file>   output HTML report path    (default: report.html)\n",
     "  --help                  show this message and exit\n",
@@ -195,11 +196,17 @@ main <- function() {
   } else {
     candid_registry
   }
+  tissues <- if (!is.null(opt$tissue) && !is_blank(opt$tissue)) {
+    trimws(strsplit(opt$tissue, ",")[[1]])
+  } else {
+    character()
+  }
   result <- run_review_request(
     list(
       sources = cs,
       description = description,
       disease = disease_ctx,
+      tissues = tissues,
       options = list(caveats = TRUE)
     ),
     config = candid_config,

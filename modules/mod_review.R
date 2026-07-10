@@ -43,6 +43,12 @@ review_server <- function(
         registry
       }
       context <- if (!is.null(disease)) list(disease = disease) else list()
+      # Tissue(s) of interest activate the GTEx expression signal (appended by
+      # run_enrich) and its unrelated-tissue caveat.
+      tissues <- inputs$tissues()
+      if (length(tissues) > 0) {
+        context$tissues_of_interest <- tissues
+      }
       message_txt <- if (!is.null(disease)) {
         "Seeding candidate genes + pulling signals..."
       } else {

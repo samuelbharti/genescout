@@ -27,6 +27,10 @@ default:
     # saturating normalizer still caps breadth-only genes below the High grade, so
     # a top grade needs external evidence too ("Balanced" calibration).
     cross_source: 2.0
+    # GTEx tissue-expression relevance (annotation, only when tissues of interest
+    # are given). Value is already 0-1 (peak expression in a tissue of interest /
+    # peak across all tissues), so no midpoint is needed.
+    gtex_tissue: 0.5
   midpoints:
     pmc_hits: 50
     clinvar_path: 5
@@ -70,3 +74,9 @@ default:
     single_source:
       penalty: 0.75 # composite *= this when supported by one weak source
       max_norm: 0.5 # "weak" = the single present evidence source normalizes below this
+    # Unrelated-tissue-only: a gene GTEx measures as expressed, but essentially not
+    # in the study's tissue(s) of interest (relevance below max_relevance), is
+    # down-weighted. Needs the GTEx signal (tissues of interest supplied).
+    unrelated_tissue:
+      penalty: 0.85 # composite *= this when expressed only in unrelated tissues
+      max_relevance: 0.1 # "unrelated" = GTEx tissue relevance below this (0-1)

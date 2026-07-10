@@ -19,6 +19,7 @@ CANDID_DOMAIN_LABELS <- c(
   `variant-effect` = "Variant / ClinVar",
   constraint = "Constraint (gnomAD)",
   druggability = "Druggability",
+  expression = "Tissue expression (GTEx)",
   `input-provenance` = "Corroborating sources (your input)"
 )
 

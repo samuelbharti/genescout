@@ -92,6 +92,14 @@ run_enrich <- function(
   if (length(user_sources) >= 2 && !("cross_source" %in% registry_keys)) {
     registry <- c(registry, list(cross_source_signal()))
   }
+  # Tissue-expression: append the GTEx signal only when the study named tissue(s)
+  # of interest, so runs without a tissue context are byte-for-byte unchanged.
+  if (
+    length(context_tissues(context)) > 0 &&
+      !("gtex_tissue" %in% registry_keys)
+  ) {
+    registry <- c(registry, list(gtex_tissue_signal()))
+  }
 
   flat <- flatten_candidate_set(cs)
   if (nrow(flat) == 0) {
@@ -237,6 +245,11 @@ run_review_request <- function(
   if (!is.null(disease) && !is_blank(disease$id %||% disease$name)) {
     context$disease <- disease
   }
+  tissues <- as.character(req$tissues %||% character())
+  tissues <- tissues[!is.na(tissues) & nzchar(trimws(tissues))]
+  if (length(tissues) > 0) {
+    context$tissues_of_interest <- tissues
+  }
   opts <- req$options %||% list()
   enriched <- run_enrich(
     cs,
@@ -293,6 +306,19 @@ candid_provenance <- function(context = list()) {
           endpoint = disease$id
         )
       )
+    )
+  }
+  tissues <- context_tissues(context)
+  if (length(tissues) > 0) {
+    sources <- c(
+      sources,
+      list(list(
+        source = paste0(
+          "GTEx tissue expression: ",
+          paste(tissues, collapse = ", ")
+        ),
+        endpoint = GTEX_BASE
+      ))
     )
   }
   priors <- pluck_at(context, "priors")

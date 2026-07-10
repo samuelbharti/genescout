@@ -69,6 +69,23 @@ cross_source_signal <- function(rubric = NULL) {
   )
 }
 
+# The GTEx tissue-expression signal (annotation). Appended by run_enrich only
+# when the study supplies tissue(s) of interest, so runs without a tissue context
+# are unchanged. Rubric-tolerant defaults so it never hard-fails off-path.
+gtex_tissue_signal <- function(rubric = NULL) {
+  rubric <- rubric %||% tryCatch(load_rubric(), error = function(e) list())
+  candid_signal(
+    "gtex_tissue",
+    "GTEx tissue expression",
+    "GTEx",
+    extractor = extract_gtex_tissue,
+    normalize = normalize_identity,
+    weight = rubric$weights$gtex_tissue %||% 0.5,
+    role = "annotation",
+    needs = "gene"
+  )
+}
+
 # The active signal registry, wired from the rubric (weights + normalization
 # midpoints). Registry order is the column order in the results table. When
 # `disease_mode` is TRUE (a disease context is set), the disease-keyed PanelApp
@@ -499,6 +516,58 @@ extract_reactome <- function(resolved, context = list()) {
       score = NA_real_,
       source_id = hits$source_id,
       source_url = hits$source_url
+    )
+  )
+}
+
+# The study's tissue(s) of interest: a UI/CLI-supplied list (context$
+# tissues_of_interest) or, failing that, a disease-context prior
+# (context$priors$tissues_of_interest). Empty when none was given.
+context_tissues <- function(context = list()) {
+  t <- context$tissues_of_interest %||%
+    pluck_at(context, "priors", "tissues_of_interest")
+  t <- as.character(t %||% character())
+  t[!is.na(t) & nzchar(trimws(t))]
+}
+
+# GTEx: tissue-expression relevance. Rewards a gene expressed in the study's
+# tissue(s) of interest (peak expression there vs the gene's peak across all
+# tissues). Annotation (nudges up, never penalizes): a gene expressed only in
+# unrelated tissues scores low but is not demoted here - that is the caveats
+# stage's "unrelated-tissue-only" trigger. Only active when tissues of interest
+# were supplied AND at least one maps to a GTEx tissue (else a cheap miss, no
+# wasted network call).
+extract_gtex_tissue <- function(resolved, context = list()) {
+  terms <- context_tissues(context)
+  if (length(terms) == 0) {
+    return(signal_miss())
+  }
+  r <- gtex_tissue_expression(resolved$gene_id)
+  if (!isTRUE(r$ok) || nrow(r$expression) == 0) {
+    return(signal_miss())
+  }
+  rel <- gtex_relevance(r$expression, terms)
+  if (!isTRUE(rel$present)) {
+    return(signal_miss())
+  }
+  list(
+    ok = TRUE,
+    raw = rel$relevance,
+    source_id = r$source_id,
+    source_url = r$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "gtex_tissue",
+      domain = "expression",
+      title = sprintf(
+        "GTEx: %s median %.1f TPM",
+        rel$matched$tissue,
+        rel$matched$median
+      ),
+      detail = "median gene expression in a tissue of interest",
+      score = NA_real_,
+      source_id = paste0(r$source_id, ":", rel$matched$tissue),
+      source_url = r$source_url
     )
   )
 }

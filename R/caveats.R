@@ -11,11 +11,11 @@
 #   - VETO: a recurrent-artifact FLAGS gene (weak evidence of disease relevance
 #     regardless of context).
 #   - CAVEAT: supported only by a single weak evidence source.
-# Two rubric triggers are DEFERRED (documented, not faked) because CANDID does not
-# yet pull the signal they need: "common in gnomAD" needs a gene-level allele-
-# frequency signal (LOEUF is constraint, not frequency, so it is NOT a substitute),
-# and "unrelated-tissue-only" needs a tissue-expression signal. Add the signal
-# first, then wire the trigger here.
+#   - CAVEAT: expressed (GTEx) but essentially not in the study's tissue(s) of
+#     interest - only when the GTEx signal ran (tissues of interest supplied).
+# One rubric trigger is still DEFERRED (documented, not faked): "common in gnomAD"
+# needs a gene-level allele-frequency signal (LOEUF is constraint, not frequency,
+# so it is NOT a substitute). Add the signal first, then wire the trigger here.
 
 # Universal recurrent-artifact (FLAGS = FrequentLy mutAted GeneS) fallback, used
 # only when the rubric omits a caveats$flags_genes list. The canonical list is
@@ -35,13 +35,16 @@ caveat_config <- function(rubric = NULL) {
   rubric <- rubric %||% tryCatch(load_rubric(), error = function(e) list())
   cv <- rubric$caveats %||% list()
   ss <- cv$single_source %||% list()
+  ut <- cv$unrelated_tissue %||% list()
   list(
     enabled = isTRUE(cv$enabled %||% TRUE),
     flags_genes = toupper(as.character(
       cv$flags_genes %||% CANDID_DEFAULT_FLAGS
     )),
     single_penalty = as.numeric(ss$penalty %||% 0.75),
-    single_max_norm = as.numeric(ss$max_norm %||% 0.5)
+    single_max_norm = as.numeric(ss$max_norm %||% 0.5),
+    tissue_penalty = as.numeric(ut$penalty %||% 0.85),
+    tissue_max_relevance = as.numeric(ut$max_relevance %||% 0.1)
   )
 }
 
@@ -135,6 +138,23 @@ apply_caveats <- function(
             )
           )
         }
+      }
+    }
+
+    # CAVEAT: expressed by GTEx, but essentially not in the tissue(s) of interest.
+    # Only fires when the GTEx signal ran (its columns are present).
+    if (
+      "gtex_tissue_present" %in%
+        names(genes) &&
+        isTRUE(genes$gtex_tissue_present[i])
+    ) {
+      rel <- suppressWarnings(as.numeric(genes$gtex_tissue_n[i]))
+      if (!is.na(rel) && rel < cfg$tissue_max_relevance) {
+        penalty[i] <- penalty[i] * cfg$tissue_penalty
+        r <- c(
+          r,
+          "Expressed outside the tissue(s) of interest (GTEx) - down-weighted."
+        )
       }
     }
 

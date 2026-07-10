@@ -79,7 +79,17 @@ input_ui <- function(id, registry = candid_signal_registry()) {
             class = "btn-outline-secondary"
           )
         ),
-        uiOutput(ns("disease_matches"))
+        uiOutput(ns("disease_matches")),
+        textInput(
+          ns("tissues"),
+          "Tissue(s) of interest (optional)",
+          placeholder = "e.g. peripheral nerve, Schwann cell"
+        ),
+        helpText(
+          class = "small",
+          "Comma-separated. Genes expressed there (GTEx) score higher; genes",
+          "expressed only elsewhere are flagged."
+        )
       )
     ),
     # 3 - Run ----------------------------------------------------------------
@@ -345,6 +355,11 @@ input_server <- function(id, registry = candid_registry) {
       candidate_set = candidate_set_r,
       gene_lists = reactive(candidate_set_to_named_lists(candidate_set_r())),
       agent_mode = reactive(input$agent_mode %||% "final"),
+      # The study's tissue(s) of interest (comma-separated), for the GTEx signal.
+      tissues = reactive({
+        x <- trimws(strsplit(input$tissues %||% "", ",")[[1]])
+        x[nzchar(x)]
+      }),
       description = reactive(input$description),
       # The confirmed disease context (list(id, name)) or NULL. NULL keeps the
       # run in plain enrichment mode.

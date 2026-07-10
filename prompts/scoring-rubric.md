@@ -14,6 +14,10 @@ Combine, per candidate:
 - **Disease/pathway fit** - association strength (Open Targets) and membership in
   a context pathway (Reactome); membership in a known driver or context pathway
   raises the grade.
+- **Tissue relevance** *(when tissue(s) of interest are given)* - GTEx median
+  expression in the study's tissue(s) of interest, relative to the gene's peak
+  across all tissues. Expression in the relevant tissue raises the grade
+  (annotation); expression only in unrelated tissues is a caveat (below).
 - **Literature support** - number, recency, and directness of grounded citations.
 - **Cross-source corroboration** *(multi-source runs only)* - how many of the
   user's OWN input sources (e.g. their WES calls, DEGs, ATAC-seq hits) a gene
@@ -45,8 +49,10 @@ that looks compelling but is:
   *Deferred* - needs a gene-level allele-frequency signal. LOEUF is constraint,
   not frequency, so it is deliberately **not** used as a substitute here. Add the
   signal first, then wire the trigger.
-- **Unrelated-tissue-only** - support comes only from tissues outside the
-  context's `tissues_of_interest`. *Deferred* - needs a tissue-expression signal.
+- **Unrelated-tissue-only** - the gene is expressed (GTEx) but essentially not in
+  the study's tissue(s) of interest. *Implemented (caveat).* When the GTEx signal
+  ran, a gene whose tissue relevance is below `caveats.unrelated_tissue.
+  max_relevance` is down-weighted by `caveats.unrelated_tissue.penalty`.
 
 Everything in this stage is deterministic and reproducible (no LLM in the ranking
 path). Always record *why* a caveat or veto was applied, on the candidate itself.
