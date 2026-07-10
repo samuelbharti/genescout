@@ -9,9 +9,12 @@
 #   candid_signal(key, label, source, extractor, normalize, weight, direction,
 #                 role, needs)
 # `role` is "evidence" (counts toward breadth) or "annotation" (nudges but does
-# not gate); `needs` is "gene" (per-gene extractor) or "disease" (a seeder, run
-# before this step). Adding a source = one candid_signal() here plus its
-# R/tools/ client. Each extractor returns a raw number + grounded evidence rows.
+# not gate); `needs` is "gene" (per-gene extractor), "disease" (a seeder, run
+# before this step), "input" (derived from the input structure, no network -
+# cross_source, filled by enrich_input_signals), or "network" (one call sees the
+# WHOLE resolved set - STRING, filled by enrich_network_signals). Adding a source =
+# one candid_signal() here plus its R/tools/ client. Each per-gene extractor
+# returns a raw number + grounded evidence rows.
 
 # --- Signal registry --------------------------------------------------------
 
@@ -83,6 +86,32 @@ gtex_tissue_signal <- function(rubric = NULL) {
     weight = rubric$weights$gtex_tissue %||% 0.5,
     role = "annotation",
     needs = "gene"
+  )
+}
+
+# A network needs several nodes before within-list connectivity means anything, so
+# run_enrich appends the STRING signal only for lists of at least this many input
+# tokens. Below it, connectivity is uninformative and no STRING call is made - and
+# every small offline test stays byte-for-byte unchanged (no network column added).
+CANDID_STRING_MIN_GENES <- 5L
+
+# The STRING within-list connectivity signal (annotation). needs = "network": one
+# STRING call sees the WHOLE resolved set at once (enrich_network_signals), unlike
+# per-gene extractors. Role = annotation because the signal is COHORT-RELATIVE (a
+# gene's value depends on which other genes are in the list) - so it may only nudge
+# a connected gene up, never penalize an isolated one and never gate. Appended by
+# run_enrich only for a multi-gene list. Rubric-tolerant defaults, off-path safe.
+string_signal <- function(rubric = NULL) {
+  rubric <- rubric %||% tryCatch(load_rubric(), error = function(e) list())
+  candid_signal(
+    "string",
+    "STRING within-list connectivity",
+    "STRING",
+    extractor = NULL,
+    normalize = normalize_saturating(rubric$midpoints$string %||% 3),
+    weight = rubric$weights$string %||% 0.5,
+    role = "annotation",
+    needs = "network"
   )
 }
 
@@ -1107,6 +1136,127 @@ enrich_input_signals <- function(resolved, registry, context = list()) {
             NA_real_,
             paste0("user-list:", src),
             ""
+          )
+        }
+      }
+    }
+  }
+  list(
+    signals_long = if (length(signals)) {
+      dplyr::bind_rows(signals)
+    } else {
+      empty_signals_long()
+    },
+    evidence_long = if (length(evidence)) {
+      dplyr::bind_rows(evidence)
+    } else {
+      empty_evidence_long()
+    }
+  )
+}
+
+# Fill the `needs = "network"` signals (currently just STRING) from ONE call that
+# sees the whole resolved set - unlike the per-gene extractors. For each network
+# signal and every resolved gene, the raw value is the gene's within-list
+# connectivity (how many OTHER resolved genes it shares a high-confidence STRING
+# edge with); a connected gene is "present" and emits one grounded evidence row per
+# interacting partner (domain "interaction", source_id "STRING:<a>-<b>"). Only
+# genes that RESOLVED are sent to STRING (junk tokens are skipped). `fetch_network`
+# is injectable so the fill is testable offline. A failed/absent network leaves
+# every gene absent (annotation neutral - composites unchanged). Returns the same
+# signals_long / evidence_long shapes enrich_genes() does, ready to bind.
+enrich_network_signals <- function(
+  resolved,
+  registry,
+  context = list(),
+  fetch_network = string_network
+) {
+  net_signals <- Filter(
+    function(s) identical(s$needs %||% "gene", "network"),
+    registry
+  )
+  if (length(net_signals) == 0 || nrow(resolved) == 0) {
+    return(list(
+      signals_long = empty_signals_long(),
+      evidence_long = empty_evidence_long()
+    ))
+  }
+  all_syms <- toupper(resolved$symbol)
+  resolved_ok <- if ("resolved" %in% names(resolved)) {
+    as.logical(resolved$resolved)
+  } else {
+    rep(TRUE, nrow(resolved))
+  }
+  resolved_ok[is.na(resolved_ok)] <- FALSE
+  query_syms <- unique(all_syms[resolved_ok & nzchar(all_syms)])
+  net <- if (length(query_syms) >= 2) {
+    tryCatch(fetch_network(query_syms), error = function(e) list(ok = FALSE))
+  } else {
+    list(ok = FALSE)
+  }
+  conn <- if (isTRUE(net$ok)) {
+    string_connectivity(net$edges, all_syms)
+  } else {
+    NULL
+  }
+  net_url <- if (isTRUE(net$ok)) net$source_url %||% "" else ""
+
+  signals <- list()
+  evidence <- list()
+  for (i in seq_len(nrow(resolved))) {
+    sym <- all_syms[i]
+    row <- if (!is.null(conn)) {
+      conn[conn$symbol == sym, , drop = FALSE]
+    } else {
+      NULL
+    }
+    degree <- if (!is.null(row) && nrow(row) > 0) {
+      as.numeric(row$degree[1])
+    } else {
+      0
+    }
+    partners <- if (!is.null(row) && nrow(row) > 0) {
+      row$partners[[1]]
+    } else {
+      character()
+    }
+    present <- isTRUE(net$ok) && degree >= 1
+    for (sig in net_signals) {
+      raw <- as.numeric(degree)
+      signals[[length(signals) + 1]] <- tibble::tibble(
+        gene_id = resolved$gene_id[i],
+        symbol = resolved$symbol[i],
+        signal_key = sig$key,
+        label = sig$label,
+        raw = raw,
+        normalized = as.numeric(sig$normalize(raw)),
+        present = present,
+        source_id = if (present) {
+          paste0("STRING:", sym, ":degree:", degree)
+        } else {
+          ""
+        },
+        source_url = if (present) net_url else ""
+      )
+      if (present) {
+        for (p in partners) {
+          evidence[[length(evidence) + 1]] <- evidence_long_rows(
+            resolved$gene_id[i],
+            sig$key,
+            "interaction",
+            paste0("STRING interaction: ", sym, " - ", p),
+            "High-confidence within-list STRING interaction (combined score >= 0.7)",
+            NA_real_,
+            paste0("STRING:", sym, "-", p),
+            paste0(
+              STRING_WEB,
+              "?identifiers=",
+              sym,
+              "%0d",
+              p,
+              "&species=",
+              STRING_HUMAN
+            )
           )
         }
       }

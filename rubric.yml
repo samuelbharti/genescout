@@ -32,6 +32,10 @@ default:
     # are given). Value is already 0-1 (peak expression in a tissue of interest /
     # peak across all tissues), so no midpoint is needed.
     gtex_tissue: 0.5
+    # STRING within-list connectivity (annotation, multi-gene lists only): how many
+    # OTHER candidates a gene interacts with at high confidence. Cohort-relative, so
+    # it only ever nudges a connected gene up - never penalizes an isolate.
+    string: 0.5
   midpoints:
     pmc_hits: 50
     pubtator: 300 # ~300 entity-tagged articles normalizes to 0.5 (log-saturating)
@@ -41,6 +45,7 @@ default:
     reactome: 2 # ~2 relevant disease pathways normalizes to 0.5
     diseases: 2 # DISEASES confidence ~2 (of 0-5) normalizes to 0.5
     cross_source: 1 # 2 sources -> 0.5, 3 -> 0.667, saturating (count - 1)
+    string: 3 # ~3 within-list interaction partners normalizes to 0.5
   coverage_bonus: false
   # Caveats / veto: the deterministic anti-familiar-gene-bias override (R/caveats.R;
   # spec in prompts/scoring-rubric.md). Retune here - no code change.

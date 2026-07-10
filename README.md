@@ -73,7 +73,7 @@ candidate list + context
 Variant   Pathway &            Literature
 effect    disease
 VEP       Open Targets         Europe PMC
-gnomAD    Reactome             PubTator
+gnomAD    Reactome · STRING    PubTator3
 ClinVar
    └───────┼────────────────────────┘
           ▼
@@ -95,6 +95,7 @@ dates are tracked in [`docs/data_sources.md`](docs/data_sources.md) for reproduc
 | Variant effect | ClinVar (NCBI E-utilities) | Known significance (evidence, not diagnosis) |
 | Pathway & disease | Open Targets Platform | Gene–disease associations |
 | Pathway & disease | Reactome | Pathway membership |
+| Pathway & disease | STRING | Within-list interaction connectivity |
 | Expression | GTEx | Tissue-of-interest expression relevance |
 | Literature | Europe PMC | Gene mention count (recall) |
 | Literature | PubTator3 | Entity-tagged article count (precision) |

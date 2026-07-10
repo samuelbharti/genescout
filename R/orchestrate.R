@@ -88,6 +88,10 @@ run_enrich <- function(
     character(1)
   )
   context$user_sources <- user_sources
+  flat <- flatten_candidate_set(cs)
+  if (nrow(flat) == 0) {
+    stop("No genes to review.", call. = FALSE)
+  }
   registry_keys <- vapply(registry, function(s) s$key, character(1))
   if (length(user_sources) >= 2 && !("cross_source" %in% registry_keys)) {
     registry <- c(registry, list(cross_source_signal()))
@@ -100,23 +104,31 @@ run_enrich <- function(
   ) {
     registry <- c(registry, list(gtex_tissue_signal()))
   }
-
-  flat <- flatten_candidate_set(cs)
-  if (nrow(flat) == 0) {
-    stop("No genes to review.", call. = FALSE)
+  # STRING within-list connectivity: append only for a multi-gene list (a network
+  # needs several nodes to be informative), so a tiny list makes no STRING call and
+  # every small offline test is byte-for-byte unchanged. Recorded in context so the
+  # provenance can report the source.
+  if (nrow(flat) >= CANDID_STRING_MIN_GENES && !("string" %in% registry_keys)) {
+    registry <- c(registry, list(string_signal()))
+    context$network_signal <- TRUE
   }
+
   resolved <- resolve_genes(flat, resolver = resolver)
   enriched <- enrich_genes(resolved, registry, context = context)
-  # Fill the input-derived signals (cross_source) and fold their tidy rows +
-  # grounded provenance evidence into the same tables the network signals produce.
+  # Fill the input-derived (cross_source) and network (STRING) signals - each sees
+  # more than one gene at a time, so they run outside the per-gene enrich_genes loop
+  # - and fold their tidy rows + grounded evidence into the same tables.
   input_enr <- enrich_input_signals(resolved, registry, context = context)
+  network_enr <- enrich_network_signals(resolved, registry, context = context)
   signals_long <- dplyr::bind_rows(
     enriched$signals_long,
-    input_enr$signals_long
+    input_enr$signals_long,
+    network_enr$signals_long
   )
   evidence_long <- dplyr::bind_rows(
     enriched$evidence_long,
-    input_enr$evidence_long
+    input_enr$evidence_long,
+    network_enr$evidence_long
   )
   gated <- validate_evidence(evidence_long)
   genes <- assemble_matrix(signals_long, resolved, registry)
@@ -319,6 +331,15 @@ candid_provenance <- function(context = list()) {
           paste(tissues, collapse = ", ")
         ),
         endpoint = GTEX_BASE
+      ))
+    )
+  }
+  if (isTRUE(pluck_at(context, "network_signal"))) {
+    sources <- c(
+      sources,
+      list(list(
+        source = "STRING within-list interaction network",
+        endpoint = STRING_BASE
       ))
     )
   }

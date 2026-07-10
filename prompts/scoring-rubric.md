@@ -14,6 +14,13 @@ Combine, per candidate:
 - **Disease/pathway fit** - association strength (Open Targets) and membership in
   a context pathway (Reactome); membership in a known driver or context pathway
   raises the grade.
+- **Network connectivity** *(multi-gene lists only)* - how many of the OTHER
+  candidates in the list a gene interacts with at high confidence (STRING), i.e.
+  whether it sits inside a connected module rather than standing alone. This is
+  *cohort-relative* (its value depends on the rest of the list), so it is an
+  *annotation* that only nudges a connected gene up and never penalizes an isolated
+  one - an isolated candidate may simply be a novel finding. Each interaction is
+  grounded evidence (a STRING edge).
 - **Tissue relevance** *(when tissue(s) of interest are given)* - GTEx median
   expression in the study's tissue(s) of interest, relative to the gene's peak
   across all tissues. Expression in the relevant tissue raises the grade
