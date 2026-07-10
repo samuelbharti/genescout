@@ -46,3 +46,6 @@ report.html
 # --- OS junk ---
 .DS_Store
 Thumbs.db
+
+# --- Presentations / decks (personal, not tracked) ---
+presentations/
