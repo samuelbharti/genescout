@@ -1174,6 +1174,14 @@ cap_seed_symbols <- function(symbols, data, max_seed = 200) {
 # disease-mode extractors read via seed_row(). `n_seeded` is the pre-cap count so
 # a caller can record when the universe was truncated. Each source is wrapped so
 # one failing source never sinks the others.
+# The interactive (Shiny) disease-seed cap. A disease can associate with hundreds
+# of genes (NF1 -> ~520); enriching all of them live is minutes of blocking work,
+# which reads as a hung app. The batch default (max_seed = 200 below) is kept for
+# the CLI/evals, where a long run is fine; the interactive app passes this smaller
+# cap so a discovery click returns in a bounded time. The user's OWN pasted genes
+# are always enriched in full - only the extra disease-seeded universe is capped.
+CANDID_INTERACTIVE_SEED_MAX <- 75L
+
 seed_disease_genes <- function(disease, ot_size = 250, max_seed = 200) {
   data <- list()
   syms <- character()
@@ -1445,7 +1453,8 @@ empty_signals_long <- function() {
 enrich_genes <- function(
   resolved,
   registry = candid_signal_registry(),
-  context = list()
+  context = list(),
+  progress = NULL
 ) {
   gene_signals <- Filter(
     function(s) identical(s$needs %||% "gene", "gene"),
@@ -1454,7 +1463,8 @@ enrich_genes <- function(
   has_input_symbols <- "input_symbols" %in% names(resolved)
   signals <- list()
   evidence <- list()
-  for (i in seq_len(nrow(resolved))) {
+  n_genes <- nrow(resolved)
+  for (i in seq_len(n_genes)) {
     gene <- list(
       gene_id = resolved$gene_id[i],
       symbol = resolved$symbol[i],
@@ -1496,6 +1506,13 @@ enrich_genes <- function(
       if (!is.null(res$evidence) && nrow(res$evidence) > 0) {
         evidence[[length(evidence) + 1]] <- res$evidence
       }
+    }
+    # Report progress after each gene finishes so a UI can show a determinate bar
+    # (a disease-seeded run enriches dozens of genes and would otherwise look hung).
+    # `progress` is optional and defaults to NULL, so the engine stays UI-agnostic
+    # and every offline test is unchanged.
+    if (is.function(progress)) {
+      progress(i, n_genes, gene$symbol)
     }
   }
   list(

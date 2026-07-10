@@ -54,16 +54,33 @@ review_server <- function(
       } else {
         "Pulling source signals..."
       }
+      # Discovery seeds a large gene universe; cap it for interactive runs so a
+      # click returns in bounded time (the CLI/eval seeder default stays larger).
+      seeder <- function(d) {
+        seed_disease_genes(d, max_seed = CANDID_INTERACTIVE_SEED_MAX)
+      }
+      # A determinate per-gene progress bar so a long disease run visibly advances
+      # instead of sitting behind a generic spinner (which read as "stuck").
+      on_progress <- function(i, n, sym) {
+        setProgress(
+          value = i / max(n, 1),
+          message = message_txt,
+          detail = sprintf("Enriching gene %d of %d (%s)", i, n, sym)
+        )
+      }
       out <- tryCatch(
         withProgress(
           message = message_txt,
+          value = 0,
           run_enrich(
             cs,
             inputs$description(),
             config,
             active_registry,
             context = context,
-            enabled = inputs$enabled()
+            enabled = inputs$enabled(),
+            seeder = seeder,
+            progress = on_progress
           )
         ),
         error = function(e) {

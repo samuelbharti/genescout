@@ -57,6 +57,20 @@ test_that("enrich_genes() + assemble_matrix() build the gene x signal matrix", {
   expect_equal(mat$n_sources_present, c(2L, 2L))
 })
 
+test_that("enrich_genes() calls the progress callback once per gene", {
+  res <- resolve_genes(
+    flatten_gene_lists(list(mine = c("NF1", "TP53"))),
+    resolver = stub_resolver
+  )
+  seen <- list()
+  enrich_genes(res, stub_registry(), progress = function(i, n, sym) {
+    seen[[length(seen) + 1]] <<- list(i = i, n = n, sym = sym)
+  })
+  expect_equal(length(seen), 2) # one tick per resolved gene
+  expect_equal(vapply(seen, function(x) x$i, integer(1)), 1:2)
+  expect_true(all(vapply(seen, function(x) x$n, integer(1)) == 2L))
+})
+
 test_that("a missing signal is NA raw, 0 normalized, not present", {
   res <- resolve_genes(
     flatten_gene_lists(list(mine = "NF1")),

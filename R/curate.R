@@ -21,7 +21,11 @@ empty_curated_table <- function() {
     gene_symbol = character(),
     include = logical(),
     confidence = numeric(),
-    rationale = character()
+    rationale = character(),
+    # The grounded evidence ids (accessions / PMIDs) the model cited for this
+    # decision, filtered to ids that actually appear in the gene's evidence. A
+    # list-column: one character vector per row (possibly empty).
+    source_ids = list()
   )
 }
 
@@ -53,6 +57,15 @@ curation_schema <- function() {
         ),
         rationale = ellmer::type_string(
           "one short sentence justifying the decision FROM THE EVIDENCE SHOWN"
+        ),
+        source_ids = ellmer::type_array(
+          items = ellmer::type_string(
+            paste(
+              "one evidence id (accession / PMID / database id) copied EXACTLY",
+              "from inside the square brackets on an evidence line shown for THIS",
+              "gene, that supports the rationale. Cite only ids shown for this gene."
+            )
+          )
         )
       )
     ),
@@ -144,7 +157,12 @@ build_curation_prompt <- function(result, candidates, top_n) {
     "Hard rules: choose ONLY from the provided candidate list; never invent,",
     "rename, or merge symbols; base every rationale ONLY on the evidence shown",
     "for that gene and introduce no fact that is not listed; be conservative and",
-    "prefer genes with broad, specific, well-grounded support. Aim for roughly",
+    "prefer genes with broad, specific, well-grounded support. For EVERY gene,",
+    "populate source_ids with the exact evidence ids that back your rationale -",
+    "each is shown inside the square brackets at the end of an evidence line for",
+    "that gene (e.g. a PMID, a ClinVar or Open Targets accession). Copy them",
+    "verbatim and cite only ids listed for that gene; an ungrounded rationale is",
+    "unacceptable. Aim for roughly",
     top_n,
     "included genes unless the evidence clearly supports fewer or more."
   )
@@ -160,28 +178,63 @@ build_curation_prompt <- function(result, candidates, top_n) {
   list(system = system_prompt, user = user_prompt)
 }
 
-# Coerce ellmer structured output (a data frame or list-of-lists) to a tibble.
+# Normalize a model-returned source_ids field (a vector, a list, or NULL) to a
+# clean character vector of non-blank ids.
+normalize_source_ids <- function(x) {
+  ids <- trimws(as.character(unlist(x, use.names = FALSE)))
+  ids[!is.na(ids) & nzchar(ids)]
+}
+
+# Coerce ellmer structured output (a data frame or list-of-lists) to a tibble,
+# always carrying a `source_ids` list-column (empty when the model cited none).
 selections_to_df <- function(sel) {
   if (is.null(sel)) {
     return(NULL)
   }
   if (is.data.frame(sel)) {
-    return(tibble::as_tibble(sel))
+    df <- tibble::as_tibble(sel)
+    df$source_ids <- if ("source_ids" %in% names(df)) {
+      lapply(df$source_ids, normalize_source_ids)
+    } else {
+      replicate(nrow(df), character(), simplify = FALSE)
+    }
+    return(df)
   }
   dplyr::bind_rows(lapply(sel, function(x) {
     tibble::tibble(
       gene_symbol = as.character(x$gene_symbol %||% NA),
       include = as.logical(x$include %||% NA),
       confidence = as.numeric(x$confidence %||% NA),
-      rationale = as.character(x$rationale %||% NA)
+      rationale = as.character(x$rationale %||% NA),
+      source_ids = list(normalize_source_ids(x$source_ids))
     )
   }))
 }
 
+# Map each candidate gene (by uppercased symbol) to the set of grounded evidence
+# ids actually gathered for it - the ONLY ids a curation rationale may cite. Built
+# from result$evidence (source_id per gene_id), keyed by the candidate's symbol.
+curation_evidence_ids <- function(result, candidates) {
+  ev <- result$evidence
+  out <- list()
+  if (is.null(ev) || nrow(ev) == 0 || is.null(candidates)) {
+    return(out)
+  }
+  for (i in seq_len(nrow(candidates))) {
+    ids <- unique(ev$source_id[ev$gene_id == candidates$gene_id[i]])
+    ids <- ids[!is.na(ids) & nzchar(ids)]
+    out[[toupper(candidates$symbol[i])]] <- ids
+  }
+  out
+}
+
 # Validate/clean the model's selections against the candidate set: drop
 # hallucinated symbols (the grounding gate), clamp confidence, default missing
-# fields, de-duplicate. `candidate_symbols` is the shortlist actually shown.
-validate_curation <- function(df, candidate_symbols) {
+# fields, de-duplicate, and GROUND the cited source_ids - keeping only ids that
+# actually appear in that gene's evidence (`evidence_ids`, a symbol -> id-vector
+# map from curation_evidence_ids). So a rationale can never cite a paper/accession
+# that was not in the evidence shown. `candidate_symbols` is the shortlist shown.
+validate_curation <- function(df, candidate_symbols, evidence_ids = list()) {
   if (is.null(df) || nrow(df) == 0 || !"gene_symbol" %in% names(df)) {
     return(empty_curated_table())
   }
@@ -199,27 +252,46 @@ validate_curation <- function(df, candidate_symbols) {
   rat <- if ("rationale" %in% names(df)) as.character(df$rationale) else ""
   rat[is.na(rat)] <- ""
 
+  raw_ids <- if ("source_ids" %in% names(df)) {
+    df$source_ids
+  } else {
+    vector("list", nrow(df))
+  }
+  grounded <- lapply(seq_len(nrow(df)), function(i) {
+    cited <- unique(normalize_source_ids(raw_ids[[i]]))
+    valid <- evidence_ids[[sym[i]]]
+    if (is.null(valid)) character() else cited[cited %in% valid]
+  })
+
   out <- tibble::tibble(
     gene_symbol = sym,
     include = include,
     confidence = conf,
-    rationale = rat
+    rationale = rat,
+    source_ids = grounded
   )[keep, , drop = FALSE]
   out[!duplicated(out$gene_symbol), , drop = FALSE]
 }
 
-# Fallback when the LLM is unavailable or fails: top genes by composite rank.
+# Fallback when the LLM is unavailable or fails: top genes by composite rank. Even
+# here the source_ids are grounded - each gene's own gathered evidence ids (a few)
+# - so the deterministic path carries the same citation trail as the AI path.
 fallback_curation <- function(result, top_n) {
   genes <- result$genes
   if (is.null(genes) || nrow(genes) == 0) {
     return(empty_curated_table())
   }
   picked <- utils::head(genes[order(genes$rank), , drop = FALSE], top_n)
+  ev_ids <- curation_evidence_ids(result, picked)
   tibble::tibble(
     gene_symbol = picked$symbol,
     include = TRUE,
     confidence = NA_real_,
-    rationale = "Selected by composite rank (AI unavailable)."
+    rationale = "Selected by composite rank (AI unavailable).",
+    source_ids = lapply(
+      toupper(picked$symbol),
+      function(s) utils::head(ev_ids[[s]] %||% character(), 6L)
+    )
   )
 }
 
@@ -242,6 +314,9 @@ curate_gene_list <- function(
   }
   candidates <- curation_candidates(result, max(top_n * 2L, 50L))
   cand_symbols <- toupper(candidates$symbol)
+  # The per-gene grounded evidence ids the model is allowed to cite (its rationale
+  # source_ids are filtered to this set - the citation grounding gate).
+  evidence_ids <- curation_evidence_ids(result, candidates)
 
   if (is.null(chat_factory) && !candid_llm_available(config)) {
     return(curated_with_attrs(
@@ -266,7 +341,11 @@ curate_gene_list <- function(
       chat <- chat_factory(prompt$system)
       raw <- chat$chat_structured(prompt$user, type = curation_schema())
       curated_with_attrs(
-        validate_curation(selections_to_df(raw$selections), cand_symbols),
+        validate_curation(
+          selections_to_df(raw$selections),
+          cand_symbols,
+          evidence_ids
+        ),
         ai_used = TRUE
       )
     },

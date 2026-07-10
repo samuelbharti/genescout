@@ -86,6 +86,54 @@ test_that("selections_to_df() coerces a list-of-lists", {
   expect_equal(df$include, c(TRUE, FALSE))
 })
 
+test_that("selections_to_df() carries a source_ids list-column", {
+  sel <- list(
+    list(
+      gene_symbol = "NF1",
+      include = TRUE,
+      confidence = 0.9,
+      rationale = "x",
+      source_ids = list("PMID:1", "PMID:2")
+    ),
+    list(
+      gene_symbol = "TP53",
+      include = FALSE,
+      confidence = 0.2,
+      rationale = "y"
+    )
+  )
+  df <- selections_to_df(sel)
+  expect_equal(df$source_ids[[1]], c("PMID:1", "PMID:2"))
+  expect_equal(df$source_ids[[2]], character()) # no ids -> empty, never NA
+})
+
+test_that("validate_curation() grounds cited source_ids to the gene's evidence", {
+  df <- tibble::tibble(
+    gene_symbol = "NF1",
+    include = TRUE,
+    confidence = 0.9,
+    rationale = "x",
+    source_ids = list(c("PMID:1", "PMID:FAKE"))
+  )
+  ev_ids <- list(NF1 = c("PMID:1", "PMID:2"))
+  out <- validate_curation(df, "NF1", ev_ids)
+  # PMID:1 is real evidence for NF1 and kept; the fabricated PMID:FAKE is dropped.
+  expect_equal(out$source_ids[[1]], "PMID:1")
+})
+
+test_that("curation_evidence_ids() maps a symbol to its gathered evidence ids", {
+  res <- fake_curate_result()
+  m <- curation_evidence_ids(res, curation_candidates(res, 3))
+  expect_equal(m[["NF1"]], "OpenTargets:ENSG1:MONDO_x")
+  expect_equal(m[["TP53"]], character()) # TP53 (ENSG2) has no evidence in fixture
+})
+
+test_that("fallback_curation() grounds source_ids from the gene's own evidence", {
+  fb <- fallback_curation(fake_curate_result(), 2)
+  expect_equal(fb$source_ids[[1]], "OpenTargets:ENSG1:MONDO_x") # NF1's evidence
+  expect_equal(fb$source_ids[[2]], character()) # TP53 has none
+})
+
 test_that("build_curation_prompt() grounds on the shown evidence + context", {
   res <- fake_curate_result()
   p <- build_curation_prompt(res, curation_candidates(res, 3), 40)

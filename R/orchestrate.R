@@ -36,7 +36,8 @@ run_enrich <- function(
   context = list(),
   seeder = seed_disease_genes,
   fetch_network = string_network,
-  enabled = NULL
+  enabled = NULL,
+  progress = NULL
 ) {
   cs <- as_candidate_set(gene_lists)
   # Optional disease-context priors (context/*.yaml: FLAGS genes, tissues, drivers)
@@ -164,7 +165,12 @@ run_enrich <- function(
   context$active_sources <- vapply(registry, function(s) s$key, character(1))
 
   resolved <- resolve_genes(flat, resolver = resolver)
-  enriched <- enrich_genes(resolved, registry, context = context)
+  enriched <- enrich_genes(
+    resolved,
+    registry,
+    context = context,
+    progress = progress
+  )
   # Fill the input-derived (cross_source) and network (STRING) signals - each sees
   # more than one gene at a time, so they run outside the per-gene enrich_genes loop
   # - and fold their tidy rows + grounded evidence into the same tables.
