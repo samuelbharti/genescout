@@ -22,13 +22,19 @@ candid_cache_key <- function(...) {
 }
 
 # GET a REST endpoint. `source` is a friendly label used in error messages.
+# `headers` is an optional NAMED list of request headers for a key-gated source
+# (e.g. list(Authorization = paste("Bearer", token))); they are marked sensitive
+# (redacted from printed requests / errors) and are DELIBERATELY excluded from the
+# cache key - the same gene returns the same data regardless of the caller's token,
+# and the secret must never enter the hashed key.
 http_get_json <- function(
   base_url,
   path = NULL,
   query = list(),
   source = "API",
   timeout = 15,
-  max_tries = 3
+  max_tries = 3,
+  headers = NULL
 ) {
   if (length(query) > 0) {
     query <- query[!vapply(query, is_blank, logical(1))]
@@ -43,25 +49,27 @@ http_get_json <- function(
     if (length(query) > 0) {
       req <- do.call(httr2::req_url_query, c(list(req), query))
     }
-    req <- candid_req_defaults(req, timeout, max_tries)
+    req <- candid_req_defaults(req, timeout, max_tries, headers)
     candid_perform(req, source)
   })
 }
 
-# POST a JSON body (e.g. a GraphQL query) and parse the JSON response.
+# POST a JSON body (e.g. a GraphQL query) and parse the JSON response. `headers` is
+# an optional named list of (redacted, non-cached) request headers - see http_get_json.
 http_post_json <- function(
   url,
   body,
   source = "API",
   timeout = 20,
-  max_tries = 3
+  max_tries = 3,
+  headers = NULL
 ) {
   key <- candid_cache_key("POST", url, body)
 
   candid_cached(key, function() {
     req <- httr2::request(url)
     req <- httr2::req_body_json(req, body)
-    req <- candid_req_defaults(req, timeout, max_tries)
+    req <- candid_req_defaults(req, timeout, max_tries, headers)
     candid_perform(req, source)
   })
 }
@@ -80,13 +88,23 @@ candid_cached <- function(key, fetch) {
   res
 }
 
-# Apply the shared request options (timeout, retries, no-raise, user agent).
-candid_req_defaults <- function(req, timeout, max_tries) {
+# Apply the shared request options (timeout, retries, no-raise, user agent). When
+# `headers` (a named list) is supplied for a key-gated source, they are attached and
+# marked sensitive via `.redact`, so httr2 never prints or logs the token (e.g. in a
+# transport-error message). Header auth keeps the secret out of the URL entirely.
+candid_req_defaults <- function(req, timeout, max_tries, headers = NULL) {
   req <- httr2::req_timeout(req, timeout)
   req <- httr2::req_retry(req, max_tries = max_tries)
   # Don't let httr2 raise on HTTP errors; we normalize them ourselves.
   req <- httr2::req_error(req, is_error = function(resp) FALSE)
-  httr2::req_user_agent(req, "CANDID (research-genomics workbench)")
+  req <- httr2::req_user_agent(req, "CANDID (research-genomics workbench)")
+  if (!is.null(headers) && length(headers) > 0) {
+    req <- do.call(
+      httr2::req_headers,
+      c(list(req), headers, list(.redact = names(headers)))
+    )
+  }
+  req
 }
 
 # Perform a request and normalize into the standard ok/status/data/error list.

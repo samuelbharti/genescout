@@ -72,6 +72,26 @@ signal_available <- function(sig) {
   nzchar(Sys.getenv(sig$key_env))
 }
 
+# The (redacted, non-cached) auth headers for a key-gated source, built from its
+# key_env - or NULL when the source is keyless or its key is absent. Never logs the
+# key; http_get_json/http_post_json accept these via their `headers` argument. The
+# exact header shape per source is finalized when that source's client is wired.
+source_auth_headers <- function(sig) {
+  if (is.null(sig$auth) || is.null(sig$key_env)) {
+    return(NULL)
+  }
+  key <- Sys.getenv(sig$key_env)
+  if (!nzchar(key)) {
+    return(NULL)
+  }
+  switch(
+    sig$auth,
+    bearer = list(Authorization = paste("Bearer", key)),
+    header = list(Authorization = key),
+    NULL # "query" keys are injected into the query by the client (NCBI pattern)
+  )
+}
+
 # The cross-source corroboration signal: a gene's value is how many of the USER'S
 # OWN input sources it appears in - a breadth measure derived from the input
 # structure, not a network call. Role = evidence, so breadth is rewarded through
@@ -269,17 +289,84 @@ candid_signal_registry <- function(
 # 0, which mutes ranking but still pays the network cost). This is the extensibility
 # surface a non-R front end introspects (candid_source_catalog) and chooses from.
 
+# Key-gated source STUBS: sources CANDID knows about but whose live clients need an
+# API key / license (deferred). They appear in the catalog (so a front end can show
+# "needs a key") but are default_on = FALSE and unavailable without their key, so a
+# keyless deploy never selects or queries them. Their extractor is a safe miss, so
+# even an explicit selection with the key present cannot crash (no client yet). They
+# live ONLY in the catalog (introspection), never in the run registry.
+candid_source_stubs <- function() {
+  stub <- function(key, label, source, domain, auth, key_env) {
+    candid_signal(
+      key,
+      label,
+      source,
+      extractor = function(resolved, context = list()) signal_miss(),
+      normalize = normalize_identity,
+      role = "evidence",
+      domain = domain,
+      default_on = FALSE,
+      auth = auth,
+      key_env = key_env
+    )
+  }
+  list(
+    stub(
+      "oncokb",
+      "OncoKB oncogenicity",
+      "OncoKB",
+      "cancer",
+      "bearer",
+      "ONCOKB_API_KEY"
+    ),
+    stub(
+      "cosmic_cgc",
+      "COSMIC Cancer Gene Census",
+      "COSMIC",
+      "cancer",
+      "bearer",
+      "COSMIC_API_KEY"
+    ),
+    stub(
+      "disgenet",
+      "DisGeNET gene-disease",
+      "DisGeNET",
+      "gene-disease",
+      "bearer",
+      "DISGENET_API_KEY"
+    ),
+    stub(
+      "omim",
+      "OMIM Mendelian gene-disease",
+      "OMIM",
+      "gene-disease",
+      "query",
+      "OMIM_API_KEY"
+    ),
+    stub(
+      "drugbank",
+      "DrugBank drug targets",
+      "DrugBank",
+      "druggability",
+      "header",
+      "DRUGBANK_API_KEY"
+    )
+  )
+}
+
 # The full ordered source catalog: every registry signal (base + disease-keyed +
-# cross-source) plus the tissue (GTEx) and network (STRING) signals. New connectors
-# are added to candid_signal_registry() as default_on = FALSE (opt-in) and flow in
-# here automatically. This is the introspectable universe of selectable sources.
+# cross-source) plus the tissue (GTEx) and network (STRING) signals, plus the
+# key-gated stubs. New connectors are added to candid_signal_registry() as
+# default_on = FALSE (opt-in) and flow in here automatically. This is the
+# introspectable universe of selectable sources (a front end renders a picker from it).
 candid_source_catalog <- function(rubric = load_rubric()) {
   c(
     candid_signal_registry(rubric, disease_mode = TRUE, multi_source = TRUE),
     list(
       gtex_tissue_signal(rubric),
       string_signal(rubric)
-    )
+    ),
+    candid_source_stubs()
   )
 }
 

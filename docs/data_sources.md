@@ -36,6 +36,13 @@ default (`config.yml` `sources:`) **>** each source's built-in `default_on`. A
 key-gated source with no key present is dropped silently, so a keyless deploy runs
 the keyless subset. The active set is recorded in the run provenance.
 
+Key-gated databases (OncoKB, COSMIC Cancer Gene Census, DisGeNET, OMIM, DrugBank)
+are registered in the catalog as **stubs** — metadata only, `default_on = FALSE`,
+and unavailable without their key — so a front end can show "needs an API key"
+without a live client yet. The HTTP layer supports header/bearer auth
+(`http_get_json(..., headers = source_auth_headers(sig))`), with the token redacted
+from logs and excluded from the cache key; their live clients land in a later round.
+
 ## Reproducibility checklist
 
 - [ ] Every integrated source has a real version/release and access date above.

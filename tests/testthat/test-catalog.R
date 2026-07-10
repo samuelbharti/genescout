@@ -144,3 +144,42 @@ test_that("run_review_request() reads options$sources as the selection", {
   expect_null(calls$a) # 'a' not selected -> never queried
   expect_true((calls$b %||% 0L) > 0L)
 })
+
+test_that("candid_source_stubs() are catalog-visible but off + unavailable keyless", {
+  cat <- candid_source_catalog(load_rubric(rubric_path()))
+  keys <- vapply(cat, function(s) s$key, character(1))
+  # The key-gated stubs appear in the catalog (so a front end can show 'needs key')...
+  expect_true(all(
+    c("oncokb", "cosmic_cgc", "disgenet", "omim", "drugbank") %in% keys
+  ))
+  stubs <- Filter(function(s) s$key %in% c("oncokb", "omim"), cat)
+  # ...are opt-in (default_on FALSE) and every one declares an auth method + key env.
+  expect_true(all(vapply(stubs, function(s) !isTRUE(s$default_on), logical(1))))
+  expect_true(all(vapply(stubs, function(s) !is.null(s$key_env), logical(1))))
+  # Without their keys they are unavailable, so the default selection excludes them.
+  withr::with_envvar(
+    c(ONCOKB_API_KEY = "", OMIM_API_KEY = ""),
+    expect_false(any(c("oncokb", "omim") %in% resolve_active_sources(cat)))
+  )
+})
+
+test_that("source_auth_headers() builds bearer headers only when a key is present", {
+  keyless <- candid_signal("k", "K", "S", NULL, normalize_identity)
+  expect_null(source_auth_headers(keyless))
+  gated <- candid_signal(
+    "g",
+    "G",
+    "S",
+    NULL,
+    normalize_identity,
+    auth = "bearer",
+    key_env = "CANDID_TEST_TOKEN"
+  )
+  withr::with_envvar(c(CANDID_TEST_TOKEN = ""), {
+    expect_null(source_auth_headers(gated)) # no key -> no headers
+  })
+  withr::with_envvar(c(CANDID_TEST_TOKEN = "tok123"), {
+    h <- source_auth_headers(gated)
+    expect_equal(h$Authorization, "Bearer tok123")
+  })
+})

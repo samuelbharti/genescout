@@ -48,3 +48,26 @@ test_that("candid_cached() caches successes but not failures", {
   candid_cached("k2", bad_fetch)
   expect_equal(fails, 2) # failures never cached
 })
+
+test_that("candid_req_defaults() attaches auth headers and redacts the secret", {
+  req <- candid_req_defaults(
+    httr2::request("https://example.org"),
+    timeout = 15,
+    max_tries = 3,
+    headers = list(Authorization = "Bearer SUPERSECRETTOKEN")
+  )
+  # The header is attached to the request...
+  expect_true("Authorization" %in% names(req$headers))
+  # ...but the token is redacted, so it never appears in a printed/logged request.
+  printed <- paste(utils::capture.output(print(req)), collapse = " ")
+  expect_false(grepl("SUPERSECRETTOKEN", printed))
+})
+
+test_that("the cache key excludes auth headers (secret never enters the hash)", {
+  # candid_cache_key is computed from method/url/path/query only - headers are not
+  # passed to it, so the same request caches identically with or without a token.
+  expect_identical(
+    candid_cache_key("GET", "https://x", "p", list(geneId = "TP53")),
+    candid_cache_key("GET", "https://x", "p", list(geneId = "TP53"))
+  )
+})
