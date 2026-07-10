@@ -130,6 +130,36 @@ test_that("a present but weak annotation never lowers the composite", {
   expect_equal(out$composite, c(0.6, 0.6))
 })
 
+test_that("a middling annotation never drags a gene below an identical one", {
+  # The subtle case the fixed-floor gate missed: a second annotation whose value is
+  # ABOVE the evidence-only mean but BELOW the running (already strong-annotation-
+  # boosted) composite. Gene CONN carries such a `weak` annotation (0.25) on top of
+  # a `strong` one (0.95); gene ISO has only `strong`. CONN must not rank below ISO
+  # - which it would if `weak` were folded in against the fixed evidence-only mean.
+  registry <- list(
+    list(key = "ev", weight = 1, role = "evidence"),
+    list(key = "strong", weight = 0.75, role = "annotation"),
+    list(key = "weak", weight = 0.5, role = "annotation")
+  )
+  gm <- tibble::tibble(
+    symbol = c("ISO", "CONN"),
+    ev_n = c(0.15, 0.15),
+    strong_n = c(0.95, 0.95),
+    weak_n = c(0, 0.25), # 0.25 > ev-mean 0.15 but < the post-strong running mean
+    ev_present = c(TRUE, TRUE),
+    strong_present = c(TRUE, TRUE),
+    weak_present = c(FALSE, TRUE),
+    n_evidence_present = c(1L, 1L)
+  )
+  out <- compute_composite(gm, registry)
+  conn <- out$composite[out$symbol == "CONN"]
+  iso <- out$composite[out$symbol == "ISO"]
+  # `weak` (0.25) is below CONN's running mean after `strong` (~0.49), so it is
+  # excluded and CONN TIES ISO rather than dropping below it.
+  expect_gte(conn, iso)
+  expect_equal(conn, iso)
+})
+
 test_that("a present strong annotation raises the composite", {
   registry <- list(
     list(key = "ev1", weight = 1, role = "evidence"),

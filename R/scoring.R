@@ -86,11 +86,15 @@ normalize_corroboration <- function(m) {
 #   - EVIDENCE signals: weight is always in the denominator, so a missing one
 #     contributes 0 to the numerator but still divides - breadth is rewarded and
 #     a narrow-but-famous gene is structurally beaten by a broadly-supported one.
-#   - ANNOTATION signals (e.g. constraint, druggability): only ever nudge the
-#     score UP. A present annotation joins the mean (numerator + denominator) for
-#     a gene ONLY when its normalized value is at least that gene's evidence-only
-#     mean; an absent or a weak annotation is neutral, so an annotation can never
-#     lower a gene's composite below its evidence-only score.
+#   - ANNOTATION signals (e.g. constraint, druggability, connectivity): only ever
+#     nudge the score UP. Each gene's present annotations are folded into its mean
+#     greedily, largest normalized value first, and one is included ONLY while it is
+#     at least the gene's RUNNING composite at that point - so an inclusion can
+#     never pull the mean down. An absent or a below-running annotation is neutral.
+#     This makes "annotations only nudge up" a hard guarantee: a gene is never
+#     ranked below an otherwise-identical gene for carrying an extra, weaker
+#     annotation (gating on the fixed evidence-only mean instead would let an
+#     annotation between that floor and the running mean drag the composite down).
 # `weights` (a named key -> weight vector) overrides the registry weights, which
 # is how the live UI sliders re-rank without re-querying. `coverage_bonus`
 # optionally rewards genes supported by many EVIDENCE sources.
@@ -129,36 +133,55 @@ compute_composite <- function(
   w_ev[is_ann] <- 0
   denom_ev <- sum(w[!is_ann])
   numer_ev <- as.numeric(norm %*% w_ev)
-  ev_mean <- if (denom_ev > 0) {
-    numer_ev / denom_ev
-  } else {
-    rep(0, nrow(gene_matrix))
-  }
 
+  n <- nrow(gene_matrix)
   numer <- numer_ev
-  denom <- rep(denom_ev, nrow(gene_matrix))
+  denom <- rep(denom_ev, n)
 
-  # Annotations nudge up, never penalize: a present annotation joins the mean ONLY
-  # when its normalized value is at least the gene's evidence-only mean, so an
-  # absent OR a weak annotation is neutral and can never pull the composite below
-  # the evidence-only score. A gene is thus never ranked below an otherwise
-  # identical gene merely for carrying an extra, weak annotation record.
+  # Annotations nudge up, never penalize. Fold each gene's PRESENT annotations
+  # greedily - largest normalized value first - including one only while its value
+  # is at least the gene's RUNNING composite, so every inclusion weakly RAISES the
+  # mean and none can pull it down. Because they are sorted descending and the
+  # running mean only rises, the first annotation that falls below it means all
+  # remaining ones do too (stop there). Gating on the running mean (not the fixed
+  # evidence-only mean) is what guarantees a connected/annotated gene is never
+  # ranked below an otherwise-identical gene that lacks that annotation.
   if (any(is_ann)) {
     ann_keys <- keys[is_ann]
     ann_w <- w[is_ann]
+    ann_norm <- matrix(0, nrow = n, ncol = length(ann_keys))
+    ann_pres <- matrix(FALSE, nrow = n, ncol = length(ann_keys))
     for (j in seq_along(ann_keys)) {
       nk <- as.numeric(gene_matrix[[paste0(ann_keys[j], "_n")]])
       nk[is.na(nk)] <- 0
+      ann_norm[, j] <- nk
       pcol <- paste0(ann_keys[j], "_present")
       pres <- if (pcol %in% names(gene_matrix)) {
         as.logical(gene_matrix[[pcol]])
       } else {
-        rep(TRUE, nrow(gene_matrix)) # minimal stub matrix: treat as present
+        rep(TRUE, n) # minimal stub matrix: treat as present
       }
       pres[is.na(pres)] <- FALSE
-      include <- pres & (nk >= ev_mean) & (ann_w[j] > 0)
-      numer <- numer + ifelse(include, ann_w[j] * nk, 0)
-      denom <- denom + ifelse(include, ann_w[j], 0)
+      ann_pres[, j] <- pres & (ann_w[j] > 0)
+    }
+    for (i in seq_len(n)) {
+      idx <- which(ann_pres[i, ])
+      if (length(idx) == 0) {
+        next
+      }
+      ord <- idx[order(ann_norm[i, idx], decreasing = TRUE)]
+      num_i <- numer[i]
+      den_i <- denom[i]
+      for (j in ord) {
+        if (ann_norm[i, j] >= num_i / den_i) {
+          num_i <- num_i + ann_w[j] * ann_norm[i, j]
+          den_i <- den_i + ann_w[j]
+        } else {
+          break # sorted descending: no later annotation can qualify either
+        }
+      }
+      numer[i] <- num_i
+      denom[i] <- den_i
     }
   }
 
