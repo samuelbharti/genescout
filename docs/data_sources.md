@@ -9,7 +9,7 @@ This table is what a reviewer will ask for and what makes the method reproducibl
 
 | Source | Stage | Endpoint | Version / release | Access date | Terms allow programmatic use | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| MyGene | resolve / dedupe | <https://mygene.info/v3> | v3 | 2026-07-09 | Yes | Symbol → Ensembl / Entrez / UniProt (canonical dedupe key) |
+| MyGene | resolve / dedupe | <https://mygene.info/v3> | v3 | 2026-07-11 | Yes | Symbol → Ensembl / Entrez / UniProt (canonical dedupe key). A run resolves its whole list in one batched `POST /query` (scopes: symbol/alias/ensembl.gene/entrezgene/retired); falls back to the per-token `GET /query` on a transport failure |
 | Open Targets Platform | ranking signal + discovery | <https://api.platform.opentargets.org/api/v4/graphql> | v4 (GraphQL) | 2026-07-09 | Yes | Enrichment: max gene–disease association (0–1). Discovery: disease→associated targets (seed genes + disease-specific score); disease name→EFO/MONDO resolution + DOID cross-reference |
 | Genomics England PanelApp | discovery signal | <https://panelapp.genomicsengland.co.uk/api/v1> | REST v1 | 2026-07-09 | Yes | Discovery mode: green/amber diagnostic-panel genes for a disease (confidence 1.0 / 0.5) |
 | DISEASES (Jensen Lab) | discovery signal | <https://api.jensenlab.org> | Knowledge + Textmining channels | 2026-07-09 | Yes | Discovery mode: disease→gene associations by DOID (confidence 0–5, max across channels) |

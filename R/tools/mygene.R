@@ -6,6 +6,13 @@
 
 MYGENE_BASE <- "https://mygene.info/v3"
 
+# Fields fetched for every resolution (single or batch), kept in one place so the
+# two paths never drift. `SCOPES` are the fields the batch POST matches each query
+# against - covering symbols, aliases, and Ensembl/Entrez ids in one request (the
+# single path builds an explicit `ensembl.gene:`/`entrezgene:` term instead).
+MYGENE_FIELDS <- "name,symbol,entrezgene,ensembl.gene,uniprot,type_of_gene,summary"
+MYGENE_BATCH_SCOPES <- "symbol,alias,ensembl.gene,entrezgene,retired"
+
 # Strip anything that isn't a plausible gene-identifier character.
 mygene_clean_symbol <- function(symbol) {
   if (is_blank(symbol)) {
@@ -45,7 +52,7 @@ resolve_symbol <- function(symbol, species = "human") {
       q = mygene_query_term(cleaned),
       species = species,
       size = 1,
-      fields = "name,symbol,entrezgene,ensembl.gene,uniprot,type_of_gene,summary"
+      fields = MYGENE_FIELDS
     ),
     source = "MyGene"
   )
@@ -61,6 +68,77 @@ resolve_symbol <- function(symbol, species = "human") {
     ))
   }
   mygene_parse_hit(hits[[1]], fallback_symbol = cleaned)
+}
+
+# Batch-resolve many identifiers in ONE request (MyGene /query POST). This is the
+# first-run latency lever: an N-symbol list is a single round-trip instead of N
+# serial GETs. `scopes` matches each query against symbol/alias/Ensembl/Entrez, so
+# mixed identifier types resolve without a per-token prefix. Returns a list of
+# resolve_symbol()-shaped results aligned to `symbols` (input order); returns NULL
+# on a transport failure so the caller can fall back to serial resolution.
+resolve_symbols_batch <- function(symbols, species = "human") {
+  cleaned <- vapply(
+    symbols,
+    function(s) mygene_clean_symbol(s) %||% NA_character_,
+    character(1),
+    USE.NAMES = FALSE
+  )
+  q <- unique(cleaned[!is.na(cleaned)])
+  # Every token was blank/invalid: no request to make, but still return an aligned
+  # per-token miss so the caller does not treat this as a batch failure and retry.
+  if (length(q) == 0) {
+    return(mygene_parse_batch(list(), symbols))
+  }
+
+  res <- http_post_json(
+    paste0(MYGENE_BASE, "/query"),
+    body = list(
+      q = as.list(q),
+      scopes = MYGENE_BATCH_SCOPES,
+      fields = MYGENE_FIELDS,
+      species = species
+    ),
+    source = "MyGene"
+  )
+  if (!res$ok) {
+    return(NULL)
+  }
+  mygene_parse_batch(res$data, symbols)
+}
+
+# Pure parser: the batch /query POST returns a flat array where each element echoes
+# its input `query`; an ambiguous query yields several elements (best `_score`
+# first) and an unmatched one an element with `notfound = true`. Group by the echoed
+# query, take the first (best) hit per query, and map every input symbol back to a
+# resolve_symbol()-shaped result in input order - so an unmatched or invalid token
+# becomes a definite ok = FALSE (never a wrong gene). Separated from the fetch so it
+# is testable offline against a recorded array.
+mygene_parse_batch <- function(hits, symbols) {
+  by_query <- list()
+  for (h in hits) {
+    q <- pluck_at(h, "query")
+    if (is_blank(q) || !is.null(by_query[[q]])) {
+      next # first element for a query wins (MyGene returns best score first)
+    }
+    by_query[[q]] <- h
+  }
+  lapply(symbols, function(sym) {
+    cleaned <- mygene_clean_symbol(sym)
+    if (is.null(cleaned)) {
+      return(list(
+        ok = FALSE,
+        error = "Please provide a valid gene identifier."
+      ))
+    }
+    hit <- by_query[[cleaned]]
+    if (is.null(hit) || isTRUE(pluck_at(hit, "notfound", default = FALSE))) {
+      return(list(
+        ok = FALSE,
+        error = paste0("No gene found for '", cleaned, "'.")
+      ))
+    }
+    mygene_parse_hit(hit, fallback_symbol = cleaned)
+  })
 }
 
 # Pure parser: a single MyGene hit (parsed JSON list) -> normalized result.
