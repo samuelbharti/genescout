@@ -10,3 +10,6 @@
 ^\.pre-commit-config\.yaml$
 ^\.Renviron\.example$
 ^CHANGELOG\.md$
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.claude$
