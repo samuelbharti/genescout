@@ -174,8 +174,17 @@ review_server <- function(
       )
     })
 
-    results_server("results", result, config, agent_mode = inputs$agent_mode)
-    report_server("report", result)
+    # Specialist synthesis, owned here so both the results tab (which triggers it)
+    # and the report module (which embeds the verdict in the download) share it.
+    specialists <- reactiveVal(NULL)
+    results_server(
+      "results",
+      result,
+      config,
+      agent_mode = inputs$agent_mode,
+      specialists = specialists
+    )
+    report_server("report", result, specialists = specialists)
   })
 }
 

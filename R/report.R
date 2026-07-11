@@ -31,9 +31,48 @@ CANDID_DOMAIN_LABELS <- c(
 
 # --- Ranked gene x signal table ---------------------------------------------
 
+# The per-gene synthesized verdicts (from run_synthesis) as a map keyed by UPPER
+# symbol, so the plausibility/verdict can be surfaced beyond the drill-down (the
+# ranked table, the report, the CSV). Empty list when specialists were not run or
+# produced no verdict, so every caller degrades to its pre-specialist output.
+specialist_verdicts <- function(specialists) {
+  by_gene <- specialists$by_gene
+  if (is.null(by_gene)) {
+    return(list())
+  }
+  out <- list()
+  for (sym in names(by_gene)) {
+    v <- by_gene[[sym]]$verdict
+    if (!is.null(v) && nzchar(v$verdict %||% "")) {
+      out[[sym]] <- v
+    }
+  }
+  out
+}
+
+# The plausibility label per gene for the ranked table, or an em dash when a gene
+# has no synthesized verdict.
+plausibility_column <- function(symbols, verdicts) {
+  vapply(
+    symbols,
+    function(s) {
+      v <- verdicts[[toupper(s)]]
+      if (is.null(v) || is_blank(v$plausibility %||% "")) {
+        "—"
+      } else {
+        as.character(v$plausibility)
+      }
+    },
+    character(1),
+    USE.NAMES = FALSE
+  )
+}
+
 # A display data frame for the ranked matrix: Rank, Gene, one column per signal
 # (raw value), Composite, Grade. `registry` is the result$registry summary.
-gene_matrix_display <- function(genes, registry) {
+# `verdicts` (from specialist_verdicts) is optional: when present, a Plausibility
+# column is appended; when NULL/empty the frame is byte-identical to before.
+gene_matrix_display <- function(genes, registry, verdicts = NULL) {
   df <- data.frame(
     Rank = genes$rank,
     Gene = genes$symbol,
@@ -46,6 +85,9 @@ gene_matrix_display <- function(genes, registry) {
   df[["Composite"]] <- round(genes$composite, 3)
   df[["Grade"]] <- genes$grade
   df[["Caveats"]] <- caveats_count_display(genes)
+  if (length(verdicts) > 0) {
+    df[["Plausibility"]] <- plausibility_column(genes$symbol, verdicts)
+  }
   df
 }
 
@@ -120,8 +162,10 @@ registry_legend_html <- function(registry) {
 
 # A flat data frame of the ranked matrix for CSV export: rank, gene, ids, each
 # signal's raw + normalized value, coverage, composite, grade, and the input
-# list(s) each gene came from.
-build_export_csv <- function(result) {
+# list(s) each gene came from. `verdicts` (from specialist_verdicts) is optional:
+# when present, the synthesized plausibility/verdict/next_experiment are appended
+# so the specialist read survives the export; when NULL those columns are omitted.
+build_export_csv <- function(result, verdicts = NULL) {
   genes <- result$genes
   reg <- result$registry
   df <- data.frame(
@@ -155,12 +199,26 @@ build_export_csv <- function(result) {
     function(x) paste(x, collapse = ";"),
     character(1)
   )
+  if (length(verdicts) > 0) {
+    field <- function(name) {
+      vapply(
+        toupper(genes$symbol),
+        function(s) as.character(verdicts[[s]][[name]] %||% ""),
+        character(1),
+        USE.NAMES = FALSE
+      )
+    }
+    df$plausibility <- field("plausibility")
+    df$verdict <- field("verdict")
+    df$next_experiment <- field("next_experiment")
+  }
   df
 }
 
-# Ranked matrix as a static HTML table (for the download).
-ranked_matrix_html <- function(genes, registry) {
-  disp <- gene_matrix_display(genes, registry)
+# Ranked matrix as a static HTML table (for the download). Passes `verdicts`
+# through so the report table can carry the Plausibility column too.
+ranked_matrix_html <- function(genes, registry, verdicts = NULL) {
+  disp <- gene_matrix_display(genes, registry, verdicts = verdicts)
   htmltools::tags$table(
     class = "table table-striped",
     htmltools::tags$thead(htmltools::tags$tr(
@@ -746,9 +804,13 @@ render_proposal_summary <- function(proposal) {
 
 # --- Standalone HTML report -------------------------------------------------
 
-# Write the full standalone HTML report for `result` to `file`.
-render_report <- function(result, file) {
+# Write the full standalone HTML report for `result` to `file`. `specialists`
+# (the optional run_specialists() output) adds the Plausibility column and a
+# "Specialist synthesis" section, so the synthesized verdict survives the download;
+# omitted, the report is exactly as before.
+render_report <- function(result, file, specialists = NULL) {
   genes <- result$genes
+  verdicts <- specialist_verdicts(specialists %||% list())
   doc <- htmltools::tags$html(
     htmltools::tags$head(
       htmltools::tags$meta(charset = "utf-8"),
@@ -765,7 +827,8 @@ render_report <- function(result, file) {
         htmltools::div(class = "disclaimer", CANDID_DISCLAIMER),
         htmltools::tags$h2("Ranked genes"),
         registry_legend_html(result$registry),
-        ranked_matrix_html(genes, result$registry),
+        ranked_matrix_html(genes, result$registry, verdicts = verdicts),
+        render_specialist_section(genes, verdicts),
         htmltools::tags$h2("Evidence by gene"),
         htmltools::tagList(lapply(seq_len(nrow(genes)), function(i) {
           render_gene_evidence(genes[i, , drop = FALSE], result$evidence)
@@ -776,6 +839,46 @@ render_report <- function(result, file) {
   )
   htmltools::save_html(doc, file = file)
   invisible(file)
+}
+
+# The "Specialist synthesis" report section: each ranked gene that has a verdict,
+# in rank order, rendered via render_verdict(). NULL when no gene has one, so the
+# section is absent unless specialists ran.
+render_specialist_section <- function(genes, verdicts) {
+  if (length(verdicts) == 0) {
+    return(NULL)
+  }
+  syms <- toupper(genes$symbol)
+  blocks <- lapply(seq_len(nrow(genes)), function(i) {
+    v <- verdicts[[syms[i]]]
+    if (is.null(v)) {
+      return(NULL)
+    }
+    htmltools::div(
+      class = "card",
+      htmltools::div(
+        class = "card-body",
+        htmltools::tags$h4(class = "h5 mb-2", genes$symbol[i]),
+        render_verdict(v)
+      )
+    )
+  })
+  blocks <- Filter(Negate(is.null), blocks)
+  if (length(blocks) == 0) {
+    return(NULL)
+  }
+  htmltools::tagList(
+    htmltools::tags$h2("Specialist synthesis"),
+    htmltools::p(
+      class = "small text-muted",
+      paste(
+        "An orchestrator's integrated verdict per top candidate, from the",
+        "grounded specialist analyses. Every cited id traces to that gene's",
+        "evidence; research-use only."
+      )
+    ),
+    blocks
+  )
 }
 
 report_footer <- function(result) {
