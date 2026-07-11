@@ -30,7 +30,8 @@ caveat_test_rubric <- function() {
     caveats = list(
       enabled = TRUE,
       flags_genes = c("TTN", "MUC16"),
-      single_source = list(penalty = 0.5, max_norm = 0.5)
+      single_source = list(penalty = 0.5, max_norm = 0.5),
+      common_variant = list(penalty = 0.8, min_af = 0.001)
     )
   )
 }
@@ -82,6 +83,45 @@ test_that("apply_caveats() leaves a single STRONG source and multi-source clean"
   out <- apply_caveats(gm, caveat_registry(), rubric = caveat_test_rubric())
   expect_equal(out$composite, c(0.6, 0.6)) # neither down-weighted
   expect_equal(lengths(out$caveats), c(0L, 0L))
+})
+
+test_that("apply_caveats() down-weights a gene with a common gnomAD LoF variant", {
+  gm <- tibble::tibble(
+    symbol = c("COMMON", "RARE"),
+    composite = c(0.6, 0.6),
+    n_evidence_present = c(2L, 2L),
+    ev1_present = c(TRUE, TRUE),
+    ev1_n = c(0.6, 0.6),
+    ev2_present = c(TRUE, TRUE),
+    ev2_n = c(0.6, 0.6),
+    # COMMON carries a 2% pLoF variant; RARE has a real 0 (present, no common pLoF).
+    gnomad_af = c(0.02, 0.0),
+    gnomad_af_present = c(TRUE, TRUE)
+  )
+  out <- apply_caveats(gm, caveat_registry(), rubric = caveat_test_rubric())
+  expect_equal(out$composite[out$symbol == "COMMON"], 0.48) # 0.6 * 0.8
+  expect_equal(out$composite[out$symbol == "RARE"], 0.6) # 0 AF < min_af -> clean
+  expect_match(
+    out$caveats[[which(out$symbol == "COMMON")]][1],
+    "Common loss-of-function"
+  )
+  expect_length(out$caveats[[which(out$symbol == "RARE")]], 0)
+})
+
+test_that("the common-variant caveat is silent when the gnomAD-AF signal is absent", {
+  # No gnomad_af columns (the opt-in signal did not run) -> the trigger must not fire.
+  gm <- tibble::tibble(
+    symbol = "GENE",
+    composite = 0.6,
+    n_evidence_present = 2L,
+    ev1_present = TRUE,
+    ev1_n = 0.6,
+    ev2_present = TRUE,
+    ev2_n = 0.6
+  )
+  out <- apply_caveats(gm, caveat_registry(), rubric = caveat_test_rubric())
+  expect_equal(out$composite, 0.6)
+  expect_length(out$caveats[[1]], 0)
 })
 
 test_that("apply_caveats() extends the FLAGS set with disease-context priors", {
