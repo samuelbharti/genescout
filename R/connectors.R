@@ -77,6 +77,10 @@ candid_connector_notes <- function() {
       desc = "Count of experimentally solved 3D structures - structural tractability for mechanistic follow-up.",
       url = "https://www.ebi.ac.uk/pdbe/"
     ),
+    impc = list(
+      desc = "Distinct significant phenotypes from a mouse knockout of the gene's ortholog - hypothesis-free in-vivo functional genetics, not a study-popularity proxy.",
+      url = "https://www.mousephenotype.org"
+    ),
     panelapp = list(
       desc = "Genomics England diagnostic-panel confidence for the disease (green = 1.0, amber = 0.5).",
       url = "https://panelapp.genomicsengland.co.uk"

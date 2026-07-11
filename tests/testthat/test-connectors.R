@@ -18,7 +18,7 @@ test_that("candid_connector_rows() has one row per catalog source, all fields se
 
 test_that("candid_connector_rows() describes the newly added connectors", {
   rows <- candid_connector_rows(test_catalog())
-  for (k in c("go", "uniprot_disease", "pdbe")) {
+  for (k in c("go", "uniprot_disease", "pdbe", "impc")) {
     r <- rows[rows$key == k, ]
     expect_equal(nrow(r), 1)
     expect_true(nzchar(r$description)) # this batch ships with a blurb
@@ -26,6 +26,7 @@ test_that("candid_connector_rows() describes the newly added connectors", {
   expect_equal(rows$domain[rows$key == "go"], "function")
   expect_equal(rows$domain[rows$key == "pdbe"], "structure")
   expect_equal(rows$domain[rows$key == "uniprot_disease"], "gene-disease")
+  expect_equal(rows$domain[rows$key == "impc"], "model-organism")
 })
 
 test_that("connector_status() derives the selection status from catalog metadata", {

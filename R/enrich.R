@@ -354,6 +354,17 @@ candid_signal_registry <- function(
       role = "annotation",
       domain = "structure",
       default_on = FALSE
+    ),
+    candid_signal(
+      "impc",
+      "IMPC mouse knockout phenotype",
+      "IMPC",
+      extractor = extract_impc,
+      normalize = normalize_log_saturating(m$impc %||% 4),
+      weight = w$impc %||% 0.4,
+      role = "annotation",
+      domain = "model-organism",
+      default_on = FALSE
     )
   )
   if (isTRUE(disease_mode)) {
@@ -1282,6 +1293,42 @@ extract_pdbe <- function(resolved, context = list()) {
       score = NA_real_,
       source_id = ev$source_id,
       source_url = ev$source_url
+    )
+  )
+}
+
+# IMPC: the significant phenotypes a mouse KNOCKOUT of the gene's ortholog produces -
+# in-vivo functional-genetics evidence. raw = count of distinct significant phenotype
+# (MP/MPATH) terms; a gene IMPC never phenotyped, or phenotyped with none significant,
+# is a miss (never a 0). A hypothesis-free screen, so it is not a study-popularity
+# proxy. Annotation (nudges, never gates), opt-in. Keyed by the human symbol, mapped
+# to the mouse ortholog internally.
+extract_impc <- function(resolved, context = list()) {
+  r <- impc_gene_phenotypes(resolved$symbol)
+  if (!isTRUE(r$ok) || r$n <= 0) {
+    return(signal_miss())
+  }
+  ph <- r$phenotypes
+  list(
+    ok = TRUE,
+    raw = r$n,
+    source_id = r$source_id,
+    source_url = r$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "impc",
+      domain = "model-organism",
+      title = paste0("Mouse knockout phenotype: ", ph$mp_name),
+      detail = paste0(
+        "IMPC significant ",
+        ph$zygosity,
+        " knockout phenotype (",
+        r$marker_symbol,
+        ")"
+      ),
+      score = NA_real_,
+      source_id = ph$source_id,
+      source_url = ph$source_url
     )
   )
 }

@@ -415,7 +415,8 @@ candid_provenance <- function(context = list()) {
       endpoint = UNIPROT_REST
     ),
     go = list(source = "QuickGO (EBI)", endpoint = QUICKGO_BASE),
-    pdbe = list(source = "PDBe (EBI)", endpoint = PDBE_BASE)
+    pdbe = list(source = "PDBe (EBI)", endpoint = PDBE_BASE),
+    impc = list(source = "IMPC", endpoint = IMPC_SOLR)
   )
   # MyGene is always used (symbol resolution, not a rankable signal).
   sources <- c(
