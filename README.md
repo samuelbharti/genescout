@@ -100,6 +100,15 @@ dates are tracked in [`docs/data_sources.md`](docs/data_sources.md) for reproduc
 | Literature | Europe PMC | Gene mention count (recall) |
 | Literature | PubTator3 | Entity-tagged article count (precision) |
 
+Sources form a **catalog**; each review activates a selected subset (a deselected
+source is never queried). Beyond the lean default set above, opt-in connectors span
+cancer (cBioPortal, CIViC), gene–disease (ClinGen, UniProt/Swiss-Prot, HPO),
+function (Gene Ontology / QuickGO), and structure (PDBe). The in-app **Connectors**
+tab lists every source, its domain, its status (default / opt-in / needs a key /
+planned), and what it contributes — rendered from the same catalog the engine uses.
+Key-gated databases (OncoKB, COSMIC, DisGeNET, OMIM, DrugBank) are catalog stubs
+until their keys are supplied.
+
 ## Quickstart
 
 ### Requirements

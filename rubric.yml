@@ -27,6 +27,9 @@ default:
     cbioportal: 0.5 # cBioPortal pan-cancer somatic mutation frequency (opt-in)
     civic: 0.5 # CIViC curated clinical evidence-item count (opt-in)
     clingen: 0.75 # ClinGen gene-disease validity strength (opt-in)
+    uniprot_disease: 0.75 # UniProt/Swiss-Prot curated disease involvement (opt-in)
+    go: 0.5 # Gene Ontology biological-process function match (annotation, opt-in)
+    pdbe: 0.4 # PDBe experimental 3D structure count (annotation, opt-in)
     # Cross-source corroboration (evidence, multi-source runs only): how many of
     # the user's OWN sources a gene appears in. Weight 2.0 is above ot_assoc so a
     # gene in >= 3 sources out-ranks a single strong external association; the
@@ -54,6 +57,9 @@ default:
     cbioportal: 0.05 # ~5% pan-cancer mutation frequency normalizes to 0.5
     civic: 15 # ~15 curated evidence items normalizes to 0.5 (log-saturating)
     clingen: 2 # validity strength ~2 (Moderate, of 0-4) normalizes to 0.5
+    uniprot_disease: 2 # ~2 curated (context-matching) diseases normalizes to 0.5
+    go: 3 # ~3 (context-matching) GO biological-process terms normalizes to 0.5
+    pdbe: 2 # ~2 experimental structures normalizes to 0.5
     cross_source: 1 # 2 sources -> 0.5, 3 -> 0.667, saturating (count - 1)
     string: 3 # ~3 within-list interaction partners normalizes to 0.5
   coverage_bonus: false
