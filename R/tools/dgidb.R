@@ -31,11 +31,9 @@ dgidb_gene_interactions <- function(symbol) {
     body = list(query = DGIDB_QUERY, variables = list(names = list(sym))),
     source = "DGIdb"
   )
-  if (!res$ok) {
-    return(list(ok = FALSE, error = res$error))
-  }
-  if (!is.null(res$data$errors)) {
-    return(list(ok = FALSE, error = "DGIdb returned a query error."))
+  err <- graphql_error(res, "DGIdb")
+  if (!is.null(err)) {
+    return(err)
   }
   dgidb_interactions_parse(res$data, sym)
 }

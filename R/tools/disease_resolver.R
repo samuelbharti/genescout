@@ -69,12 +69,9 @@ resolve_disease <- function(term, limit = 5) {
   }
 
   res <- http_post_json(OPENTARGETS_URL, body = body, source = "Open Targets")
-  if (!res$ok) {
-    return(list(ok = FALSE, error = res$error))
-  }
-  # GraphQL reports query errors inside a 200 response body.
-  if (!is.null(res$data$errors)) {
-    return(list(ok = FALSE, error = "Open Targets returned a query error."))
+  err <- graphql_error(res, "Open Targets")
+  if (!is.null(err)) {
+    return(err)
   }
 
   matches <- resolve_disease_parse(res$data)
@@ -148,11 +145,9 @@ ot_disease_doid <- function(efo_id) {
     body = list(query = OT_DISEASE_XREFS_QUERY, variables = list(efoId = efo)),
     source = "Open Targets"
   )
-  if (!res$ok) {
-    return(list(ok = FALSE, error = res$error))
-  }
-  if (!is.null(res$data$errors)) {
-    return(list(ok = FALSE, error = "Open Targets returned a query error."))
+  err <- graphql_error(res, "Open Targets")
+  if (!is.null(err)) {
+    return(err)
   }
   doid <- ot_disease_doid_parse(res$data)
   if (is_blank(doid)) {
