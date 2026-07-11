@@ -43,9 +43,12 @@ run_enrich <- function(
   # Optional disease-context priors (context/*.yaml: FLAGS genes, tissues, drivers)
   # for the caveats stage. Accept an already-loaded `priors` list or a `priors_id`
   # to load; a bad id degrades to no priors rather than crashing the run.
-  if (is.null(context$priors) && !is_blank(pluck_at(context, "priors_id"))) {
-    context$priors <- tryCatch(
-      load_context(context$priors_id),
+  # Use `[[` (exact), NOT `$`: `context$priors` PARTIAL-MATCHES `priors_id`, so a
+  # request that carries only priors_id would look like it already had priors and
+  # skip the load entirely.
+  if (is.null(context[["priors"]]) && !is_blank(context[["priors_id"]])) {
+    context[["priors"]] <- tryCatch(
+      load_context(context[["priors_id"]]),
       error = function(e) NULL
     )
   }
@@ -312,7 +315,8 @@ coerce_request_sources <- function(sources) {
 # the API) shares one contract. `req` is
 #   list(sources = <candidate_set | JSON source list | named list | vector | df>,
 #        description = <chr>, disease = <resolved list(id, name) | NULL>,
-#        tissues = <chr>, options = list(weights, coverage_bonus, caveats, sources))
+#        tissues = <chr>, priors_id = <context/<id>.yaml id | NULL>,
+#        options = list(weights, coverage_bonus, caveats, sources))
 # `options$sources` is the source SELECTION - a character vector of connector keys
 # (from candid_source_catalog); omitted -> the catalog's default_on subset. The
 # disease is assumed ALREADY RESOLVED (the confirm step grounds it), so this stays
@@ -334,6 +338,11 @@ run_review_request <- function(
   tissues <- tissues[!is.na(tissues) & nzchar(trimws(tissues))]
   if (length(tissues) > 0) {
     context$tissues_of_interest <- tissues
+  }
+  # Study-context priors (context/<id>.yaml): run_enrich loads them from priors_id
+  # and degrades to no priors on a bad id. Distinct from `disease` (ontology).
+  if (!is_blank(pluck_at(req, "priors_id"))) {
+    context$priors_id <- req$priors_id
   }
   opts <- req$options %||% list()
   enriched <- run_enrich(
