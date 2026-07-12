@@ -87,7 +87,8 @@ review_server <- function(
             context = context,
             enabled = inputs$enabled(),
             seeder = seeder,
-            progress = on_progress
+            progress = on_progress,
+            max_genes = CANDID_INTERACTIVE_INPUT_MAX
           )
         ),
         error = function(e) {
@@ -98,7 +99,26 @@ review_server <- function(
           NULL
         }
       )
-      enriched(out)
+      # Keep the previous ranking on a failed re-run - the error notification above
+      # is enough; wiping a good result on a transient error loses the user's work.
+      if (!is.null(out)) {
+        enriched(out)
+        cap <- pluck_at(out, "context", "input_capped")
+        if (!is.null(cap)) {
+          showNotification(
+            sprintf(
+              paste(
+                "Your list has %d genes; ranked the first %d to keep the app",
+                "responsive. Use the CLI (dev/run_review.R) for the full list."
+              ),
+              cap$total,
+              cap$kept
+            ),
+            type = "warning",
+            duration = 12
+          )
+        }
+      }
     }
 
     observeEvent(inputs$run(), {

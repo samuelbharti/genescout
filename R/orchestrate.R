@@ -37,7 +37,8 @@ run_enrich <- function(
   seeder = seed_disease_genes,
   fetch_network = string_network,
   enabled = NULL,
-  progress = NULL
+  progress = NULL,
+  max_genes = Inf
 ) {
   cs <- as_candidate_set(gene_lists)
   # Optional disease-context priors (context/*.yaml: FLAGS genes, tissues, drivers)
@@ -97,6 +98,17 @@ run_enrich <- function(
   flat <- flatten_candidate_set(cs)
   if (nrow(flat) == 0) {
     stop("No genes to review.", call. = FALSE)
+  }
+  # Input guardrail: a very large candidate list fans out to (#genes x #sources)
+  # serial calls and would appear to hang. Cap the enriched set to `max_genes`
+  # (Inf = unlimited, the CLI/eval default) and audit the truncation so the
+  # provenance and a UI notice can report it, mirroring the seed cap above.
+  if (is.finite(max_genes) && nrow(flat) > max_genes) {
+    context$input_capped <- list(
+      kept = as.integer(max_genes),
+      total = nrow(flat)
+    )
+    flat <- flat[seq_len(max_genes), , drop = FALSE]
   }
   # Source selection: which connectors this run may query. Precedence
   # (source_selection): explicit `enabled` > config `sources:` > each source's
@@ -503,6 +515,20 @@ candid_provenance <- function(context = list()) {
           "Discovery seeding: kept top %d of %d seeded candidate genes",
           cap$kept,
           cap$total
+        ),
+        endpoint = ""
+      ))
+    )
+  }
+  icap <- pluck_at(context, "input_capped")
+  if (!is.null(icap)) {
+    sources <- c(
+      sources,
+      list(list(
+        source = sprintf(
+          "Input cap: ranked the first %d of %d submitted candidate genes",
+          icap$kept,
+          icap$total
         ),
         endpoint = ""
       ))

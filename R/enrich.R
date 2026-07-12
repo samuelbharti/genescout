@@ -1436,8 +1436,15 @@ cap_seed_symbols <- function(symbols, data, max_seed = 200) {
 # which reads as a hung app. The batch default (max_seed = 200 below) is kept for
 # the CLI/evals, where a long run is fine; the interactive app passes this smaller
 # cap so a discovery click returns in a bounded time. The user's OWN pasted genes
-# are always enriched in full - only the extra disease-seeded universe is capped.
+# are enriched up to CANDID_INTERACTIVE_INPUT_MAX (a generous safety bound); the
+# disease-seeded universe is capped separately and more tightly here.
 CANDID_INTERACTIVE_SEED_MAX <- 75L
+
+# The interactive (Shiny) cap on the USER's own candidate list (run_enrich's
+# `max_genes`). A pasted list of thousands would fan out to (#genes x #sources)
+# serial calls and read as a hung app; this bounds an interactive run while staying
+# far above any realistic candidate set. The CLI/eval path leaves max_genes = Inf.
+CANDID_INTERACTIVE_INPUT_MAX <- 300L
 
 seed_disease_genes <- function(disease, ot_size = 250, max_seed = 200) {
   data <- list()
