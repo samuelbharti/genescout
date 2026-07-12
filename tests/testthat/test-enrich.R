@@ -89,3 +89,18 @@ test_that("a missing signal is NA raw, 0 normalized, not present", {
   expect_equal(row$normalized, 0)
   expect_false(row$present)
 })
+
+test_that("resolution_summary() counts resolved vs unresolved genes", {
+  genes <- tibble::tibble(
+    symbol = c("NF1", "TP53", "XYZ", "QQQ"),
+    resolved = c(TRUE, TRUE, FALSE, FALSE)
+  )
+  s <- resolution_summary(genes)
+  expect_equal(s$total, 4)
+  expect_equal(s$resolved, 2)
+  expect_equal(s$unresolved, 2)
+  expect_setequal(s$unresolved_symbols, c("XYZ", "QQQ"))
+  # Degrades safely on an empty or column-less matrix (no `resolved`).
+  expect_equal(resolution_summary(NULL)$unresolved, 0)
+  expect_equal(resolution_summary(tibble::tibble(symbol = "A"))$unresolved, 0)
+})

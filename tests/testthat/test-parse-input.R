@@ -46,3 +46,21 @@ test_that("collect_gene_lists() names pasted lines and skips empty inputs", {
   expect_length(collect_gene_lists("", NULL), 0)
   expect_length(collect_gene_lists(NULL, NULL), 0)
 })
+
+test_that("collect_candidate_set() records an unreadable upload, not silent-drops it", {
+  bad <- tempfile(fileext = ".csv")
+  on.exit(unlink(bad), add = TRUE)
+  writeLines(c("notgene", "BRCA1", "TP53"), bad) # no gene/symbol/candidate column
+  cs <- collect_candidate_set(list(list(name = "uploaded", file = bad)))
+  errs <- candidate_parse_errors(cs)
+  expect_length(errs, 1)
+  expect_equal(errs[[1]]$source, "uploaded")
+  expect_match(errs[[1]]$message, "column")
+  expect_length(cs, 0) # the bad source contributed nothing (no phantom source)
+})
+
+test_that("collect_candidate_set() attaches no parse_errors when sources are clean", {
+  cs <- collect_candidate_set(list(list(name = "pasted", text = "NF1\nTP53")))
+  expect_null(candidate_parse_errors(cs))
+  expect_length(cs, 1)
+})

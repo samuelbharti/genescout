@@ -1715,6 +1715,30 @@ empty_resolved <- function() {
   )
 }
 
+# Summarize how many candidate genes resolved to a canonical id, for a UI notice
+# ("N of M could not be resolved"). Unresolved tokens (typos/aliases MyGene could
+# not map) are ranked at the bottom with no signals, so a heads-up prevents silent
+# confusion. Reads the `resolved` flag on the gene matrix; degrades to zeros when it
+# is absent (a hand-built matrix in tests).
+resolution_summary <- function(genes) {
+  if (is.null(genes) || nrow(genes) == 0 || !("resolved" %in% names(genes))) {
+    return(list(
+      total = 0L,
+      resolved = 0L,
+      unresolved = 0L,
+      unresolved_symbols = character()
+    ))
+  }
+  ok <- as.logical(genes$resolved)
+  ok[is.na(ok)] <- FALSE
+  list(
+    total = nrow(genes),
+    resolved = sum(ok),
+    unresolved = sum(!ok),
+    unresolved_symbols = as.character(genes$symbol[!ok])
+  )
+}
+
 # --- Enrich + assemble ------------------------------------------------------
 
 empty_signals_long <- function() {
