@@ -117,7 +117,8 @@ cross_source_signal <- function(rubric = NULL) {
     normalize = normalize_corroboration(rubric$midpoints$cross_source %||% 1),
     weight = rubric$weights$cross_source %||% 2,
     role = "evidence",
-    needs = "input"
+    needs = "input",
+    domain = "input-provenance"
   )
 }
 
@@ -134,7 +135,8 @@ gtex_tissue_signal <- function(rubric = NULL) {
     normalize = normalize_identity,
     weight = rubric$weights$gtex_tissue %||% 0.5,
     role = "annotation",
-    needs = "gene"
+    needs = "gene",
+    domain = "expression"
   )
 }
 
@@ -160,7 +162,8 @@ string_signal <- function(rubric = NULL) {
     normalize = normalize_saturating(rubric$midpoints$string %||% 3),
     weight = rubric$weights$string %||% 0.5,
     role = "annotation",
-    needs = "network"
+    needs = "network",
+    domain = "interaction"
   )
 }
 
@@ -186,6 +189,7 @@ candid_signal_registry <- function(
       normalize = normalize_identity,
       weight = w$ot_assoc %||% 1,
       role = "evidence",
+      domain = "gene-disease",
       # In discovery mode this reads the seeded associated-targets table offline;
       # in plain enrichment it queries live by gene id (handled by the extractor).
       seed_key = "ot_targets"
@@ -197,7 +201,8 @@ candid_signal_registry <- function(
       extractor = extract_pmc_hits,
       normalize = normalize_log_saturating(m$pmc_hits %||% 50),
       weight = w$pmc_hits %||% 0.5,
-      role = "evidence"
+      role = "evidence",
+      domain = "literature"
     ),
     candid_signal(
       "pubtator",
@@ -206,7 +211,8 @@ candid_signal_registry <- function(
       extractor = extract_pubtator,
       normalize = normalize_log_saturating(m$pubtator %||% 300),
       weight = w$pubtator %||% 0.5,
-      role = "evidence"
+      role = "evidence",
+      domain = "literature"
     ),
     candid_signal(
       "clinvar_path",
@@ -215,7 +221,8 @@ candid_signal_registry <- function(
       extractor = extract_clinvar_path,
       normalize = normalize_saturating(m$clinvar_path %||% 5),
       weight = w$clinvar_path %||% 1,
-      role = "evidence"
+      role = "evidence",
+      domain = "variant-effect"
     ),
     candid_signal(
       "dgidb",
@@ -224,7 +231,8 @@ candid_signal_registry <- function(
       extractor = extract_dgidb,
       normalize = normalize_log_saturating(m$dgidb %||% 5),
       weight = w$dgidb %||% 0.5,
-      role = "evidence"
+      role = "evidence",
+      domain = "druggability"
     ),
     candid_signal(
       "gnomad_loeuf",
@@ -234,7 +242,8 @@ candid_signal_registry <- function(
       normalize = normalize_saturating_desc(m$gnomad_loeuf %||% 0.35),
       weight = w$gnomad_loeuf %||% 0.75,
       direction = "lower_better",
-      role = "annotation"
+      role = "annotation",
+      domain = "constraint"
     ),
     candid_signal(
       "pharos_tdl",
@@ -243,7 +252,8 @@ candid_signal_registry <- function(
       extractor = extract_pharos_tdl,
       normalize = normalize_identity,
       weight = w$pharos_tdl %||% 0.5,
-      role = "annotation"
+      role = "annotation",
+      domain = "druggability"
     ),
     candid_signal(
       "reactome",
@@ -252,7 +262,8 @@ candid_signal_registry <- function(
       extractor = extract_reactome,
       normalize = normalize_saturating(m$reactome %||% 2),
       weight = w$reactome %||% 0.5,
-      role = "annotation"
+      role = "annotation",
+      domain = "pathway-disease"
     ),
     # Opt-in keyless connectors (default_on = FALSE): in the catalog + selectable,
     # but off unless a review selects them, so default runs stay lean + unchanged.
@@ -310,6 +321,50 @@ candid_signal_registry <- function(
       role = "evidence",
       domain = "gene-disease",
       default_on = FALSE
+    ),
+    candid_signal(
+      "uniprot_disease",
+      "UniProt disease involvement",
+      "UniProt (Swiss-Prot)",
+      extractor = extract_uniprot_disease,
+      normalize = normalize_saturating(m$uniprot_disease %||% 2),
+      weight = w$uniprot_disease %||% 0.75,
+      role = "evidence",
+      domain = "gene-disease",
+      default_on = FALSE
+    ),
+    candid_signal(
+      "go",
+      "Gene Ontology function",
+      "QuickGO (EBI)",
+      extractor = extract_go,
+      normalize = normalize_saturating(m$go %||% 3),
+      weight = w$go %||% 0.5,
+      role = "annotation",
+      domain = "function",
+      default_on = FALSE
+    ),
+    candid_signal(
+      "pdbe",
+      "PDBe 3D structures",
+      "PDBe (EBI)",
+      extractor = extract_pdbe,
+      normalize = normalize_saturating(m$pdbe %||% 2),
+      weight = w$pdbe %||% 0.4,
+      role = "annotation",
+      domain = "structure",
+      default_on = FALSE
+    ),
+    candid_signal(
+      "impc",
+      "IMPC mouse knockout phenotype",
+      "IMPC",
+      extractor = extract_impc,
+      normalize = normalize_log_saturating(m$impc %||% 4),
+      weight = w$impc %||% 0.4,
+      role = "annotation",
+      domain = "model-organism",
+      default_on = FALSE
     )
   )
   if (isTRUE(disease_mode)) {
@@ -324,6 +379,7 @@ candid_signal_registry <- function(
           normalize = normalize_identity,
           weight = w$panelapp %||% 1,
           role = "evidence",
+          domain = "gene-disease",
           seed_key = "panelapp"
         ),
         candid_signal(
@@ -334,6 +390,7 @@ candid_signal_registry <- function(
           normalize = normalize_saturating(m$diseases %||% 2),
           weight = w$diseases %||% 0.75,
           role = "evidence",
+          domain = "gene-disease",
           seed_key = "diseases"
         )
       )
@@ -1129,6 +1186,153 @@ extract_clingen <- function(resolved, context = list()) {
   )
 }
 
+# QuickGO (Gene Ontology): the gene's biological-process functional annotation.
+# With a study pathway prior (context$priors$pathways) the raw value is the count
+# of BP terms whose name matches that biology (function-in-context, e.g. RAS/MAPK
+# for NF1); without one, the count of distinct BP terms (general functional depth).
+# Annotation (nudges up, never gates). Uses the resolved UniProt accession; each GO
+# term is grounded evidence (drill-down capped at 12; raw is the full count).
+extract_go <- function(resolved, context = list()) {
+  r <- quickgo_annotations(resolved$uniprot)
+  if (!isTRUE(r$ok) || nrow(r$terms) == 0) {
+    return(signal_miss())
+  }
+  ctx_pathways <- pluck_at(context, "priors", "pathways")
+  terms <- r$terms
+  if (!is.null(ctx_pathways) && length(ctx_pathways) > 0) {
+    matched <- pathway_matches_context(terms$go_name, ctx_pathways)
+    terms <- terms[matched, , drop = FALSE]
+    if (nrow(terms) == 0) {
+      return(signal_miss())
+    }
+  }
+  ev <- utils::head(terms, 12)
+  list(
+    ok = TRUE,
+    raw = nrow(terms),
+    source_id = terms$source_id[1],
+    source_url = terms$source_url[1],
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "go",
+      domain = "function",
+      title = paste0("GO biological process: ", ev$go_name),
+      detail = "Gene Ontology functional annotation (QuickGO)",
+      score = NA_real_,
+      source_id = ev$source_id,
+      source_url = ev$source_url
+    )
+  )
+}
+
+# UniProt (Swiss-Prot) disease involvement: curated gene-disease links. In a
+# disease-scoped review the raw value is the count of curated diseases MATCHING the
+# study context; otherwise the count of all curated diseases. Independent expert
+# curation, so it corroborates HPO / ClinGen / DISEASES from a different channel.
+# Evidence (opt-in). Uses the resolved UniProt accession; each disease is grounded
+# by its UniProt disease id (DI-…).
+extract_uniprot_disease <- function(resolved, context = list()) {
+  r <- uniprot_gene_diseases(resolved$uniprot)
+  if (!isTRUE(r$ok) || nrow(r$diseases) == 0) {
+    return(signal_miss())
+  }
+  rel <- uniprot_disease_relevance(r$diseases, pluck_at(context, "disease"))
+  if (!isTRUE(rel$present)) {
+    return(signal_miss())
+  }
+  m <- rel$matched
+  list(
+    ok = TRUE,
+    raw = rel$n,
+    source_id = m$source_id[1],
+    source_url = m$source_url[1],
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "uniprot_disease",
+      domain = "gene-disease",
+      title = paste0("UniProt disease involvement: ", m$name),
+      detail = ifelse(
+        m$causal,
+        "Swiss-Prot: disease caused by variants in this gene",
+        "Swiss-Prot: gene may be involved in disease pathogenesis"
+      ),
+      score = NA_real_,
+      source_id = m$source_id,
+      source_url = m$source_url
+    )
+  )
+}
+
+# PDBe: experimentally solved 3D structures covering the gene's protein. raw = the
+# count of distinct PDB entries; a structurally characterized target is more
+# tractable for mechanistic and structure-guided follow-up (complements the Pharos
+# ligand-tractability level). Annotation (nudges up, never gates). Uses the resolved
+# UniProt accession; each structure is grounded by its PDB id (drill-down capped at
+# 12; raw is the full count).
+extract_pdbe <- function(resolved, context = list()) {
+  r <- pdbe_structures(resolved$uniprot)
+  if (!isTRUE(r$ok) || r$n <= 0) {
+    return(signal_miss())
+  }
+  ev <- utils::head(r$structures, 12)
+  list(
+    ok = TRUE,
+    raw = r$n,
+    source_id = r$structures$source_id[1],
+    source_url = r$structures$source_url[1],
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "pdbe",
+      domain = "structure",
+      title = paste0("PDB structure ", toupper(ev$pdb_id), ": ", ev$method),
+      detail = ifelse(
+        is.na(ev$resolution),
+        "Experimental 3D structure (PDBe)",
+        sprintf("Experimental 3D structure, %.2g Å (PDBe)", ev$resolution)
+      ),
+      score = NA_real_,
+      source_id = ev$source_id,
+      source_url = ev$source_url
+    )
+  )
+}
+
+# IMPC: the significant phenotypes a mouse KNOCKOUT of the gene's ortholog produces -
+# in-vivo functional-genetics evidence. raw = count of distinct significant phenotype
+# (MP/MPATH) terms; a gene IMPC never phenotyped, or phenotyped with none significant,
+# is a miss (never a 0). A hypothesis-free screen, so it is not a study-popularity
+# proxy. Annotation (nudges, never gates), opt-in. Keyed by the human symbol, mapped
+# to the mouse ortholog internally.
+extract_impc <- function(resolved, context = list()) {
+  r <- impc_gene_phenotypes(resolved$symbol)
+  if (!isTRUE(r$ok) || r$n <= 0) {
+    return(signal_miss())
+  }
+  ph <- r$phenotypes
+  list(
+    ok = TRUE,
+    raw = r$n,
+    source_id = r$source_id,
+    source_url = r$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "impc",
+      domain = "model-organism",
+      title = paste0("Mouse knockout phenotype: ", ph$mp_name),
+      detail = paste0(
+        "IMPC significant ",
+        ph$zygosity,
+        " knockout phenotype (",
+        r$marker_symbol,
+        ")"
+      ),
+      score = NA_real_,
+      source_id = ph$source_id,
+      source_url = ph$source_url
+    )
+  )
+}
+
 # --- Discovery seeding ------------------------------------------------------
 
 # Prioritize + cap the seeded candidate union so a broad disease does not fan
@@ -1351,6 +1555,7 @@ resolve_genes <- function(flat, resolver = resolve_symbol) {
         gene_id = r$ensembl_gene,
         symbol = r$symbol %||% token,
         entrez = as.character(r$entrez %||% NA),
+        uniprot = as.character(r$uniprot %||% NA),
         resolved = TRUE
       )
     } else {
@@ -1358,6 +1563,7 @@ resolve_genes <- function(flat, resolver = resolve_symbol) {
         gene_id = paste0("UNRESOLVED:", toupper(token)),
         symbol = token,
         entrez = NA_character_,
+        uniprot = NA_character_,
         resolved = FALSE
       )
     }
@@ -1377,6 +1583,7 @@ merge_resolved <- function(rows) {
         gene_id = id,
         symbol = r$symbol,
         entrez = r$entrez,
+        uniprot = r$uniprot,
         resolved = r$resolved,
         input_symbols = character(),
         input_lists = character(),
@@ -1404,6 +1611,7 @@ merge_resolved <- function(rows) {
     gene_id = pull(function(k) by_id[[k]]$gene_id),
     symbol = pull(function(k) by_id[[k]]$symbol),
     entrez = pull(function(k) as.character(by_id[[k]]$entrez)),
+    uniprot = pull(function(k) as.character(by_id[[k]]$uniprot %||% NA)),
     resolved = vapply(
       order,
       function(k) by_id[[k]]$resolved,
@@ -1422,6 +1630,7 @@ empty_resolved <- function() {
     gene_id = character(),
     symbol = character(),
     entrez = character(),
+    uniprot = character(),
     resolved = logical(),
     input_symbols = list(),
     input_lists = list(),
@@ -1469,6 +1678,11 @@ enrich_genes <- function(
       gene_id = resolved$gene_id[i],
       symbol = resolved$symbol[i],
       entrez = resolved$entrez[i],
+      uniprot = if ("uniprot" %in% names(resolved)) {
+        resolved$uniprot[i]
+      } else {
+        NA_character_
+      },
       resolved = resolved$resolved[i],
       input_symbols = if (has_input_symbols) {
         resolved$input_symbols[[i]]

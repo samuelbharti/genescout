@@ -21,6 +21,9 @@ CANDID_DOMAIN_LABELS <- c(
   `variant-effect` = "Variant / ClinVar",
   constraint = "Constraint (gnomAD)",
   druggability = "Druggability",
+  `function` = "Molecular function (GO)",
+  structure = "Protein structure (PDBe)",
+  `model-organism` = "Model-organism knockout (IMPC)",
   expression = "Tissue expression (GTEx)",
   interaction = "Protein interactions (STRING)",
   `input-provenance` = "Corroborating sources (your input)"
