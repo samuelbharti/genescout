@@ -64,8 +64,8 @@ test_that("mygene_parse_batch() returns an aligned miss for absent or blank toke
   expect_match(res[[3]]$error, "valid gene identifier")
 })
 
-test_that("mygene_parse_batch() takes the first (best-scoring) hit per query", {
-  # An ambiguous query yields several elements, best `_score` first.
+test_that("mygene_parse_batch() falls back to best score when no symbol matches", {
+  # No hit's symbol equals the query token, so MyGene's best-score-first order wins.
   hits <- list(
     list(query = "AAA", symbol = "GENE1", ensembl = list(gene = "ENSG1")),
     list(query = "AAA", symbol = "GENE2", ensembl = list(gene = "ENSG2"))
@@ -73,6 +73,52 @@ test_that("mygene_parse_batch() takes the first (best-scoring) hit per query", {
   res <- mygene_parse_batch(hits, "AAA")
   expect_equal(res[[1]]$symbol, "GENE1")
   expect_equal(res[[1]]$ensembl_gene, "ENSG1")
+})
+
+test_that("mygene_parse_batch() prefers the EXACT symbol over a higher-scored hit", {
+  # Regression: querying "TTN" (alias/retired scopes) returns TTR (higher _score)
+  # BEFORE TTN. The exact symbol match must win, so TTN never shows up as TTR.
+  hits <- list(
+    list(
+      query = "TTN",
+      symbol = "TTR",
+      entrezgene = 7276,
+      ensembl = list(gene = "ENSG00000118271")
+    ),
+    list(
+      query = "TTN",
+      symbol = "TTN",
+      entrezgene = 7273,
+      ensembl = list(gene = "ENSG00000155657")
+    )
+  )
+  res <- mygene_parse_batch(hits, "TTN")
+  expect_equal(res[[1]]$symbol, "TTN")
+  expect_equal(res[[1]]$entrez, "7273")
+  expect_equal(res[[1]]$ensembl_gene, "ENSG00000155657")
+})
+
+test_that("mygene_parse_batch() still resolves a deliberate alias (no exact match)", {
+  # "p53" is nobody's official symbol, so the alias hit TP53 is correctly kept.
+  hits <- list(
+    list(
+      query = "p53",
+      symbol = "TP53",
+      ensembl = list(gene = "ENSG00000141510")
+    )
+  )
+  res <- mygene_parse_batch(hits, "p53")
+  expect_equal(res[[1]]$symbol, "TP53")
+})
+
+test_that("mygene_pick_hit() matches the symbol case-insensitively, else first hit", {
+  hits <- list(
+    list(symbol = "TTR"),
+    list(symbol = "TTN")
+  )
+  expect_equal(mygene_pick_hit(hits, "ttn")$symbol, "TTN") # case-insensitive
+  expect_equal(mygene_pick_hit(hits, "ZZZ")$symbol, "TTR") # none match -> first
+  expect_null(mygene_pick_hit(list(), "X"))
 })
 
 test_that("resolve_symbols_batch() short-circuits blank input with no network", {
