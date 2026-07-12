@@ -51,13 +51,25 @@ build_chat <- function(provider, model, system_prompt) {
     ),
     # Vertex authenticates with Application Default Credentials (OAuth), NOT an API
     # key, and requires the project + region positionally - passing them from the
-    # environment (this call previously omitted them and errored on every use).
-    google_vertex = ellmer::chat_google_vertex(
-      location = Sys.getenv("GOOGLE_CLOUD_LOCATION"),
-      project_id = Sys.getenv("GOOGLE_CLOUD_PROJECT"),
-      model = model,
-      system_prompt = system_prompt
-    ),
+    # environment (this call previously omitted them and errored on every use). ellmer
+    # only *suggests* gargle (its Google OAuth backend), so guard with a clear message
+    # instead of an opaque "package required" error; the requireNamespace() call also
+    # keeps gargle in renv's dependency scan so renv.lock installs it.
+    google_vertex = {
+      if (!requireNamespace("gargle", quietly = TRUE)) {
+        stop(
+          "Vertex AI needs the 'gargle' package for Google OAuth. Install it ",
+          "(renv::install('gargle')) or use provider google_gemini with an API key.",
+          call. = FALSE
+        )
+      }
+      ellmer::chat_google_vertex(
+        location = Sys.getenv("GOOGLE_CLOUD_LOCATION"),
+        project_id = Sys.getenv("GOOGLE_CLOUD_PROJECT"),
+        model = model,
+        system_prompt = system_prompt
+      )
+    },
     openai = ellmer::chat_openai(
       model = model,
       system_prompt = system_prompt
