@@ -116,20 +116,35 @@ results_server <- function(
       if (!final_curator_on()) {
         return(NULL)
       }
+      n_ranked <- nrow(result()$genes)
       div(
         class = "my-3",
-        actionButton(
-          ns("do_curate"),
-          "Curate with AI →",
-          class = "btn-primary"
+        div(
+          class = "d-flex align-items-end gap-2 flex-wrap",
+          div(
+            style = "width: 150px;",
+            numericInput(
+              ns("target_size"),
+              "Target list size",
+              value = min(CANDID_CURATE_TARGET_DEFAULT, n_ranked),
+              min = 1,
+              max = n_ranked,
+              step = 1
+            )
+          ),
+          actionButton(
+            ns("do_curate"),
+            "Curate with AI →",
+            class = "btn-primary"
+          )
         ),
-        span(
-          class = "text-muted small ms-2",
+        div(
+          class = "text-muted small mt-1",
           paste(
-            "Filter the ranked list to a compact set for your study.",
-            "The model picks only from the ranked candidates; its rationales",
-            "summarize the evidence shown - the grounded, source-linked evidence",
-            "stays in the table and drill-down above."
+            "The deterministic rank shortlists the top candidates; the model",
+            "filters them down to about your target size, choosing only from the",
+            "ranked genes and citing the evidence shown. The grounded,",
+            "source-linked evidence stays in the table and drill-down above."
           )
         )
       )
@@ -138,10 +153,14 @@ results_server <- function(
     observeEvent(input$do_curate, {
       req(result())
       req(final_curator_on())
+      ts <- input$target_size
+      if (is.null(ts) || is.na(ts) || ts < 1) {
+        ts <- CANDID_CURATE_TARGET_DEFAULT
+      }
       cur <- tryCatch(
         withProgress(
           message = "Curating with the configured model...",
-          curate_gene_list(result(), config)
+          curate_gene_list(result(), config, top_n = ts)
         ),
         error = function(e) {
           showNotification(
@@ -211,8 +230,9 @@ results_server <- function(
           paste(
             "Three grounded specialists (variant · pathway/disease · literature)",
             "synthesize each top candidate's own evidence, then an orchestrator",
-            "rolls them into one verdict + a priority next experiment. Select a",
-            "gene row to read its analysis."
+            "rolls them into one verdict + a priority next experiment. Runs on the",
+            "top of your curated list when you have curated, else the top ranked",
+            "genes. Select a gene row to read its analysis."
           )
         )
       )
@@ -221,10 +241,19 @@ results_server <- function(
     observeEvent(input$do_specialists, {
       req(result())
       req(final_curator_on())
+      # If the user curated first, analyze the top of THAT list; otherwise the top
+      # ranked genes. So the flow reads rank -> curate to N -> specialists on the best.
+      cur <- curated()
+      restrict <- if (!is.null(cur) && "include" %in% names(cur)) {
+        inc <- cur$gene_symbol[which(cur$include)]
+        if (length(inc) > 0) inc else NULL
+      } else {
+        NULL
+      }
       sp <- tryCatch(
         withProgress(
           message = "Running specialists on the top candidates...",
-          run_specialists(result(), config)
+          run_specialists(result(), config, restrict_to = restrict)
         ),
         error = function(e) {
           showNotification(

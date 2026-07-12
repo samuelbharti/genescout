@@ -16,6 +16,9 @@
 # switching providers is a config change. `chat_factory` is injectable so tests
 # run without the network.
 
+# Default target size for the curated list when the caller (UI/CLI) names none.
+CANDID_CURATE_TARGET_DEFAULT <- 30L
+
 empty_curated_table <- function() {
   tibble::tibble(
     gene_symbol = character(),
@@ -295,15 +298,44 @@ fallback_curation <- function(result, top_n) {
   )
 }
 
-# Main entry point. Curate a run_review() result down to a usable set. Returns a
-# curated tibble(gene_symbol, include, confidence, rationale) with attributes
-# `ai_used` (logical) and, optionally, `message` / `error`.
+# Cap the curated selection to the requested target size. The deterministic rank
+# already shortlists the pool the model sees; if the model still includes MORE than
+# `n` genes, keep the `n` most-confident and mark the rest excluded, so the final
+# list honors the user's ceiling (the evidence can still justify fewer, never more).
+cap_curation <- function(df, n) {
+  if (is.null(df) || nrow(df) == 0 || !"include" %in% names(df)) {
+    return(df)
+  }
+  inc <- which(df$include)
+  if (length(inc) <= n) {
+    return(df)
+  }
+  conf <- if ("confidence" %in% names(df)) {
+    df$confidence[inc]
+  } else {
+    rep(NA_real_, length(inc))
+  }
+  keep <- inc[order(conf, decreasing = TRUE, na.last = TRUE)][seq_len(n)]
+  df$include[setdiff(inc, keep)] <- FALSE
+  df
+}
+
+# Main entry point. Curate a run_review() result down to a usable set of ~`top_n`
+# genes: the deterministic rank shortlists a pool (`pool_n`, default a multiple of the
+# target), the model filters that pool, and the included set is capped to `top_n`.
+# Returns a curated tibble(gene_symbol, include, confidence, rationale, source_ids)
+# with attributes `ai_used` (logical) and, optionally, `message` / `error`.
 curate_gene_list <- function(
   result,
   config = load_config(),
-  top_n = 40,
+  top_n = CANDID_CURATE_TARGET_DEFAULT,
+  pool_n = NULL,
   chat_factory = NULL
 ) {
+  top_n <- max(1L, as.integer(top_n))
+  # The rank pre-shortlist the model chooses from - wide enough to see real
+  # alternatives, bounded so the prompt (and cost) stay sane.
+  pool_n <- if (is.null(pool_n)) max(top_n * 3L, 60L) else as.integer(pool_n)
   genes <- result$genes
   if (is.null(genes) || nrow(genes) == 0) {
     return(curated_with_attrs(
@@ -312,7 +344,7 @@ curate_gene_list <- function(
       message = "No ranked genes to curate."
     ))
   }
-  candidates <- curation_candidates(result, max(top_n * 2L, 50L))
+  candidates <- curation_candidates(result, max(pool_n, top_n))
   cand_symbols <- toupper(candidates$symbol)
   # The per-gene grounded evidence ids the model is allowed to cite (its rationale
   # source_ids are filtered to this set - the citation grounding gate).
@@ -341,10 +373,13 @@ curate_gene_list <- function(
       chat <- chat_factory(prompt$system)
       raw <- chat$chat_structured(prompt$user, type = curation_schema())
       curated_with_attrs(
-        validate_curation(
-          selections_to_df(raw$selections),
-          cand_symbols,
-          evidence_ids
+        cap_curation(
+          validate_curation(
+            selections_to_df(raw$selections),
+            cand_symbols,
+            evidence_ids
+          ),
+          top_n
         ),
         ai_used = TRUE
       )

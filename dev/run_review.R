@@ -32,6 +32,7 @@ usage <- function() {
     "  --tissue  <t1,t2>       tissue(s) of interest for GTEx scoring   (optional)\n",
     "  --sources <k1,k2>       connector keys to query (default: catalog default_on)\n",
     "  --agent  <none|input|final|both>  agent involvement   (default: none)\n",
+    "  --target-size  <n>      curated list size for --agent final/both  (default: 30)\n",
     "  --out          <file>   output HTML report path    (default: report.html)\n",
     "  --help                  show this message and exit\n",
     sep = ""
@@ -229,9 +230,18 @@ main <- function() {
     registry = registry
   )
 
-  # Final curator (end): grounded AI compaction of the ranked list.
+  # Final curator (end): grounded AI compaction of the ranked list to ~target size.
   if (agent %in% c("final", "both")) {
-    result$curated <- curate_gene_list(result, candid_config)
+    target_size <- suppressWarnings(as.integer(opt[["target-size"]]))
+    result$curated <- curate_gene_list(
+      result,
+      candid_config,
+      top_n = if (is.na(target_size)) {
+        CANDID_CURATE_TARGET_DEFAULT
+      } else {
+        target_size
+      }
+    )
   }
 
   render_report(result, out)
