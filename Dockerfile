@@ -1,4 +1,6 @@
-FROM rocker/shiny
+# Pinned to the R version recorded in renv.lock (see `renv.lock` -> R.Version), so the
+# base R matches the locked package set. Bump this tag and re-snapshot together.
+FROM rocker/shiny:4.5.3
 
 ARG CRAN_MIRROR=https://cloud.r-project.org
 ENV CRAN_MIRROR=${CRAN_MIRROR}
@@ -20,8 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY . /home/app
 
 # Restore the project library from the lockfile if present.
-RUN Rscript -e "if (!requireNamespace('renv', quietly = TRUE)) install.packages('renv', repos = Sys.getenv('CRAN_MIRROR', 'https://cloud.r-project.org')); if (file.exists('/home/app/renv.lock')) { options(renv.config.pak.enabled = TRUE); restore_res <- try(renv::restore(prompt = FALSE, lockfile = '/home/app/renv.lock'), silent = TRUE); if (inherits(restore_res, 'try-error')) { message('pak-enabled restore failed, retrying with standard renv restore.'); options(renv.config.pak.enabled = FALSE); renv::restore(prompt = FALSE, lockfile = '/home/app/renv.lock') } } else { message('No renv.lock found - skipping renv::restore.'); }
-"
+RUN Rscript -e "if (!requireNamespace('renv', quietly = TRUE)) install.packages('renv', repos = Sys.getenv('CRAN_MIRROR', 'https://cloud.r-project.org')); if (file.exists('/home/app/renv.lock')) { options(renv.config.pak.enabled = TRUE); restore_res <- try(renv::restore(prompt = FALSE, lockfile = '/home/app/renv.lock'), silent = TRUE); if (inherits(restore_res, 'try-error')) { message('pak-enabled restore failed, retrying with standard renv restore.'); options(renv.config.pak.enabled = FALSE); renv::restore(prompt = FALSE, lockfile = '/home/app/renv.lock') } } else { message('No renv.lock found - skipping renv::restore.'); }"
 
 EXPOSE 3838
 

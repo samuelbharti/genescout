@@ -122,11 +122,13 @@ until their keys are supplied.
 ```bash
 git clone https://github.com/samuelbharti/candid.git
 cd candid
-# First-time setup: install dependencies and write renv.lock.
-Rscript dev/init-renv.R
-# On later clones, once renv.lock is committed:
+# Restore the exact pinned dependency set from the committed renv.lock.
 Rscript -e 'renv::restore()'
 ```
+
+`renv.lock` pins every dependency (R 4.5.3 + CRAN packages), so a clone reproduces
+the tested environment; the same lock drives the Docker build. To regenerate the lock
+after changing dependencies, re-run `Rscript dev/init-renv.R` and review the diff.
 
 ### Launch the app
 
