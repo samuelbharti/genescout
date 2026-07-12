@@ -49,7 +49,12 @@ build_chat <- function(provider, model, system_prompt) {
       model = model,
       system_prompt = system_prompt
     ),
+    # Vertex authenticates with Application Default Credentials (OAuth), NOT an API
+    # key, and requires the project + region positionally - passing them from the
+    # environment (this call previously omitted them and errored on every use).
     google_vertex = ellmer::chat_google_vertex(
+      location = Sys.getenv("GOOGLE_CLOUD_LOCATION"),
+      project_id = Sys.getenv("GOOGLE_CLOUD_PROJECT"),
       model = model,
       system_prompt = system_prompt
     ),
