@@ -1,9 +1,15 @@
-FROM rocker/shiny
+# Pinned to the R version recorded in renv.lock (see `renv.lock` -> R.Version), so the
+# base R matches the locked package set. Bump this tag and re-snapshot together.
+FROM rocker/shiny:4.5.3
 
 ARG CRAN_MIRROR=https://cloud.r-project.org
 ENV CRAN_MIRROR=${CRAN_MIRROR}
 ENV RENV_CONFIG_PAK_ENABLED=TRUE
 ENV RENV_CONFIG_AUTOLOADER_ENABLED=false
+# Anchor the app root so lazily-loaded files (rubric.yml, context/*.yaml) and the
+# parallel-enrichment workers (which source the engine from here) resolve regardless
+# of the process working directory.
+ENV CANDID_APP_ROOT=/home/app
 
 WORKDIR /home/app
 
@@ -20,8 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY . /home/app
 
 # Restore the project library from the lockfile if present.
-RUN Rscript -e "if (!requireNamespace('renv', quietly = TRUE)) install.packages('renv', repos = Sys.getenv('CRAN_MIRROR', 'https://cloud.r-project.org')); if (file.exists('/home/app/renv.lock')) { options(renv.config.pak.enabled = TRUE); restore_res <- try(renv::restore(prompt = FALSE, lockfile = '/home/app/renv.lock'), silent = TRUE); if (inherits(restore_res, 'try-error')) { message('pak-enabled restore failed, retrying with standard renv restore.'); options(renv.config.pak.enabled = FALSE); renv::restore(prompt = FALSE, lockfile = '/home/app/renv.lock') } } else { message('No renv.lock found - skipping renv::restore.'); }
-"
+RUN Rscript -e "if (!requireNamespace('renv', quietly = TRUE)) install.packages('renv', repos = Sys.getenv('CRAN_MIRROR', 'https://cloud.r-project.org')); if (file.exists('/home/app/renv.lock')) { options(renv.config.pak.enabled = TRUE); restore_res <- try(renv::restore(prompt = FALSE, lockfile = '/home/app/renv.lock'), silent = TRUE); if (inherits(restore_res, 'try-error')) { message('pak-enabled restore failed, retrying with standard renv restore.'); options(renv.config.pak.enabled = FALSE); renv::restore(prompt = FALSE, lockfile = '/home/app/renv.lock') } } else { message('No renv.lock found - skipping renv::restore.'); }"
 
 EXPOSE 3838
 

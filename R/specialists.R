@@ -83,9 +83,15 @@ specialist_schema <- function() {
   )
 }
 
-# The top `n` candidate genes (by rank) that specialists analyze.
-specialist_candidates <- function(result, n) {
+# The top `n` candidate genes (by rank) that specialists analyze. When
+# `restrict_to` (a vector of symbols, e.g. the AI-curated set) is given, the pool is
+# first narrowed to those genes so specialists run on the curated shortlist's top n,
+# not the raw rank's - an empty/absent restrict_to keeps the whole ranked set.
+specialist_candidates <- function(result, n, restrict_to = NULL) {
   g <- result$genes
+  if (!is.null(restrict_to) && length(restrict_to) > 0) {
+    g <- g[toupper(g$symbol) %in% toupper(restrict_to), , drop = FALSE]
+  }
   g <- g[order(g$rank), , drop = FALSE]
   utils::head(g, n)
 }
@@ -307,7 +313,8 @@ run_specialists <- function(
   runner = NULL,
   specialists = candid_specialists(),
   synthesize = TRUE,
-  synth_runner = NULL
+  synth_runner = NULL,
+  restrict_to = NULL
 ) {
   genes <- result$genes
   if (is.null(genes) || nrow(genes) == 0) {
@@ -333,7 +340,7 @@ run_specialists <- function(
       default_specialist_runner(system_prompt, user_prompts, schema, config)
     }
   }
-  candidates <- specialist_candidates(result, top_n)
+  candidates <- specialist_candidates(result, top_n, restrict_to = restrict_to)
   evidence <- result$evidence
   context <- result$context %||% list()
   # The schema is only needed by the live ellmer runner; tolerate ellmer being

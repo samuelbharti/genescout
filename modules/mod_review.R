@@ -87,7 +87,8 @@ review_server <- function(
             context = context,
             enabled = inputs$enabled(),
             seeder = seeder,
-            progress = on_progress
+            progress = on_progress,
+            max_genes = CANDID_INTERACTIVE_INPUT_MAX
           )
         ),
         error = function(e) {
@@ -98,11 +99,57 @@ review_server <- function(
           NULL
         }
       )
-      enriched(out)
+      # Keep the previous ranking on a failed re-run - the error notification above
+      # is enough; wiping a good result on a transient error loses the user's work.
+      if (!is.null(out)) {
+        enriched(out)
+        cap <- pluck_at(out, "context", "input_capped")
+        if (!is.null(cap)) {
+          showNotification(
+            sprintf(
+              paste(
+                "Your list has %d genes; ranked the first %d to keep the app",
+                "responsive. Use the CLI (dev/run_review.R) for the full list."
+              ),
+              cap$total,
+              cap$kept
+            ),
+            type = "warning",
+            duration = 12
+          )
+        }
+        # Flag tokens MyGene could not resolve (typos/aliases), which rank at the
+        # bottom with no signals - otherwise a fat-fingered symbol vanishes silently.
+        rs <- resolution_summary(out$genes)
+        if (rs$unresolved > 0) {
+          shown <- paste(head(rs$unresolved_symbols, 8), collapse = ", ")
+          more <- if (rs$unresolved > 8) ", ..." else ""
+          showNotification(
+            sprintf(
+              "%d of %d gene%s could not be resolved (ranked at the bottom): %s%s",
+              rs$unresolved,
+              rs$total,
+              if (rs$total == 1) "" else "s",
+              shown,
+              more
+            ),
+            type = "warning",
+            duration = 12
+          )
+        }
+      }
     }
 
     observeEvent(inputs$run(), {
       cs <- inputs$candidate_set()
+      # Tell the user about an unreadable upload instead of silently dropping it.
+      for (er in candidate_parse_errors(cs) %||% list()) {
+        showNotification(
+          sprintf("Could not read the '%s' source: %s", er$source, er$message),
+          type = "error",
+          duration = 12
+        )
+      }
       disease <- inputs$disease()
       if (length(cs) == 0 && is.null(disease)) {
         showNotification(
@@ -122,7 +169,8 @@ review_server <- function(
         proposal <- tryCatch(
           withProgress(
             message = "Reviewing your input with the agent...",
-            curate_input(cs, inputs$description(), config)
+            # Background process so Stop/refresh mid-call can't crash the session.
+            candid_llm_run(curate_input, cs, inputs$description(), config)
           ),
           error = function(e) {
             showNotification(

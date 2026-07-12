@@ -155,6 +155,62 @@ test_that("curate_gene_list() falls back (with the error) when the model throws"
   expect_match(attr(cur, "error"), "boom")
 })
 
+test_that("cap_curation() keeps the target's most-confident included genes", {
+  df <- tibble::tibble(
+    gene_symbol = c("A", "B", "C", "D"),
+    include = c(TRUE, TRUE, TRUE, FALSE),
+    confidence = c(0.9, 0.4, 0.7, 0.99)
+  )
+  out <- cap_curation(df, 2)
+  # Among the 3 included, keep the 2 most confident (A=0.9, C=0.7); B dropped.
+  expect_equal(which(out$include), c(1L, 3L))
+  # D was already excluded and stays excluded (a high confidence does not resurrect it).
+  expect_false(out$include[4])
+})
+
+test_that("cap_curation() is a no-op when the included count is within target", {
+  df <- tibble::tibble(
+    gene_symbol = c("A", "B"),
+    include = c(TRUE, FALSE),
+    confidence = c(0.5, 0.9)
+  )
+  expect_identical(cap_curation(df, 5), df)
+})
+
+test_that("curate_gene_list() caps the AI selection to the target size", {
+  skip_if_not_installed("ellmer")
+  res <- fake_curate_result() # candidates NF1, TP53, TTN
+  sel <- list(
+    list(
+      gene_symbol = "NF1",
+      include = TRUE,
+      confidence = 0.9,
+      rationale = "a"
+    ),
+    list(
+      gene_symbol = "TP53",
+      include = TRUE,
+      confidence = 0.6,
+      rationale = "b"
+    ),
+    list(gene_symbol = "TTN", include = TRUE, confidence = 0.8, rationale = "c")
+  )
+  factory <- function(system_prompt) {
+    list(chat_structured = function(user, type) {
+      list(selections = sel, overall_notes = "n")
+    })
+  }
+  cur <- curate_gene_list(
+    res,
+    config = candid_config,
+    top_n = 2,
+    chat_factory = factory
+  )
+  inc <- cur$gene_symbol[which(cur$include)]
+  expect_length(inc, 2) # capped to the target of 2
+  expect_setequal(inc, c("NF1", "TTN")) # the two most confident (0.9, 0.8)
+})
+
 test_that("curate_gene_list() uses a stubbed model and drops hallucinations", {
   skip_if_not_installed("ellmer")
   res <- fake_curate_result()

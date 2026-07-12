@@ -21,6 +21,74 @@ candid_cache_key <- function(...) {
   rlang::hash(list(...))
 }
 
+# A descriptive, contact-bearing User-Agent. NCBI E-utilities and Europe PMC ask
+# callers to identify themselves with a contact; the public repo URL is the stable
+# identifier, and a hosted operator can add a mailto via CANDID_CONTACT_EMAIL.
+CANDID_VERSION <- "0.1.0"
+CANDID_REPO_URL <- "https://github.com/samuelbharti/candid"
+
+candid_user_agent <- function() {
+  email <- Sys.getenv("CANDID_CONTACT_EMAIL", "")
+  contact <- if (nzchar(email)) {
+    paste0("+", CANDID_REPO_URL, "; mailto:", email)
+  } else {
+    paste0("+", CANDID_REPO_URL)
+  }
+  sprintf("CANDID/%s (%s)", CANDID_VERSION, contact)
+}
+
+# --- Per-host circuit breaker ------------------------------------------------
+# The enrichment loop makes one call per (gene x source), so a single unreachable
+# host would otherwise cost `timeout x retries` on EVERY gene (failures are not
+# cached). The breaker trips a host after CANDID_BREAKER_THRESHOLD consecutive
+# TRANSPORT failures (unreachable / timeout - an HTTP response, even 404/5xx, means
+# the host is up and clears the count) and short-circuits further calls to it for
+# CANDID_BREAKER_COOLDOWN seconds, so one dead source degrades to fast misses instead
+# of stalling the whole run. Process-global and self-healing via the cooldown.
+CANDID_BREAKER_THRESHOLD <- 3L
+CANDID_BREAKER_COOLDOWN <- 120 # seconds a tripped host is skipped before a retry
+candid_breaker <- new.env(parent = emptyenv())
+
+# Hostname of a request URL, for keying the breaker (falls back to a constant so a
+# malformed URL never errors the breaker).
+candid_url_host <- function(url) {
+  h <- tryCatch(httr2::url_parse(url)$hostname, error = function(e) NULL)
+  if (is.null(h) || !nzchar(h)) "unknown-host" else h
+}
+
+candid_breaker_state <- function(host) {
+  candid_breaker[[host]] %||% list(fails = 0L, tripped_until = 0)
+}
+
+# TRUE when `host` is currently tripped (skip the network, return a fast miss).
+candid_breaker_open <- function(host, now = as.numeric(Sys.time())) {
+  isTRUE(candid_breaker_state(host)$tripped_until > now)
+}
+
+# Record a call outcome: a success (host reachable) clears the count; the Kth
+# consecutive transport failure trips the breaker for the cooldown window.
+candid_breaker_record <- function(host, ok, now = as.numeric(Sys.time())) {
+  if (isTRUE(ok)) {
+    candid_breaker[[host]] <- list(fails = 0L, tripped_until = 0)
+  } else {
+    st <- candid_breaker_state(host)
+    fails <- st$fails + 1L
+    tripped_until <- if (fails >= CANDID_BREAKER_THRESHOLD) {
+      now + CANDID_BREAKER_COOLDOWN
+    } else {
+      st$tripped_until
+    }
+    candid_breaker[[host]] <- list(fails = fails, tripped_until = tripped_until)
+  }
+  invisible(candid_breaker[[host]])
+}
+
+# Clear all breaker state (used by tests to isolate; a fresh process starts clean).
+candid_breaker_reset <- function() {
+  rm(list = ls(candid_breaker), envir = candid_breaker)
+  invisible(NULL)
+}
+
 # GET a REST endpoint. `source` is a friendly label used in error messages.
 # `headers` is an optional NAMED list of request headers for a key-gated source
 # (e.g. list(Authorization = paste("Bearer", token))); they are marked sensitive
@@ -126,9 +194,18 @@ http_get_text <- function(
 }
 
 # Perform a request and normalize into an ok/status/text/error list (text variant
-# of candid_perform, for non-JSON bodies).
+# of candid_perform, for non-JSON bodies). Same per-host breaker as candid_perform.
 candid_perform_text <- function(req, source) {
-  tryCatch(
+  host <- candid_url_host(req$url)
+  if (candid_breaker_open(host)) {
+    return(list(
+      ok = FALSE,
+      status = NA_integer_,
+      text = NULL,
+      error = paste0(source, " skipped (host temporarily unreachable).")
+    ))
+  }
+  res <- tryCatch(
     {
       resp <- httr2::req_perform(req)
       status <- httr2::resp_status(resp)
@@ -157,6 +234,8 @@ candid_perform_text <- function(req, source) {
       )
     }
   )
+  candid_breaker_record(host, ok = !is.na(res$status))
+  res
 }
 
 # Return a cached successful result for `key`, otherwise run `fetch()` and cache
@@ -182,7 +261,7 @@ candid_req_defaults <- function(req, timeout, max_tries, headers = NULL) {
   req <- httr2::req_retry(req, max_tries = max_tries)
   # Don't let httr2 raise on HTTP errors; we normalize them ourselves.
   req <- httr2::req_error(req, is_error = function(resp) FALSE)
-  req <- httr2::req_user_agent(req, "CANDID (research-genomics workbench)")
+  req <- httr2::req_user_agent(req, candid_user_agent())
   if (!is.null(headers) && length(headers) > 0) {
     req <- do.call(
       httr2::req_headers,
@@ -193,8 +272,19 @@ candid_req_defaults <- function(req, timeout, max_tries, headers = NULL) {
 }
 
 # Perform a request and normalize into the standard ok/status/data/error list.
+# Short-circuits to a fast miss when the host's breaker is tripped, and records the
+# outcome (only a transport failure - status NA - counts against the host).
 candid_perform <- function(req, source) {
-  tryCatch(
+  host <- candid_url_host(req$url)
+  if (candid_breaker_open(host)) {
+    return(list(
+      ok = FALSE,
+      status = NA_integer_,
+      data = NULL,
+      error = paste0(source, " skipped (host temporarily unreachable).")
+    ))
+  }
+  res <- tryCatch(
     {
       resp <- httr2::req_perform(req)
       status <- httr2::resp_status(resp)
@@ -227,6 +317,8 @@ candid_perform <- function(req, source) {
       )
     }
   )
+  candid_breaker_record(host, ok = !is.na(res$status))
+  res
 }
 
 # TRUE for NULL, NA, empty string, or zero-length values.

@@ -122,11 +122,13 @@ until their keys are supplied.
 ```bash
 git clone https://github.com/samuelbharti/candid.git
 cd candid
-# First-time setup: install dependencies and write renv.lock.
-Rscript dev/init-renv.R
-# On later clones, once renv.lock is committed:
+# Restore the exact pinned dependency set from the committed renv.lock.
 Rscript -e 'renv::restore()'
 ```
+
+`renv.lock` pins every dependency (R 4.5.3 + CRAN packages), so a clone reproduces
+the tested environment; the same lock drives the Docker build. To regenerate the lock
+after changing dependencies, re-run `Rscript dev/init-renv.R` and review the diff.
 
 ### Launch the app
 
@@ -216,6 +218,10 @@ See [`PLAN.md`](PLAN.md) for the full phased plan. Near-term:
 - [x] Eval harness on known NF1 biology
 - [x] Three parallel specialist agents (grounded synthesis + suggested next
       experiment), layered on the deterministic ranking
+- [x] Parallel evidence retrieval for large lists (a bounded [mirai](https://mirai.r-lib.org/)
+      worker pool; serial fallback), so a 100+ gene panel ranks in a fraction of the time
+- [x] Crash-safe AI stages: the curator/specialist/input LLM calls run in a background
+      process, so stopping or refreshing mid-call can't segfault the session
 - [ ] Preprint + evaluation write-up
 
 ## Citation

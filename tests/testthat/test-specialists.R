@@ -51,6 +51,22 @@ fake_spec_result <- function() {
   )
 }
 
+test_that("specialist_candidates() narrows to restrict_to, then takes top n by rank", {
+  res <- fake_spec_result()
+  # No restriction: the whole ranked set, in rank order.
+  expect_equal(specialist_candidates(res, 10)$symbol, c("NF1", "TP53"))
+  # Restrict to the curated shortlist (case-insensitive): only those genes.
+  expect_equal(
+    specialist_candidates(res, 10, restrict_to = c("tp53"))$symbol,
+    "TP53"
+  )
+  # An empty restriction is treated as "no restriction", not "exclude everything".
+  expect_equal(
+    specialist_candidates(res, 10, restrict_to = character())$symbol,
+    c("NF1", "TP53")
+  )
+})
+
 # Cite a real id for the domain + a fabricated one, so grounding is exercised.
 fake_runner <- function(system_prompt, user_prompts, schema) {
   real <- if (grepl("Variant", system_prompt)) {

@@ -675,9 +675,19 @@ extract_ot_assoc <- function(resolved, context = list()) {
   )
 }
 
+# How many top articles the pmc_hits signal surfaces as citable PMID evidence, on
+# top of the query-count summary row - enough real papers to ground a curation /
+# specialist rationale without bloating a prompt.
+CANDID_PMC_EVIDENCE_MAX <- 5L
+
 # Europe PMC gene-mention count. In discovery mode, the count of papers
 # co-mentioning the gene AND the disease (a context-specific literature signal);
-# otherwise the gene's total mention count.
+# otherwise the gene's total mention count. The SCORE is the hit count
+# (europepmc_count, which keeps a genuine 0 as 0); when there IS literature, we
+# additionally pull the top few articles (europepmc_search) so the drill-down, the
+# AI curator, and the literature specialist can cite real PMIDs rather than only the
+# search-query link. The paper pull is best-effort: a failed/empty search just leaves
+# the count row, and the score is unchanged either way.
 extract_pmc_hits <- function(resolved, context = list()) {
   disease <- pluck_at(context, "disease")
   dname <- if (!is.null(disease)) disease$name %||% disease$id else NULL
@@ -700,21 +710,61 @@ extract_pmc_hits <- function(resolved, context = list()) {
   } else {
     sprintf("%d Europe PMC mentions of %s", r$count, resolved$symbol)
   }
+  ev <- evidence_long_rows(
+    resolved$gene_id,
+    "pmc_hits",
+    domain = "literature",
+    title = title,
+    detail = sprintf("query %s", q),
+    score = NA_real_,
+    source_id = r$source_id,
+    source_url = r$source_url
+  )
+  if (isTRUE(r$count > 0)) {
+    papers <- tryCatch(
+      europepmc_search(q, limit = CANDID_PMC_EVIDENCE_MAX),
+      error = function(e) NULL
+    )
+    if (!is.null(papers) && isTRUE(papers$ok)) {
+      ev <- dplyr::bind_rows(
+        ev,
+        pmc_paper_evidence(resolved$gene_id, papers$data)
+      )
+    }
+  }
   list(
     ok = TRUE,
     raw = r$count,
     source_id = r$source_id,
     source_url = r$source_url,
-    evidence = evidence_long_rows(
-      resolved$gene_id,
-      "pmc_hits",
-      domain = "literature",
-      title = title,
-      detail = sprintf("query %s", q),
-      score = NA_real_,
-      source_id = r$source_id,
-      source_url = r$source_url
-    )
+    evidence = ev
+  )
+}
+
+# Map Europe PMC search results (europepmc_search()$data - the parsed citation
+# tibble) to citable literature evidence rows, one per article, each grounded on its
+# PMID (or Europe PMC source id) so a rationale can reference the actual paper. Pure
+# and fixture-testable; `papers` is truncated to `max_rows`.
+pmc_paper_evidence <- function(
+  gene_id,
+  papers,
+  max_rows = CANDID_PMC_EVIDENCE_MAX
+) {
+  if (is.null(papers) || nrow(papers) == 0) {
+    return(empty_evidence_long())
+  }
+  papers <- utils::head(papers, max_rows)
+  jr <- ifelse(is.na(papers$journal), "", as.character(papers$journal))
+  yr <- ifelse(is.na(papers$year), "", as.character(papers$year))
+  evidence_long_rows(
+    gene_id,
+    "pmc_hits",
+    domain = "literature",
+    title = papers$title,
+    detail = trimws(paste(jr, yr)),
+    score = NA_real_,
+    source_id = papers$source_id,
+    source_url = papers$source_url
   )
 }
 
@@ -1436,8 +1486,15 @@ cap_seed_symbols <- function(symbols, data, max_seed = 200) {
 # which reads as a hung app. The batch default (max_seed = 200 below) is kept for
 # the CLI/evals, where a long run is fine; the interactive app passes this smaller
 # cap so a discovery click returns in a bounded time. The user's OWN pasted genes
-# are always enriched in full - only the extra disease-seeded universe is capped.
+# are enriched up to CANDID_INTERACTIVE_INPUT_MAX (a generous safety bound); the
+# disease-seeded universe is capped separately and more tightly here.
 CANDID_INTERACTIVE_SEED_MAX <- 75L
+
+# The interactive (Shiny) cap on the USER's own candidate list (run_enrich's
+# `max_genes`). A pasted list of thousands would fan out to (#genes x #sources)
+# serial calls and read as a hung app; this bounds an interactive run while staying
+# far above any realistic candidate set. The CLI/eval path leaves max_genes = Inf.
+CANDID_INTERACTIVE_INPUT_MAX <- 300L
 
 seed_disease_genes <- function(disease, ot_size = 250, max_seed = 200) {
   data <- list()
@@ -1705,6 +1762,30 @@ empty_resolved <- function() {
     input_lists = list(),
     input_source_ids = list(),
     input_source_types = list()
+  )
+}
+
+# Summarize how many candidate genes resolved to a canonical id, for a UI notice
+# ("N of M could not be resolved"). Unresolved tokens (typos/aliases MyGene could
+# not map) are ranked at the bottom with no signals, so a heads-up prevents silent
+# confusion. Reads the `resolved` flag on the gene matrix; degrades to zeros when it
+# is absent (a hand-built matrix in tests).
+resolution_summary <- function(genes) {
+  if (is.null(genes) || nrow(genes) == 0 || !("resolved" %in% names(genes))) {
+    return(list(
+      total = 0L,
+      resolved = 0L,
+      unresolved = 0L,
+      unresolved_symbols = character()
+    ))
+  }
+  ok <- as.logical(genes$resolved)
+  ok[is.na(ok)] <- FALSE
+  list(
+    total = nrow(genes),
+    resolved = sum(ok),
+    unresolved = sum(!ok),
+    unresolved_symbols = as.character(genes$symbol[!ok])
   )
 }
 
