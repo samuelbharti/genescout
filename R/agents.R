@@ -34,6 +34,28 @@ candid_chat <- function(
   )
 }
 
+# First non-empty environment variable among `vars`, or "". Lets a setting be read
+# under more than one accepted name.
+env_first <- function(...) {
+  for (v in c(...)) {
+    val <- Sys.getenv(v)
+    if (nzchar(val)) {
+      return(val)
+    }
+  }
+  ""
+}
+
+# Vertex project + region from the environment. Accept ellmer's documented VERTEX_*
+# names first, then the Google-standard GOOGLE_CLOUD_* names, so either convention in
+# .Renviron works without renaming.
+vertex_project_id <- function() {
+  env_first("VERTEX_PROJECT_ID", "GOOGLE_CLOUD_PROJECT")
+}
+vertex_location <- function() {
+  env_first("VERTEX_LOCATION", "GOOGLE_CLOUD_LOCATION")
+}
+
 # Map the configured provider to its ellmer constructor. Credentials come from
 # the environment (see .Renviron.example), never from config. Adding a provider
 # is a new case here plus its credential env var in provider_credentials_ready();
@@ -49,10 +71,27 @@ build_chat <- function(provider, model, system_prompt) {
       model = model,
       system_prompt = system_prompt
     ),
-    google_vertex = ellmer::chat_google_vertex(
-      model = model,
-      system_prompt = system_prompt
-    ),
+    # Vertex authenticates with Application Default Credentials (OAuth), NOT an API
+    # key, and requires the project + region positionally - passing them from the
+    # environment (this call previously omitted them and errored on every use). ellmer
+    # only *suggests* gargle (its Google OAuth backend), so guard with a clear message
+    # instead of an opaque "package required" error; the requireNamespace() call also
+    # keeps gargle in renv's dependency scan so renv.lock installs it.
+    google_vertex = {
+      if (!requireNamespace("gargle", quietly = TRUE)) {
+        stop(
+          "Vertex AI needs the 'gargle' package for Google OAuth. Install it ",
+          "(renv::install('gargle')) or use provider google_gemini with an API key.",
+          call. = FALSE
+        )
+      }
+      ellmer::chat_google_vertex(
+        location = vertex_location(),
+        project_id = vertex_project_id(),
+        model = model,
+        system_prompt = system_prompt
+      )
+    },
     openai = ellmer::chat_openai(
       model = model,
       system_prompt = system_prompt
@@ -81,8 +120,7 @@ provider_credentials_ready <- function(provider) {
     anthropic = nzchar(Sys.getenv("ANTHROPIC_API_KEY")),
     google_gemini = nzchar(Sys.getenv("GEMINI_API_KEY")) ||
       nzchar(Sys.getenv("GOOGLE_API_KEY")),
-    google_vertex = nzchar(Sys.getenv("GOOGLE_CLOUD_PROJECT")) &&
-      nzchar(Sys.getenv("GOOGLE_CLOUD_LOCATION")),
+    google_vertex = nzchar(vertex_project_id()) && nzchar(vertex_location()),
     openai = nzchar(Sys.getenv("OPENAI_API_KEY")),
     FALSE
   )

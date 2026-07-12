@@ -100,3 +100,70 @@ test_that("graphql_error() flags transport failures and in-body query errors", {
   # A clean response -> NULL (proceed to parse).
   expect_null(graphql_error(list(ok = TRUE, data = list(gene = list(id = 1)))))
 })
+
+# --- Contact-bearing User-Agent ---------------------------------------------
+
+test_that("candid_user_agent() identifies CANDID and carries a contact", {
+  ua <- withr::with_envvar(c(CANDID_CONTACT_EMAIL = ""), candid_user_agent())
+  expect_match(ua, "CANDID/", fixed = TRUE)
+  expect_match(ua, "github.com/samuelbharti/candid", fixed = TRUE)
+  expect_false(grepl("mailto:", ua, fixed = TRUE)) # no email set -> no mailto
+  # A hosted operator can add a contact email for the polite-usage etiquette.
+  ua2 <- withr::with_envvar(
+    c(CANDID_CONTACT_EMAIL = "ops@example.org"),
+    candid_user_agent()
+  )
+  expect_match(ua2, "mailto:ops@example.org", fixed = TRUE)
+})
+
+# --- Per-host circuit breaker ------------------------------------------------
+
+test_that("candid_url_host() extracts the hostname (falls back safely)", {
+  expect_equal(
+    candid_url_host("https://gnomad.broadinstitute.org/api"),
+    "gnomad.broadinstitute.org"
+  )
+  expect_equal(candid_url_host("not a url"), "unknown-host")
+})
+
+test_that("the per-host breaker trips after K transport failures and self-heals", {
+  candid_breaker_reset()
+  on.exit(candid_breaker_reset(), add = TRUE)
+  h <- "dead.example.org"
+  expect_false(candid_breaker_open(h, now = 100))
+  # Below the threshold does not trip.
+  candid_breaker_record(h, ok = FALSE, now = 100)
+  candid_breaker_record(h, ok = FALSE, now = 100)
+  expect_false(candid_breaker_open(h, now = 100)) # 2 < threshold 3
+  # The Kth consecutive transport failure trips it for the cooldown window.
+  candid_breaker_record(h, ok = FALSE, now = 100)
+  expect_true(candid_breaker_open(h, now = 100))
+  expect_true(candid_breaker_open(h, now = 100 + CANDID_BREAKER_COOLDOWN - 1))
+  # It self-heals once the cooldown elapses.
+  expect_false(candid_breaker_open(h, now = 100 + CANDID_BREAKER_COOLDOWN + 1))
+})
+
+test_that("a success clears the breaker's failure count", {
+  candid_breaker_reset()
+  on.exit(candid_breaker_reset(), add = TRUE)
+  h <- "flaky.example.org"
+  candid_breaker_record(h, ok = FALSE, now = 0)
+  candid_breaker_record(h, ok = FALSE, now = 0)
+  candid_breaker_record(h, ok = TRUE, now = 0) # reachable again -> reset
+  candid_breaker_record(h, ok = FALSE, now = 0)
+  expect_false(candid_breaker_open(h, now = 0)) # count restarted -> only 1 failure
+})
+
+test_that("candid_perform() short-circuits a tripped host without a request", {
+  candid_breaker_reset()
+  on.exit(candid_breaker_reset(), add = TRUE)
+  # Trip the host directly, then assert candid_perform returns a fast miss WITHOUT
+  # performing (a real request to this fake host would otherwise error/hang).
+  host <- candid_url_host("https://nowhere.invalid/x")
+  for (i in seq_len(CANDID_BREAKER_THRESHOLD)) {
+    candid_breaker_record(host, ok = FALSE)
+  }
+  res <- candid_perform(httr2::request("https://nowhere.invalid/x"), "Test")
+  expect_false(res$ok)
+  expect_match(res$error, "skipped", fixed = TRUE)
+})

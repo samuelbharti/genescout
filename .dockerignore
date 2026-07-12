@@ -5,8 +5,11 @@
 .Rhistory
 .RData
 .Ruserdata
-renv/library
-renv/staging
+# Ship only renv.lock into the image; the renv project infra (.Rprofile,
+# renv/activate.R, renv/settings.json) is excluded so the container restores the
+# lockfile the way the Dockerfile intends, without the renv autoloader interfering.
+.Rprofile
+renv/
 dev
 docs
 tests

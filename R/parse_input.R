@@ -304,15 +304,28 @@ candidate_set_from_list <- function(x) {
 # the single constructor Shiny, the CLI, and the API all call.
 collect_candidate_set <- function(specs) {
   srcs <- list()
+  errors <- list()
   for (i in seq_along(specs)) {
     spec <- specs[[i]]
+    label <- spec$name %||% spec$label %||% paste0("source_", i)
     genes <- character()
     if (!is.null(spec$genes)) {
       genes <- as.character(spec$genes)
     } else if (!is.null(spec$text) && nzchar(trimws(spec$text %||% ""))) {
       genes <- strsplit(spec$text, "\r?\n")[[1]]
     } else if (!is.null(spec$file) && nzchar(spec$file)) {
-      tbl <- tryCatch(read_candidate_table(spec$file), error = function(e) NULL)
+      # A malformed upload (e.g. no gene column) is recorded, not silently dropped,
+      # so a caller can tell the user why their file contributed nothing.
+      tbl <- tryCatch(
+        read_candidate_table(spec$file),
+        error = function(e) {
+          errors[[length(errors) + 1L]] <<- list(
+            source = label,
+            message = conditionMessage(e)
+          )
+          NULL
+        }
+      )
       if (!is.null(tbl)) {
         genes <- as.character(tbl$candidate)
       }
@@ -321,14 +334,24 @@ collect_candidate_set <- function(specs) {
     if (length(genes) == 0L) {
       next
     }
-    label <- spec$name %||% spec$label %||% paste0("source_", i)
     srcs[[length(srcs) + 1L]] <- candid_source(
       genes,
       label = label,
       type = spec$type %||% "unspecified"
     )
   }
-  new_candidate_set(srcs)
+  cs <- new_candidate_set(srcs)
+  if (length(errors) > 0) {
+    attr(cs, "parse_errors") <- errors
+  }
+  cs
+}
+
+# The parse errors collect_candidate_set attached (a list of list(source, message)),
+# or NULL when every source parsed. Lets a UI surface an unreadable upload instead
+# of silently dropping it.
+candidate_parse_errors <- function(cs) {
+  attr(cs, "parse_errors", exact = TRUE)
 }
 
 # Dispatch on an input source list(file = <path|NULL>, text = <chr|NULL>).

@@ -103,3 +103,28 @@ test_that("run_enrich() + rank_result() split re-ranks without re-enriching", {
   flipped <- rank_result(enr, weights = c(a = 0, b = 1))
   expect_false(identical(flipped$genes$composite, ranked$genes$composite))
 })
+
+test_that("run_enrich() caps the candidate list at max_genes and audits it", {
+  enr <- run_enrich(
+    list(mine = c("NF1", "TP53", "AAA", "BBB", "CCC")),
+    registry = stub_registry(),
+    resolver = stub_resolver,
+    max_genes = 2
+  )
+  expect_lte(nrow(enr$genes), 2) # only the kept tokens are resolved/enriched
+  cap <- enr$context[["input_capped"]]
+  expect_equal(cap$kept, 2)
+  expect_equal(cap$total, 5)
+  # The truncation is surfaced in the run provenance for the audit trail.
+  prov <- vapply(enr$provenance, function(s) s$source %||% "", character(1))
+  expect_true(any(grepl("Input cap", prov)))
+})
+
+test_that("run_enrich() default (max_genes = Inf) never caps", {
+  enr <- run_enrich(
+    list(mine = c("NF1", "TP53")),
+    registry = stub_registry(),
+    resolver = stub_resolver
+  )
+  expect_null(enr$context[["input_capped"]])
+})

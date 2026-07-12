@@ -45,3 +45,27 @@ test_that("europepmc_count_parse() reads hitCount and keeps 0 as 0", {
 test_that("europepmc_count() rejects a blank query", {
   expect_false(europepmc_count("")$ok)
 })
+
+test_that("pmc_paper_evidence() grounds each article on its PMID", {
+  papers <- europepmc_parse_results(
+    read_fixture("europepmc_nf1.json")$resultList$result
+  )
+  ev <- pmc_paper_evidence("ENSG00000196712", papers)
+
+  expect_equal(nrow(ev), min(nrow(papers), CANDID_PMC_EVIDENCE_MAX))
+  expect_true(all(ev$gene_id == "ENSG00000196712"))
+  expect_true(all(ev$signal_key == "pmc_hits"))
+  expect_true(all(ev$domain == "literature"))
+  # Every row is citable (has a source id) and the PMID-bearing ones read "PMID:<n>",
+  # so a curation / specialist rationale can cite the actual paper.
+  expect_true(all(nzchar(ev$source_id)))
+  expect_true(any(grepl("^PMID:", ev$source_id)))
+  expect_equal(ev$title, utils::head(papers$title, CANDID_PMC_EVIDENCE_MAX))
+})
+
+test_that("pmc_paper_evidence() returns an empty evidence frame for no papers", {
+  ev <- pmc_paper_evidence("ENSG0", NULL)
+  expect_equal(nrow(ev), 0)
+  ev2 <- pmc_paper_evidence("ENSG0", europepmc_parse_results(list()))
+  expect_equal(nrow(ev2), 0)
+})

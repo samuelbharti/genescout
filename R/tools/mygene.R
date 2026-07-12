@@ -51,7 +51,9 @@ resolve_symbol <- function(symbol, species = "human") {
     query = list(
       q = mygene_query_term(cleaned),
       species = species,
-      size = 1,
+      # Fetch a few candidates (not just the top score) so mygene_pick_hit() can
+      # prefer the exact symbol over a higher-scored fuzzy match to another gene.
+      size = 5,
       fields = MYGENE_FIELDS
     ),
     source = "MyGene"
@@ -67,7 +69,7 @@ resolve_symbol <- function(symbol, species = "human") {
       error = paste0("No gene found for '", cleaned, "'.")
     ))
   }
-  mygene_parse_hit(hits[[1]], fallback_symbol = cleaned)
+  mygene_parse_hit(mygene_pick_hit(hits, cleaned), fallback_symbol = cleaned)
 }
 
 # Batch-resolve many identifiers in ONE request (MyGene /query POST). This is the
@@ -108,19 +110,21 @@ resolve_symbols_batch <- function(symbols, species = "human") {
 
 # Pure parser: the batch /query POST returns a flat array where each element echoes
 # its input `query`; an ambiguous query yields several elements (best `_score`
-# first) and an unmatched one an element with `notfound = true`. Group by the echoed
-# query, take the first (best) hit per query, and map every input symbol back to a
-# resolve_symbol()-shaped result in input order - so an unmatched or invalid token
-# becomes a definite ok = FALSE (never a wrong gene). Separated from the fetch so it
-# is testable offline against a recorded array.
+# first) and an unmatched one an element with `notfound = true`. Group ALL hits by the
+# echoed query, pick the best one per query with mygene_pick_hit() (exact symbol match
+# preferred - see below), and map every input symbol back to a resolve_symbol()-shaped
+# result in input order - so an unmatched or invalid token becomes a definite
+# ok = FALSE (never a wrong gene). Separated from the fetch so it is testable offline.
 mygene_parse_batch <- function(hits, symbols) {
   by_query <- list()
   for (h in hits) {
     q <- pluck_at(h, "query")
-    if (is_blank(q) || !is.null(by_query[[q]])) {
-      next # first element for a query wins (MyGene returns best score first)
+    if (is_blank(q)) {
+      next
     }
-    by_query[[q]] <- h
+    # Keep EVERY hit for a query (in MyGene's best-score-first order), not just the
+    # first, so mygene_pick_hit() can override the score with an exact symbol match.
+    by_query[[q]] <- c(by_query[[q]], list(h))
   }
   lapply(symbols, function(sym) {
     cleaned <- mygene_clean_symbol(sym)
@@ -130,7 +134,7 @@ mygene_parse_batch <- function(hits, symbols) {
         error = "Please provide a valid gene identifier."
       ))
     }
-    hit <- by_query[[cleaned]]
+    hit <- mygene_pick_hit(by_query[[cleaned]], cleaned)
     if (is.null(hit) || isTRUE(pluck_at(hit, "notfound", default = FALSE))) {
       return(list(
         ok = FALSE,
@@ -139,6 +143,26 @@ mygene_parse_batch <- function(hits, symbols) {
     }
     mygene_parse_hit(hit, fallback_symbol = cleaned)
   })
+}
+
+# Choose the best hit for a queried token from its candidate hits. MyGene's `_score`
+# can rank a fuzzy alias/retired match to a DIFFERENT gene ABOVE the exact symbol
+# match - e.g. querying "TTN" (with alias/retired scopes) returns TTR (entrez 7276,
+# score 19.07) before TTN (7273, score 18.29). So prefer a hit whose official symbol
+# equals the token (case-insensitive); only when none does - a deliberate alias like
+# "p53" - fall back to MyGene's first (best-score) hit. This is what keeps the wrong
+# gene out of the results.
+mygene_pick_hit <- function(hits, token) {
+  if (is.null(hits) || length(hits) == 0) {
+    return(NULL)
+  }
+  for (h in hits) {
+    sym <- pluck_at(h, "symbol", default = "")
+    if (nzchar(sym) && identical(toupper(sym), toupper(token))) {
+      return(h)
+    }
+  }
+  hits[[1]]
 }
 
 # Pure parser: a single MyGene hit (parsed JSON list) -> normalized result.

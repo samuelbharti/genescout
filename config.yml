@@ -10,20 +10,22 @@
 #   anthropic      -> ANTHROPIC_API_KEY
 #   google_gemini  -> GEMINI_API_KEY (or GOOGLE_API_KEY)   <- the API-key path
 #   openai         -> OPENAI_API_KEY
-#   google_vertex  -> GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION + Application
-#                     Default Credentials (service-account JSON or
-#                     `gcloud auth application-default login`); NOT an API key
+#   google_vertex  -> VERTEX_PROJECT_ID + VERTEX_LOCATION (or GOOGLE_CLOUD_PROJECT/
+#                     GOOGLE_CLOUD_LOCATION) + Application Default Credentials
+#                     (`gcloud auth application-default login`, or a service-account
+#                     JSON via GOOGLE_APPLICATION_CREDENTIALS); NOT an API key
 #
-# ellmer serves only Gemini through Google (never Claude). A plain API key uses
-# the Gemini Developer API via google_gemini - key only, no project id or
-# service-account file. For Claude, set provider: anthropic; for GPT, openai.
+# ellmer serves Gemini through Google (never Claude). google_vertex runs Gemini on
+# Google Cloud Vertex AI (OAuth + project/region, bills to your Cloud project);
+# google_gemini is the Gemini Developer API key path (no project). For Claude set
+# provider: anthropic; for GPT, openai.
 
 default:
-  provider: google_gemini
+  provider: google_vertex
   models:
-    # Orchestration and the caveats/veto stage. Default to gemini-2.5-flash, which
-    # the Gemini free tier allows and which curates well; switch to gemini-2.5-pro
-    # on a paid plan for higher quality (the free tier returns HTTP 429 for pro).
+    # Orchestration and the caveats/veto stage. gemini-2.5-flash is fast and curates
+    # well; on Vertex (paid) you can raise these two to gemini-2.5-pro for
+    # higher-quality synthesis (pro is 429'd on the Gemini free tier, fine on Vertex).
     orchestrator: gemini-2.5-flash
     caveats: gemini-2.5-flash
     # The retrieval specialists: a faster model for speed + cost.
@@ -37,6 +39,9 @@ default:
   # overrides this. Example (a lean cancer-research default):
   #   sources: [ot_assoc, clinvar_path, pmc_hits, pubtator, cbioportal, civic]
 
+# To use the Gemini Developer API (a plain API key, no Cloud project) instead:
+#   provider: google_gemini      # set GEMINI_API_KEY in .Renviron; same model ids
+#
 # To use Anthropic (Claude) instead, replace the block above with:
 #   provider: anthropic
 #   models:
