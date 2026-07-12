@@ -5,6 +5,9 @@
 # ellmer chat_google_gemini() (Gemini Developer API). API-key path: key only - no
 # project id, no location, no service-account file. Get a key at
 # https://aistudio.google.com/apikey . GOOGLE_API_KEY works as an alias.
+# This is where ANY Gemini API KEY goes, including a key created inside a Google
+# Cloud project: usage then bills to that project (and its credits). Vertex AI
+# (below) is a DIFFERENT thing - its endpoint rejects API keys and needs OAuth.
 GEMINI_API_KEY=
 
 # --- Anthropic (direct API) -------------------------------------------------
