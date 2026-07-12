@@ -34,6 +34,28 @@ candid_chat <- function(
   )
 }
 
+# First non-empty environment variable among `vars`, or "". Lets a setting be read
+# under more than one accepted name.
+env_first <- function(...) {
+  for (v in c(...)) {
+    val <- Sys.getenv(v)
+    if (nzchar(val)) {
+      return(val)
+    }
+  }
+  ""
+}
+
+# Vertex project + region from the environment. Accept ellmer's documented VERTEX_*
+# names first, then the Google-standard GOOGLE_CLOUD_* names, so either convention in
+# .Renviron works without renaming.
+vertex_project_id <- function() {
+  env_first("VERTEX_PROJECT_ID", "GOOGLE_CLOUD_PROJECT")
+}
+vertex_location <- function() {
+  env_first("VERTEX_LOCATION", "GOOGLE_CLOUD_LOCATION")
+}
+
 # Map the configured provider to its ellmer constructor. Credentials come from
 # the environment (see .Renviron.example), never from config. Adding a provider
 # is a new case here plus its credential env var in provider_credentials_ready();
@@ -64,8 +86,8 @@ build_chat <- function(provider, model, system_prompt) {
         )
       }
       ellmer::chat_google_vertex(
-        location = Sys.getenv("GOOGLE_CLOUD_LOCATION"),
-        project_id = Sys.getenv("GOOGLE_CLOUD_PROJECT"),
+        location = vertex_location(),
+        project_id = vertex_project_id(),
         model = model,
         system_prompt = system_prompt
       )
@@ -98,8 +120,7 @@ provider_credentials_ready <- function(provider) {
     anthropic = nzchar(Sys.getenv("ANTHROPIC_API_KEY")),
     google_gemini = nzchar(Sys.getenv("GEMINI_API_KEY")) ||
       nzchar(Sys.getenv("GOOGLE_API_KEY")),
-    google_vertex = nzchar(Sys.getenv("GOOGLE_CLOUD_PROJECT")) &&
-      nzchar(Sys.getenv("GOOGLE_CLOUD_LOCATION")),
+    google_vertex = nzchar(vertex_project_id()) && nzchar(vertex_location()),
     openai = nzchar(Sys.getenv("OPENAI_API_KEY")),
     FALSE
   )
