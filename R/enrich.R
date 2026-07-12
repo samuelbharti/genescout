@@ -245,6 +245,25 @@ candid_signal_registry <- function(
       role = "annotation",
       domain = "constraint"
     ),
+    # Opt-in (default_on = FALSE): scans a gene's whole variant set, so it runs only
+    # when the user selects it. Weight 0 + role annotation keeps it OUT of the
+    # composite entirely (excluded from the evidence mean and from the up-nudge,
+    # which needs weight > 0); it exists purely to drive the "common variant" caveat
+    # and as an informative column. normalize_saturating_desc makes its _n rarity
+    # (rare -> high), so if a user ever raises its slider it nudges in the correct
+    # direction rather than rewarding a common gene.
+    candid_signal(
+      "gnomad_af",
+      "gnomAD common-LoF frequency",
+      "gnomAD",
+      extractor = extract_gnomad_af,
+      normalize = normalize_saturating_desc(m$gnomad_af %||% 0.001),
+      weight = w$gnomad_af %||% 0,
+      direction = "lower_better",
+      role = "annotation",
+      domain = "population-frequency",
+      default_on = FALSE
+    ),
     candid_signal(
       "pharos_tdl",
       "Pharos target dev. level",
@@ -828,6 +847,40 @@ extract_gnomad_loeuf <- function(resolved, context = list()) {
         r$loeuf
       ),
       detail = detail,
+      score = NA_real_,
+      source_id = r$source_id,
+      source_url = r$source_url
+    )
+  )
+}
+
+# gnomAD common loss-of-function frequency: the max allele frequency among the
+# gene's pLoF variants. A COMMON pLoF variant means the general population tolerates
+# losing the gene, so it is a weaker driver candidate - the caveats stage reads this
+# raw value and down-weights a gene above the rubric threshold. Raw 0 (a gene in
+# gnomAD with no common pLoF) is a REAL value, not a miss. Annotation, weight 0:
+# purely a caveat driver + an informative column, never a scoring contribution.
+extract_gnomad_af <- function(resolved, context = list()) {
+  r <- gnomad_gene_max_lof_af(resolved$symbol)
+  if (!isTRUE(r$ok)) {
+    return(signal_miss())
+  }
+  list(
+    ok = TRUE,
+    raw = r$max_lof_af,
+    source_id = r$source_id,
+    source_url = r$source_url,
+    evidence = evidence_long_rows(
+      resolved$gene_id,
+      "gnomad_af",
+      domain = "population-frequency",
+      title = sprintf(
+        "gnomAD max pLoF allele frequency %.2g (%d pLoF variant%s)",
+        r$max_lof_af,
+        r$n_lof,
+        if (r$n_lof == 1) "" else "s"
+      ),
+      detail = "higher = a more common loss-of-function variant in the population",
       score = NA_real_,
       source_id = r$source_id,
       source_url = r$source_url

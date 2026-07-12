@@ -20,6 +20,7 @@ CANDID_DOMAIN_LABELS <- c(
   literature = "Literature",
   `variant-effect` = "Variant / ClinVar",
   constraint = "Constraint (gnomAD)",
+  `population-frequency` = "Population frequency (gnomAD)",
   druggability = "Druggability",
   `function` = "Molecular function (GO)",
   structure = "Protein structure (PDBe)",

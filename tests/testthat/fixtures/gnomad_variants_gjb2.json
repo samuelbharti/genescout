@@ -1,0 +1,98 @@
+{
+  "data": {
+    "gene": {
+      "variants": [
+        {
+          "consequence": "frameshift_variant",
+          "genome": {
+            "af": 0.006268023860628646
+          },
+          "exome": {
+            "af": 0.007131226053639847
+          }
+        },
+        {
+          "consequence": "splice_acceptor_variant",
+          "genome": {
+            "af": 0.0005778069599474721
+          },
+          "exome": {
+            "af": 0.0007102848420818353
+          }
+        },
+        {
+          "consequence": "frameshift_variant",
+          "genome": {
+            "af": 0.0005978739340104858
+          },
+          "exome": {
+            "af": 0.0005020197219098391
+          }
+        },
+        {
+          "consequence": "frameshift_variant",
+          "genome": {
+            "af": 0.0003020076946308284
+          },
+          "exome": {
+            "af": 0.0001799119731076065
+          }
+        },
+        {
+          "consequence": "stop_gained",
+          "genome": {
+            "af": 0.00013788937332562904
+          },
+          "exome": {
+            "af": 0.0002941409851944477
+          }
+        },
+        {
+          "consequence": "frameshift_variant",
+          "genome": {
+            "af": 0.00015115071698014012
+          },
+          "exome": {
+            "af": 0.00018202396968274454
+          }
+        },
+        {
+          "consequence": "intron_variant",
+          "genome": {
+            "af": 0.06882705501958414
+          },
+          "exome": {
+            "af": 0.007078031010254862
+          }
+        },
+        {
+          "consequence": "missense_variant",
+          "genome": {
+            "af": 0.025929427832276194
+          },
+          "exome": {
+            "af": 0.01757230241762812
+          }
+        },
+        {
+          "consequence": "5_prime_UTR_variant",
+          "genome": {
+            "af": 0.01469429044378465
+          },
+          "exome": {
+            "af": 0.00157476864594545
+          }
+        },
+        {
+          "consequence": "missense_variant",
+          "genome": {
+            "af": 0.009405849611426171
+          },
+          "exome": {
+            "af": 0.01231599889441983
+          }
+        }
+      ]
+    }
+  }
+}

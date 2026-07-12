@@ -55,9 +55,13 @@ that looks compelling but is:
   below `caveats.single_source.max_norm` down-weights the composite by
   `caveats.single_source.penalty`.
 - **Common in gnomAD** - population frequency too high to be a plausible driver.
-  *Deferred* - needs a gene-level allele-frequency signal. LOEUF is constraint,
-  not frequency, so it is deliberately **not** used as a substitute here. Add the
-  signal first, then wire the trigger.
+  *Implemented (caveat).* When the opt-in gnomAD common-LoF-frequency signal
+  (`gnomad_af`) ran, a gene whose maximum predicted-loss-of-function allele
+  frequency exceeds `caveats.common_variant.min_af` is down-weighted by
+  `caveats.common_variant.penalty` - the general population tolerates losing the
+  gene, so it is a weaker driver candidate. This is a gene-level frequency signal
+  (max pLoF AF across the gene's variants), distinct from LOEUF, which is
+  constraint, not frequency, and is deliberately **not** used as a substitute.
 - **Unrelated-tissue-only** - the gene is expressed (GTEx) but essentially not in
   the study's tissue(s) of interest. *Implemented (caveat).* When the GTEx signal
   ran, a gene whose tissue relevance is below `caveats.unrelated_tissue.

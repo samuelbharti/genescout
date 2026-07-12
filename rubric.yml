@@ -18,6 +18,7 @@ default:
     clinvar_path: 1.0 # ClinVar pathogenic / likely-pathogenic variant count
     dgidb: 0.5 # DGIdb drug-gene interaction count (druggability, evidence)
     gnomad_loeuf: 0.75 # gnomAD LOEUF constraint (annotation, lower is better)
+    gnomad_af: 0.0 # gnomAD common-LoF frequency: caveat-only, so weight 0 (opt-in)
     pharos_tdl: 0.5 # Pharos target development level (annotation)
     reactome: 0.5 # Reactome disease-pathway membership (annotation)
     panelapp: 1.0 # Genomics England PanelApp confidence (discovery mode only)
@@ -51,6 +52,7 @@ default:
     clinvar_path: 5
     dgidb: 5 # ~5 interactions normalizes to 0.5
     gnomad_loeuf: 0.35 # LOEUF 0.35 -> 0.5; strongly constrained (<0.35) scores higher
+    gnomad_af: 0.001 # rarity midpoint: max pLoF AF 0.001 -> 0.5 (used only if weighted)
     reactome: 2 # ~2 relevant disease pathways normalizes to 0.5
     diseases: 2 # DISEASES confidence ~2 (of 0-5) normalizes to 0.5
     hpo: 3 # ~3 (context-matching) HPO diseases normalizes to 0.5
@@ -105,3 +107,10 @@ default:
     unrelated_tissue:
       penalty: 0.85 # composite *= this when expressed only in unrelated tissues
       max_relevance: 0.1 # "unrelated" = GTEx tissue relevance below this (0-1)
+    # Common-variant: a gene carrying a COMMON loss-of-function variant in gnomAD
+    # (max pLoF allele frequency above min_af) is tolerated in the general
+    # population, so it is a weaker driver candidate and is down-weighted. Needs the
+    # opt-in gnomAD common-LoF-frequency signal (gnomad_af).
+    common_variant:
+      penalty: 0.8 # composite *= this when a common pLoF variant is present
+      min_af: 0.001 # "common" = max pLoF allele frequency above this (0.1%)

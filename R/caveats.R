@@ -13,9 +13,10 @@
 #   - CAVEAT: supported only by a single weak evidence source.
 #   - CAVEAT: expressed (GTEx) but essentially not in the study's tissue(s) of
 #     interest - only when the GTEx signal ran (tissues of interest supplied).
-# One rubric trigger is still DEFERRED (documented, not faked): "common in gnomAD"
-# needs a gene-level allele-frequency signal (LOEUF is constraint, not frequency,
-# so it is NOT a substitute). Add the signal first, then wire the trigger here.
+#   - CAVEAT: a common loss-of-function variant in gnomAD (max pLoF allele frequency
+#     above the rubric threshold) - only when the opt-in gnomAD-frequency signal ran.
+#     This is a gene-level FREQUENCY signal, distinct from LOEUF (which is constraint,
+#     not frequency, and is deliberately not used as a substitute).
 
 # Universal recurrent-artifact (FLAGS = FrequentLy mutAted GeneS) fallback, used
 # only when the rubric omits a caveats$flags_genes list. The canonical list is
@@ -36,6 +37,7 @@ caveat_config <- function(rubric = NULL) {
   cv <- rubric$caveats %||% list()
   ss <- cv$single_source %||% list()
   ut <- cv$unrelated_tissue %||% list()
+  cvar <- cv$common_variant %||% list()
   list(
     enabled = isTRUE(cv$enabled %||% TRUE),
     flags_genes = toupper(as.character(
@@ -44,7 +46,9 @@ caveat_config <- function(rubric = NULL) {
     single_penalty = as.numeric(ss$penalty %||% 0.75),
     single_max_norm = as.numeric(ss$max_norm %||% 0.5),
     tissue_penalty = as.numeric(ut$penalty %||% 0.85),
-    tissue_max_relevance = as.numeric(ut$max_relevance %||% 0.1)
+    tissue_max_relevance = as.numeric(ut$max_relevance %||% 0.1),
+    common_penalty = as.numeric(cvar$penalty %||% 0.8),
+    common_af_min = as.numeric(cvar$min_af %||% 0.001)
   )
 }
 
@@ -154,6 +158,31 @@ apply_caveats <- function(
         r <- c(
           r,
           "Expressed outside the tissue(s) of interest (GTEx) - down-weighted."
+        )
+      }
+    }
+
+    # CAVEAT: a common loss-of-function variant in gnomAD - the general population
+    # tolerates losing the gene, so it is a weaker driver candidate. Reads the RAW
+    # max pLoF allele frequency; only fires when the (opt-in) gnomAD-frequency
+    # signal ran, so a default run without it is unchanged.
+    if (
+      "gnomad_af_present" %in%
+        names(genes) &&
+        isTRUE(genes$gnomad_af_present[i])
+    ) {
+      af <- suppressWarnings(as.numeric(genes$gnomad_af[i]))
+      if (!is.na(af) && af > cfg$common_af_min) {
+        penalty[i] <- penalty[i] * cfg$common_penalty
+        r <- c(
+          r,
+          sprintf(
+            paste0(
+              "Common loss-of-function variant in gnomAD (AF %.2g) - too common ",
+              "to be a plausible driver; down-weighted."
+            ),
+            af
+          )
         )
       }
     }
