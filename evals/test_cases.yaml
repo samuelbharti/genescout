@@ -17,12 +17,26 @@
 # scoped to it, gene+disease co-mention, plus PanelApp/DISEASES). `expect_below`
 # asserts a gene ranks strictly below every other candidate. Grow these cases as
 # capabilities land.
+#
+# `expect_identity` (optional) is the wrong-gene guard: a map of gene symbol ->
+# Ensembl gene id that asserts each named candidate resolved to EXACTLY that gene.
+# It exists because a real regression resolved TTN to TTR (a fuzzy alias match
+# out-scored the exact symbol) and the grade/rank assertions passed anyway - the
+# ranking held while the identity was wrong. Independently, EVERY candidate must
+# round-trip to its own symbol (a mis-resolution to a different symbol fails the
+# case even without an anchor). Ids below are the live MyGene resolutions.
 
 - description: NF1-associated MPNST - drivers grade High, TTN vetoed to the bottom.
   candidates: [NF1, SUZ12, CDKN2A, TP53, TTN]
   expect_high: [NF1, SUZ12, CDKN2A, TP53]
   expect_grade: High
   expect_below: TTN
+  expect_identity:
+    NF1: ENSG00000196712
+    SUZ12: ENSG00000178691
+    CDKN2A: ENSG00000147889
+    TP53: ENSG00000141510
+    TTN: ENSG00000155657
 
 # In discovery mode the scoring is disease-SPECIFIC, so only NF1 (the defining
 # gene) grades High; TP53/SUZ12/CDKN2A are real cancer genes but not NF1-specific,
@@ -34,6 +48,28 @@
   expect_high: [NF1]
   expect_grade: High
   expect_below: TTN
+  expect_identity:
+    NF1: ENSG00000196712
+    TTN: ENSG00000155657
+
+# Generalization to a SECOND disease and biology: the same discovery engine on Lynch
+# syndrome (DNA mismatch-repair, not NF1's RAS/MAPK axis). Every MMR driver grades High
+# and the off-context passenger TTN is vetoed to last - proving the engine is
+# context-driven (context/lynch.yaml priors), not NF1-locked. Grades verified live:
+# MSH6/MLH1/MSH2/PMS2/EPCAM all grade High (composite ~0.80-0.84); TTN vetoed last.
+- description: Lynch/MMR discovery - the mismatch-repair drivers grade High, TTN last.
+  disease: Lynch syndrome
+  candidates: [MLH1, MSH2, MSH6, PMS2, EPCAM, TTN]
+  expect_high: [MLH1, MSH2, MSH6, PMS2, EPCAM]
+  expect_grade: High
+  expect_below: TTN
+  expect_identity:
+    MLH1: ENSG00000076242
+    MSH2: ENSG00000095002
+    MSH6: ENSG00000116062
+    PMS2: ENSG00000122512
+    EPCAM: ENSG00000119888
+    TTN: ENSG00000155657
 
 # Selection end-to-end: the same candidates ranked with an explicit CANCER-AXIS
 # subset (the opt-in cancer connectors + a few strong evidence sources), proving a
@@ -46,3 +82,7 @@
   expect_high: [NF1, TP53, CDKN2A]
   expect_grade: High
   expect_below: TTN
+  expect_identity:
+    NF1: ENSG00000196712
+    TP53: ENSG00000141510
+    TTN: ENSG00000155657
