@@ -218,6 +218,8 @@ See [`PLAN.md`](PLAN.md) for the full phased plan. Near-term:
 - [x] Eval harness on known NF1 biology
 - [x] Three parallel specialist agents (grounded synthesis + suggested next
       experiment), layered on the deterministic ranking
+- [x] Parallel evidence retrieval for large lists (a bounded [mirai](https://mirai.r-lib.org/)
+      worker pool; serial fallback), so a 100+ gene panel ranks in a fraction of the time
 - [ ] Preprint + evaluation write-up
 
 ## Citation
