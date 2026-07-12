@@ -160,7 +160,8 @@ results_server <- function(
       cur <- tryCatch(
         withProgress(
           message = "Curating with the configured model...",
-          curate_gene_list(result(), config, top_n = ts)
+          # Run in a background process so Stop/refresh mid-call can't crash the session.
+          candid_llm_run(curate_gene_list, result(), config, top_n = ts)
         ),
         error = function(e) {
           showNotification(
@@ -253,7 +254,13 @@ results_server <- function(
       sp <- tryCatch(
         withProgress(
           message = "Running specialists on the top candidates...",
-          run_specialists(result(), config, restrict_to = restrict)
+          # Background process: the specialists' libcurl calls stay out of the session.
+          candid_llm_run(
+            run_specialists,
+            result(),
+            config,
+            restrict_to = restrict
+          )
         ),
         error = function(e) {
           showNotification(

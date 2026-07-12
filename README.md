@@ -220,6 +220,8 @@ See [`PLAN.md`](PLAN.md) for the full phased plan. Near-term:
       experiment), layered on the deterministic ranking
 - [x] Parallel evidence retrieval for large lists (a bounded [mirai](https://mirai.r-lib.org/)
       worker pool; serial fallback), so a 100+ gene panel ranks in a fraction of the time
+- [x] Crash-safe AI stages: the curator/specialist/input LLM calls run in a background
+      process, so stopping or refreshing mid-call can't segfault the session
 - [ ] Preprint + evaluation write-up
 
 ## Citation

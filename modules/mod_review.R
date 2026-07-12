@@ -169,7 +169,8 @@ review_server <- function(
         proposal <- tryCatch(
           withProgress(
             message = "Reviewing your input with the agent...",
-            curate_input(cs, inputs$description(), config)
+            # Background process so Stop/refresh mid-call can't crash the session.
+            candid_llm_run(curate_input, cs, inputs$description(), config)
           ),
           error = function(e) {
             showNotification(
