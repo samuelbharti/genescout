@@ -5,5 +5,6 @@ navbarPage(
   theme = bslib::bs_theme(brand = TRUE),
   tabPanel("Review", review_page),
   tabPanel("Connectors", connectors_page),
+  tabPanel("AI Agents", agents_page),
   tabPanel("About", about_page)
 )
