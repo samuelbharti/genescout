@@ -1,0 +1,52 @@
+# Live eval harness - ON DEMAND ONLY.
+#
+# Deliberately triggered ONLY by workflow_dispatch (a manual "Run workflow" click):
+#   - It hits live biomedical APIs (MyGene, Open Targets, Europe PMC, ClinVar, ...),
+#     which is too slow/rate-sensitive for a per-PR gate, so it must not run on push
+#     or pull_request.
+#   - There is deliberately NO `schedule:` trigger - a cron would spend Actions
+#     minutes on its own. Add one later if a maintained budget allows; until then a
+#     human runs this when they want a fresh identity/ranking check.
+#
+# It asserts the eval invariants (identity exact, drivers grade High, the negative
+# control ranks last). Optionally snapshots evals/baseline.json and uploads it as a
+# build artifact (it is NOT committed from CI - regenerate + commit locally).
+on:
+  workflow_dispatch:
+    inputs:
+      write_baseline:
+        description: "Snapshot outcomes to baseline.json and upload as an artifact"
+        type: boolean
+        default: false
+
+name: Evals (on demand)
+
+permissions: read-all
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::jsonlite, any::yaml
+      - name: Run evals
+        run: |
+          if [ "${{ inputs.write_baseline }}" = "true" ]; then
+            Rscript evals/run_evals.R --write-baseline
+          else
+            Rscript evals/run_evals.R
+          fi
+      - name: Upload baseline artifact
+        if: ${{ inputs.write_baseline == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-baseline
+          path: evals/baseline.json
+          if-no-files-found: warn
