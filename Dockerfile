@@ -6,6 +6,10 @@ ARG CRAN_MIRROR=https://cloud.r-project.org
 ENV CRAN_MIRROR=${CRAN_MIRROR}
 ENV RENV_CONFIG_PAK_ENABLED=TRUE
 ENV RENV_CONFIG_AUTOLOADER_ENABLED=false
+# Anchor the app root so lazily-loaded files (rubric.yml, context/*.yaml) and the
+# parallel-enrichment workers (which source the engine from here) resolve regardless
+# of the process working directory.
+ENV CANDID_APP_ROOT=/home/app
 
 WORKDIR /home/app
 

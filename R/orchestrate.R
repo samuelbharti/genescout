@@ -180,7 +180,11 @@ run_enrich <- function(
   context$active_sources <- vapply(registry, function(s) s$key, character(1))
 
   resolved <- resolve_genes(flat, resolver = resolver)
-  enriched <- enrich_genes(
+  # Per-gene evidence retrieval. enrich_genes_dispatch() runs the serial enrich_genes()
+  # for a small list (or when the parallel path is unavailable) and fans the per-gene
+  # loop across a bounded mirai worker pool for a large one; either way it returns the
+  # same signals_long / evidence_long tables, so the rest of the pipeline is unchanged.
+  enriched <- enrich_genes_dispatch(
     resolved,
     registry,
     context = context,
