@@ -19,9 +19,13 @@ ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 
 # --- Google Vertex AI (only for provider: google_vertex) --------------------
-# Vertex uses Application Default Credentials, NOT an API key: a service-account
-# JSON (via GOOGLE_APPLICATION_CREDENTIALS) or `gcloud auth application-default
-# login`, plus project + region. Fill these only for provider: google_vertex.
-# GOOGLE_CLOUD_PROJECT=
-# GOOGLE_CLOUD_LOCATION=us-central1
+# Vertex uses Application Default Credentials, NOT an API key: authenticate with
+# `gcloud auth application-default login` (no file needed) OR a service-account JSON
+# (GOOGLE_APPLICATION_CREDENTIALS), plus a project + region. Fill only for provider:
+# google_vertex. Either naming works: VERTEX_* (ellmer's convention) is read first,
+# then GOOGLE_CLOUD_* as an alias.
+# VERTEX_PROJECT_ID=
+# VERTEX_LOCATION=us-central1
+#   (aliases: GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION)
+# Only if using a service-account key file instead of `gcloud auth ... login`:
 # GOOGLE_APPLICATION_CREDENTIALS=secrets/vertex-service-account.json
