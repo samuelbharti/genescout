@@ -1527,15 +1527,31 @@ flatten_gene_lists <- function(lists) {
 # Resolve every token to a canonical gene id (MyGene ensembl_gene) and dedupe by
 # it, so aliases collapse to one gene. `resolver` is injectable for offline tests.
 # Unresolved tokens keep a synthetic id and resolved = FALSE (shown, not dropped).
+#
+# The whole list is resolved in ONE batched request (`batch_resolver`) instead of a
+# GET per token - the biggest first-run latency lever. Batching is used only on the
+# default (network) resolver: a caller that injects a stub `resolver` (every offline
+# test) stays serial with no network, exactly as before. A batch transport failure
+# falls back to serial resolution via `resolver`, so the proven path is never lost.
 resolve_genes <- function(flat, resolver = resolve_symbol) {
   if (nrow(flat) == 0) {
     return(empty_resolved())
+  }
+  batched <- NULL
+  if (identical(resolver, resolve_symbol)) {
+    batched <- tryCatch(resolve_symbols_batch(flat$token), error = function(e) {
+      NULL
+    })
+    # A batch that comes back the wrong shape/length is a miss -> serial fallback.
+    if (!is.list(batched) || length(batched) != nrow(flat)) {
+      batched <- NULL
+    }
   }
   has_ids <- "input_source_ids" %in% names(flat)
   has_types <- "input_source_types" %in% names(flat)
   rows <- lapply(seq_len(nrow(flat)), function(i) {
     token <- flat$token[i]
-    r <- resolver(token)
+    r <- if (!is.null(batched)) batched[[i]] else resolver(token)
     prov <- list(
       token = token,
       input_lists = flat$input_lists[[i]],
