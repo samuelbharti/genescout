@@ -1,0 +1,185 @@
+{
+  "generated_at": "2026-07-12T06:18:14-0500",
+  "note": "Reproducible snapshot of the deterministic eval outcomes. Live databases grow, so grades/ranks may drift; the pass/fail gate is run_evals.R's invariant assertions (identity exact, drivers High, control last).",
+  "cases": [
+    {
+      "description": "NF1-associated MPNST - drivers grade High, TTN vetoed to the bottom.",
+      "disease": null,
+      "disease_id": null,
+      "identity_ok": true,
+      "genes": [
+        {
+          "symbol": "TP53",
+          "gene_id": "ENSG00000141510",
+          "rank": 1,
+          "grade": "High",
+          "composite": 0.8515
+        },
+        {
+          "symbol": "NF1",
+          "gene_id": "ENSG00000196712",
+          "rank": 2,
+          "grade": "High",
+          "composite": 0.8261
+        },
+        {
+          "symbol": "CDKN2A",
+          "gene_id": "ENSG00000147889",
+          "rank": 3,
+          "grade": "High",
+          "composite": 0.8161
+        },
+        {
+          "symbol": "SUZ12",
+          "gene_id": "ENSG00000178691",
+          "rank": 4,
+          "grade": "High",
+          "composite": 0.6821
+        },
+        {
+          "symbol": "TTN",
+          "gene_id": "ENSG00000155657",
+          "rank": 5,
+          "grade": "Vetoed",
+          "composite": 0.7564
+        }
+      ]
+    },
+    {
+      "description": "NF1 discovery - NF1 grades High and TTN ranks last.",
+      "disease": "neurofibromatosis type 1",
+      "disease_id": "MONDO_0018975",
+      "identity_ok": true,
+      "genes": [
+        {
+          "symbol": "NF1",
+          "gene_id": "ENSG00000196712",
+          "rank": 1,
+          "grade": "High",
+          "composite": 0.8438
+        },
+        {
+          "symbol": "TP53",
+          "gene_id": "ENSG00000141510",
+          "rank": 31,
+          "grade": "Moderate",
+          "composite": 0.396
+        },
+        {
+          "symbol": "CDKN2A",
+          "gene_id": "ENSG00000147889",
+          "rank": 62,
+          "grade": "Moderate",
+          "composite": 0.3652
+        },
+        {
+          "symbol": "SUZ12",
+          "gene_id": "ENSG00000178691",
+          "rank": 77,
+          "grade": "Moderate",
+          "composite": 0.3503
+        },
+        {
+          "symbol": "TTN",
+          "gene_id": "ENSG00000155657",
+          "rank": 201,
+          "grade": "Vetoed",
+          "composite": 0.1962
+        }
+      ]
+    },
+    {
+      "description": "Lynch/MMR discovery - the mismatch-repair drivers grade High, TTN last.",
+      "disease": "Lynch syndrome",
+      "disease_id": "MONDO_0005835",
+      "identity_ok": true,
+      "genes": [
+        {
+          "symbol": "MSH6",
+          "gene_id": "ENSG00000116062",
+          "rank": 1,
+          "grade": "High",
+          "composite": 0.8439
+        },
+        {
+          "symbol": "MLH1",
+          "gene_id": "ENSG00000076242",
+          "rank": 2,
+          "grade": "High",
+          "composite": 0.8392
+        },
+        {
+          "symbol": "MSH2",
+          "gene_id": "ENSG00000095002",
+          "rank": 3,
+          "grade": "High",
+          "composite": 0.8348
+        },
+        {
+          "symbol": "PMS2",
+          "gene_id": "ENSG00000122512",
+          "rank": 4,
+          "grade": "High",
+          "composite": 0.8111
+        },
+        {
+          "symbol": "EPCAM",
+          "gene_id": "ENSG00000119888",
+          "rank": 5,
+          "grade": "High",
+          "composite": 0.8021
+        },
+        {
+          "symbol": "TTN",
+          "gene_id": "ENSG00000155657",
+          "rank": 201,
+          "grade": "Vetoed",
+          "composite": 0.1987
+        }
+      ]
+    },
+    {
+      "description": "NF1/MPNST cancer-axis selection - drivers grade High, TTN vetoed.",
+      "disease": null,
+      "disease_id": null,
+      "identity_ok": true,
+      "genes": [
+        {
+          "symbol": "TP53",
+          "gene_id": "ENSG00000141510",
+          "rank": 1,
+          "grade": "High",
+          "composite": 0.8429
+        },
+        {
+          "symbol": "NF1",
+          "gene_id": "ENSG00000196712",
+          "rank": 2,
+          "grade": "High",
+          "composite": 0.7845
+        },
+        {
+          "symbol": "CDKN2A",
+          "gene_id": "ENSG00000147889",
+          "rank": 3,
+          "grade": "High",
+          "composite": 0.763
+        },
+        {
+          "symbol": "SUZ12",
+          "gene_id": "ENSG00000178691",
+          "rank": 4,
+          "grade": "Moderate",
+          "composite": 0.4903
+        },
+        {
+          "symbol": "TTN",
+          "gene_id": "ENSG00000155657",
+          "rank": 5,
+          "grade": "Vetoed",
+          "composite": 0.624
+        }
+      ]
+    }
+  ]
+}
