@@ -44,11 +44,9 @@ gnomad_loeuf <- function(symbol) {
     body = list(query = gnomad_constraint_query(sym)),
     source = "gnomAD"
   )
-  if (!res$ok) {
-    return(list(ok = FALSE, error = res$error))
-  }
-  if (!is.null(res$data$errors)) {
-    return(list(ok = FALSE, error = "gnomAD returned a query error."))
+  err <- graphql_error(res, "gnomAD")
+  if (!is.null(err)) {
+    return(err)
   }
   gnomad_constraint_parse(res$data, sym)
 }

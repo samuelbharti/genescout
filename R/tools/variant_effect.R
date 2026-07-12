@@ -122,11 +122,9 @@ gnomad_frequency <- function(rsid, dataset = GNOMAD_DATASET) {
     body = list(query = query, variables = list(rsid = rsid)),
     source = "gnomAD"
   )
-  if (!res$ok) {
-    return(list(ok = FALSE, error = res$error))
-  }
-  if (!is.null(res$data$errors)) {
-    return(list(ok = FALSE, error = "gnomAD returned a query error."))
+  err <- graphql_error(res, "gnomAD")
+  if (!is.null(err)) {
+    return(err)
   }
   variant <- pluck_at(res$data, "data", "variant")
   if (is.null(variant)) {

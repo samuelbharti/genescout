@@ -28,8 +28,9 @@ civic_gene_evidence <- function(symbol) {
     symbol
   )
   res <- http_post_json(CIVIC_GRAPHQL, list(query = query), source = "CIViC")
-  if (!isTRUE(res$ok)) {
-    return(list(ok = FALSE, error = res$error %||% "CIViC request failed."))
+  err <- graphql_error(res, "CIViC")
+  if (!is.null(err)) {
+    return(err)
   }
   civic_gene_parse(res$data)
 }

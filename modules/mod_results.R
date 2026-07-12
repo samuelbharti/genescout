@@ -31,7 +31,8 @@ results_server <- function(
   id,
   result,
   config = candid_config,
-  agent_mode = reactive("final")
+  agent_mode = reactive("final"),
+  specialists = reactiveVal(NULL)
 ) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
@@ -84,7 +85,12 @@ results_server <- function(
 
     ranked_display <- reactive({
       req(result())
-      gene_matrix_display(result()$genes, result()$registry)
+      # Once specialists have run, the ranked table gains a Plausibility column.
+      gene_matrix_display(
+        result()$genes,
+        result()$registry,
+        verdicts = specialist_verdicts(specialists() %||% list())
+      )
     })
 
     output$ranked_table <- DT::renderDT({
@@ -182,7 +188,8 @@ results_server <- function(
     )
 
     # --- Specialist analysis (optional LLM synthesis over the evidence) --------
-    specialists <- reactiveVal(NULL)
+    # `specialists` is owned by the review module and shared with the report module
+    # (so the download embeds the verdict); this tab triggers and renders it.
     # Clear stale analysis when the ranking changes (ignoreNULL = FALSE so a failed
     # re-run that clears the result also clears the specialist cards).
     observeEvent(result(), specialists(NULL), ignoreNULL = FALSE)

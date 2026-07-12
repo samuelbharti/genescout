@@ -33,11 +33,9 @@ pharos_tdl <- function(symbol) {
     body = list(query = PHAROS_QUERY, variables = list(syms = list(sym))),
     source = "Pharos"
   )
-  if (!res$ok) {
-    return(list(ok = FALSE, error = res$error))
-  }
-  if (!is.null(res$data$errors)) {
-    return(list(ok = FALSE, error = "Pharos returned a query error."))
+  err <- graphql_error(res, "Pharos")
+  if (!is.null(err)) {
+    return(err)
   }
   pharos_tdl_parse(res$data, sym)
 }

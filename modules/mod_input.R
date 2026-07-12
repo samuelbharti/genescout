@@ -62,6 +62,20 @@ input_ui <- function(id, registry = candid_signal_registry()) {
             "in peripheral nerve"
           )
         ),
+        selectInput(
+          ns("study_context"),
+          "Study context (applies disease priors)",
+          choices = context_choices(),
+          selected = "none"
+        ),
+        helpText(
+          class = "small",
+          "Applies a curated context - relevant pathways, known drivers,",
+          "artifact-gene (FLAGS) flags, and tissues of interest - so ranking is",
+          "disease-aware (pathway/function evidence is matched to the context and",
+          "the veto extends to its FLAGS genes). Independent of the disease",
+          "discovery box below."
+        ),
         tags$label(
           class = "form-label small text-muted mb-1",
           "Discovery (optional): seed genes from a disease"
@@ -198,6 +212,26 @@ source_picker_ui <- function(ns) {
       paste0("Planned (needs an API key): ", stub_names, ".")
     )
   )
+}
+
+# Choices for the study-context picker: "none" plus every context/*.yaml, labeled
+# by its human `label` (falling back to the id). Read once at UI-build time from the
+# catalog of contexts, so a new context/<id>.yaml appears here for free.
+context_choices <- function() {
+  ids <- tryCatch(unname(list_contexts()), error = function(e) character())
+  labels <- vapply(
+    ids,
+    function(id) {
+      tryCatch(
+        as.character(load_context(id)$label %||% id),
+        error = function(e) {
+          id
+        }
+      )
+    },
+    character(1)
+  )
+  stats::setNames(c("none", ids), c("None (no study priors)", labels))
 }
 
 # One slider per registry signal, initialized from its rubric weight.
@@ -442,6 +476,12 @@ input_server <- function(id, registry = candid_registry) {
         x[nzchar(x)]
       }),
       description = reactive(input$description),
+      # The selected study-context id (context/<id>.yaml) whose priors run_enrich
+      # loads, or NULL for "none". Distinct from `disease` (ontology discovery).
+      priors_id = reactive({
+        v <- input$study_context %||% "none"
+        if (identical(v, "none") || is_blank(v)) NULL else v
+      }),
       # The confirmed disease context (list(id, name)) or NULL. NULL keeps the
       # run in plain enrichment mode.
       disease = reactive({

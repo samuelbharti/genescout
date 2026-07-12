@@ -43,6 +43,13 @@ review_server <- function(
         registry
       }
       context <- if (!is.null(disease)) list(disease = disease) else list()
+      # Study-context priors (context/<id>.yaml): FLAGS genes, relevant pathways,
+      # tissues, drivers. run_enrich loads them from priors_id and degrades to no
+      # priors on a bad id, so a plain run (priors_id = NULL) is unchanged.
+      priors_id <- inputs$priors_id()
+      if (!is.null(priors_id)) {
+        context$priors_id <- priors_id
+      }
       # Tissue(s) of interest activate the GTEx expression signal (appended by
       # run_enrich) and its unrelated-tissue caveat.
       tissues <- inputs$tissues()
@@ -167,8 +174,17 @@ review_server <- function(
       )
     })
 
-    results_server("results", result, config, agent_mode = inputs$agent_mode)
-    report_server("report", result)
+    # Specialist synthesis, owned here so both the results tab (which triggers it)
+    # and the report module (which embeds the verdict in the download) share it.
+    specialists <- reactiveVal(NULL)
+    results_server(
+      "results",
+      result,
+      config,
+      agent_mode = inputs$agent_mode,
+      specialists = specialists
+    )
+    report_server("report", result, specialists = specialists)
   })
 }
 

@@ -80,3 +80,23 @@ test_that("the cache key excludes auth headers (secret never enters the hash)", 
     candid_cache_key("GET", "https://x", "p", list(geneId = "TP53"))
   )
 })
+
+test_that("graphql_error() flags transport failures and in-body query errors", {
+  # Transport failure -> the client's error, sourced.
+  fail <- graphql_error(list(ok = FALSE, error = "Could not reach X"), "DGIdb")
+  expect_false(fail$ok)
+  expect_equal(fail$error, "Could not reach X")
+  # Transport failure with no message -> a sourced fallback.
+  bare <- graphql_error(list(ok = FALSE), "DGIdb")
+  expect_match(bare$error, "DGIdb request failed", fixed = TRUE)
+  # A GraphQL error array inside an HTTP 200 body -> a query error (the case civic
+  # previously missed).
+  qerr <- graphql_error(
+    list(ok = TRUE, data = list(errors = list(list(message = "bad field")))),
+    "CIViC"
+  )
+  expect_false(qerr$ok)
+  expect_match(qerr$error, "CIViC returned a query error", fixed = TRUE)
+  # A clean response -> NULL (proceed to parse).
+  expect_null(graphql_error(list(ok = TRUE, data = list(gene = list(id = 1)))))
+})

@@ -74,6 +74,24 @@ http_post_json <- function(
   })
 }
 
+# Normalize a GraphQL response into the clients' error contract. A GraphQL server
+# reports query errors inside an HTTP 200 body (a top-level `errors` array), so a
+# 200 is not enough. Returns a standard `list(ok = FALSE, error = ...)` on a
+# transport failure OR a query error, else NULL - letting each GraphQL client
+# collapse its two-step check into one guarded call.
+graphql_error <- function(res, source = "API") {
+  if (!isTRUE(res$ok)) {
+    return(list(
+      ok = FALSE,
+      error = res$error %||% paste0(source, " request failed.")
+    ))
+  }
+  if (!is.null(res$data$errors)) {
+    return(list(ok = FALSE, error = paste0(source, " returned a query error.")))
+  }
+  NULL
+}
+
 # GET a text endpoint (some sources ship a bulk flat file - CSV/TSV - rather than a
 # per-record JSON API; e.g. ClinGen's gene-validity download). Same timeout / retry /
 # cache / header-redaction as http_get_json, but the body is returned verbatim as a

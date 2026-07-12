@@ -28,6 +28,7 @@ usage <- function() {
     "  --source  <name[=TYPE]:path>  a tagged source; repeatable for many\n",
     "  --description  <text>   free-text study description             (optional)\n",
     "  --disease      <term>   disease context to seed/score against   (optional)\n",
+    "  --context      <id>     study-priors context id (context/<id>.yaml)  (optional)\n",
     "  --tissue  <t1,t2>       tissue(s) of interest for GTEx scoring   (optional)\n",
     "  --sources <k1,k2>       connector keys to query (default: catalog default_on)\n",
     "  --agent  <none|input|final|both>  agent involvement   (default: none)\n",
@@ -210,12 +211,18 @@ main <- function() {
   } else {
     NULL
   }
+  priors_id <- if (!is.null(opt$context) && !is_blank(opt$context)) {
+    opt$context
+  } else {
+    NULL
+  }
   result <- run_review_request(
     list(
       sources = cs,
       description = description,
       disease = disease_ctx,
       tissues = tissues,
+      priors_id = priors_id,
       options = list(caveats = TRUE, sources = sources_sel)
     ),
     config = candid_config,

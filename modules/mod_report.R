@@ -18,21 +18,30 @@ report_ui <- function(id) {
   )
 }
 
-# `result` is a reactive returning the run_review() output (or NULL).
-report_server <- function(id, result) {
+# `result` is a reactive returning the run_review() output (or NULL). `specialists`
+# is the shared run_specialists() reactiveVal (or NULL): when present, the download
+# and CSV carry the synthesized verdict/plausibility, not just the drill-down.
+report_server <- function(id, result, specialists = reactive(NULL)) {
   moduleServer(id, function(input, output, session) {
     output$download <- downloadHandler(
       filename = function() "candid_report.html",
       content = function(file) {
         req(result())
-        render_report(result(), file)
+        render_report(result(), file, specialists = specialists())
       }
     )
     output$download_csv <- downloadHandler(
       filename = function() "candid_ranking.csv",
       content = function(file) {
         req(result())
-        utils::write.csv(build_export_csv(result()), file, row.names = FALSE)
+        utils::write.csv(
+          build_export_csv(
+            result(),
+            verdicts = specialist_verdicts(specialists() %||% list())
+          ),
+          file,
+          row.names = FALSE
+        )
       }
     )
   })

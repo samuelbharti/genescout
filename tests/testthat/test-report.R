@@ -153,3 +153,73 @@ test_that("render_report() writes a self-contained HTML with the disclaimer", {
   expect_match(html, "Research use only")
   expect_match(html, "Studying")
 })
+
+# --- Specialist verdict surfacing (table + CSV + report) --------------------
+
+# A minimal run_specialists()-shaped object with one gene carrying a verdict.
+fake_specialists <- function() {
+  list(
+    ai_used = TRUE,
+    by_gene = list(
+      NF1 = list(
+        verdict = list(
+          verdict = "Integrated read: strong driver in this context.",
+          plausibility = "compelling",
+          caveats = c("one cross-domain caveat"),
+          next_experiment = "Validate with an orthogonal assay.",
+          source_ids = c("OpenTargets:ENSG00000196712:MONDO_x")
+        )
+      )
+    )
+  )
+}
+
+test_that("specialist_verdicts() maps UPPER symbol -> verdict, skipping empties", {
+  v <- specialist_verdicts(fake_specialists())
+  expect_equal(names(v), "NF1")
+  expect_equal(v$NF1$plausibility, "compelling")
+  # No verdict / no specialists -> empty map (callers degrade cleanly).
+  expect_length(specialist_verdicts(list()), 0)
+  expect_length(specialist_verdicts(NULL), 0)
+})
+
+test_that("gene_matrix_display() adds a Plausibility column only with verdicts", {
+  res <- fake_result()
+  base <- gene_matrix_display(res$genes, res$registry)
+  expect_false("Plausibility" %in% names(base)) # default unchanged
+
+  disp <- gene_matrix_display(
+    res$genes,
+    res$registry,
+    verdicts = specialist_verdicts(fake_specialists())
+  )
+  expect_true("Plausibility" %in% names(disp))
+  expect_equal(disp$Plausibility[disp$Gene == "NF1"], "compelling")
+  expect_equal(disp$Plausibility[disp$Gene == "XYZ"], "—") # no verdict -> dash
+})
+
+test_that("build_export_csv() appends verdict columns only when given verdicts", {
+  res <- fake_result()
+  expect_false("plausibility" %in% names(build_export_csv(res)))
+
+  df <- build_export_csv(
+    res,
+    verdicts = specialist_verdicts(fake_specialists())
+  )
+  expect_true(all(
+    c("plausibility", "verdict", "next_experiment") %in% names(df)
+  ))
+  expect_equal(df$plausibility[df$gene == "NF1"], "compelling")
+  expect_equal(df$plausibility[df$gene == "XYZ"], "") # no verdict -> blank
+})
+
+test_that("render_report() embeds the specialist synthesis when given specialists", {
+  out <- tempfile(fileext = ".html")
+  on.exit(unlink(out), add = TRUE)
+  render_report(fake_result(), out, specialists = fake_specialists())
+  html <- paste(readLines(out, warn = FALSE), collapse = "\n")
+  expect_match(html, "Specialist synthesis")
+  expect_match(html, "compelling")
+  expect_match(html, "strong driver in this context", fixed = TRUE)
+  expect_match(html, "orthogonal assay", fixed = TRUE)
+})

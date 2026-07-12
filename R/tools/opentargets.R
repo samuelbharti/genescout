@@ -54,16 +54,9 @@ gene_disease_assoc <- function(gene, size = 20) {
     ),
     source = "Open Targets"
   )
-  if (!res$ok) {
-    return(list(ok = FALSE, gene = gene, error = res$error))
-  }
-  # GraphQL reports query errors inside a 200 response body.
-  if (!is.null(res$data$errors)) {
-    return(list(
-      ok = FALSE,
-      gene = gene,
-      error = "Open Targets returned a query error."
-    ))
+  err <- graphql_error(res, "Open Targets")
+  if (!is.null(err)) {
+    return(c(err, list(gene = gene)))
   }
 
   target <- pluck_at(res$data, "data", "target")
@@ -164,11 +157,9 @@ ot_disease_targets <- function(disease_id, size = 1000) {
     ),
     source = "Open Targets"
   )
-  if (!res$ok) {
-    return(list(ok = FALSE, error = res$error))
-  }
-  if (!is.null(res$data$errors)) {
-    return(list(ok = FALSE, error = "Open Targets returned a query error."))
+  err <- graphql_error(res, "Open Targets")
+  if (!is.null(err)) {
+    return(err)
   }
   disease <- pluck_at(res$data, "data", "disease")
   if (is.null(disease)) {
