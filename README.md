@@ -1,6 +1,10 @@
-# GeneScout
+<p align="center">
+  <img src="www/img/mascot.svg" alt="Scout — the GeneScout mascot" width="118" height="118">
+</p>
 
-*An agentic evidence-review workbench that investigates candidate gene lists and returns a disease-informed, cited shortlist — with the supporting evidence, the uncertainties, and the recommended next steps.*
+<h1 align="center">GeneScout</h1>
+
+<p align="center"><em>An agentic evidence-review workbench that investigates candidate gene lists and returns a disease-informed, cited shortlist — with the supporting evidence, the uncertainties, and the recommended next steps.</em></p>
 
 An agentic evidence-review workbench for research genomics. GeneScout takes a
 candidate list — variants, genes, or perturbation hits — plus a biological
@@ -54,33 +58,23 @@ uncertainty made explicit instead of hidden.
 
 ## How it works
 
-GeneScout is an R Shiny app with an [ellmer](https://ellmer.tidyverse.org/)-based
-agent engine. An orchestrator parses the input, then fans out to three specialist
-agents that run in **isolated, parallel contexts** (`parallel_chat_structured()`)
-— each queries public biological databases through thin [httr2](https://httr2.r-lib.org/)
-clients and returns only distilled, structured evidence. A citation gate rejects any
-evidence item without a source id; a caveats stage then scores and, where warranted,
-vetoes candidates before the report is assembled.
+<p align="center">
+  <img src="www/img/overview.png" alt="GeneScout pipeline: input (paste or upload, per-list weights, disease priors) → resolve to canonical IDs → enrich with per-gene signals from ~8 public sources → citation gate → weighted composite, grade, and caveats/veto → ranked, cited review; plus an optional API-key layer (curate with AI, three specialists, grounded chat)" width="900">
+</p>
 
-```text
-candidate list + context
-          │
-   ┌──────▼───────┐
-   │ Orchestrator │  (ellmer)
-   └──────┬───────┘
-   ┌───────┼────────────────────────┐
-   ▼       ▼                        ▼
-Variant   Pathway &            Literature
-effect    disease
-VEP       Open Targets         Europe PMC
-gnomAD    Reactome · STRING    PubTator3
-ClinVar
-   └───────┼────────────────────────┘
-          ▼
-   Citation gate  →  Scoring + caveats/veto
-          ▼
-   Evidence-ranked report  (scores · citations · next steps)
-```
+The **deterministic spine** above is the source of truth and needs no API key. It
+resolves each candidate to a canonical id, pulls a per-gene signal from each public
+source through thin [httr2](https://httr2.r-lib.org/) clients, passes every value
+through a **citation gate** (anything without a source id is dropped), then computes the
+weighted composite and applies the caveats/veto stage before assembling the report.
+
+On top of that spine, GeneScout adds an optional
+[ellmer](https://ellmer.tidyverse.org/)-based agent layer (needs a key). It **fetches
+nothing new** — it reads only the evidence the spine already retrieved and cited: an AI
+curator compacts the ranked list, and three specialist agents run in **isolated,
+parallel contexts** (`parallel_chat_structured()`) to synthesize a per-gene
+plausibility verdict and a suggested next experiment. The agents accelerate
+interpretation; they are never the source of truth.
 
 ## Data sources
 
@@ -113,9 +107,12 @@ until their keys are supplied.
 
 ### Requirements
 
-- R ≥ 4.3
-- An LLM provider key for your configured provider (default Anthropic):
-  copy `.Renviron.example` to `.Renviron` and set `ANTHROPIC_API_KEY`.
+- **R ≥ 4.3** — the only hard requirement. The deterministic ranking, grades,
+  caveats/veto, and the report all run with **no API key**.
+- *Optional, for the AI stages only:* an LLM provider key (default Anthropic). Copy
+  `.Renviron.example` to `.Renviron` and set `ANTHROPIC_API_KEY`, or paste a key in the
+  app (BYOK, held only for that browser session). This enables the optional input/final
+  curator, the specialist verdicts, and the grounded Chat assistant.
 
 ### Install
 
