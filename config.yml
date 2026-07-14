@@ -57,3 +57,31 @@ default:
 #     caveats: gpt-5
 #     specialist: gpt-5-mini
 #     input_curator: gpt-5-mini
+
+# --- Bring your own key (BYOK) -------------------------------------------------
+# Per-provider role -> model maps used when a user pastes their own API key in the
+# app (Review tab). The pasted key never touches this file or the environment; it
+# is held in the session and passed straight to the ellmer constructor. Selecting a
+# provider here picks a sensible tiered model set (capable models for the
+# orchestrator/caveats/veto, faster ones for the retrieval specialists and curator,
+# plus a `chat` model for the assistant). An optional single-model override entered
+# in the UI supersedes all roles. Model strings live here (config), never in code.
+byok:
+  anthropic:
+    orchestrator: claude-opus-4-8
+    caveats: claude-opus-4-8
+    specialist: claude-sonnet-5
+    input_curator: claude-haiku-4-5
+    chat: claude-sonnet-5
+  google_gemini:
+    orchestrator: gemini-2.5-pro
+    caveats: gemini-2.5-pro
+    specialist: gemini-2.5-flash
+    input_curator: gemini-2.5-flash
+    chat: gemini-2.5-flash
+  openai:
+    orchestrator: gpt-5
+    caveats: gpt-5
+    specialist: gpt-5-mini
+    input_curator: gpt-5-mini
+    chat: gpt-5-mini

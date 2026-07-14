@@ -24,13 +24,16 @@ results_ui <- function(id) {
   )
 }
 
-# `result` is a reactive returning the run_review() output (or NULL). `config` is
-# the provider/model config the AI curator uses. `agent_mode` is a reactive of the
-# selected agent involvement; the final curator is offered only for final/both.
+# `result` is a reactive returning the run_review() output (or NULL). `config_r` is
+# a reactive of the effective provider/model config the AI curator uses - it folds
+# any session BYOK credential (key + provider + models) onto the static config, so
+# curation/specialists run under the user's pasted key. `agent_mode` is a reactive
+# of the selected agent involvement; the final curator is offered only for
+# final/both.
 results_server <- function(
   id,
   result,
-  config = candid_config,
+  config_r = reactive(candid_config),
   agent_mode = reactive("final"),
   specialists = reactiveVal(NULL)
 ) {
@@ -157,15 +160,19 @@ results_server <- function(
       if (is.null(ts) || is.na(ts) || ts < 1) {
         ts <- CANDID_CURATE_TARGET_DEFAULT
       }
+      cfg <- config_r()
       cur <- tryCatch(
         withProgress(
           message = "Curating with the configured model...",
           # Run in a background process so Stop/refresh mid-call can't crash the session.
-          candid_llm_run(curate_gene_list, result(), config, top_n = ts)
+          candid_llm_run(curate_gene_list, result(), cfg, top_n = ts)
         ),
         error = function(e) {
           showNotification(
-            paste("Curation failed:", conditionMessage(e)),
+            paste(
+              "Curation failed:",
+              candid_redact_secret(conditionMessage(e), cfg$api_key %||% "")
+            ),
             type = "error"
           )
           NULL
@@ -251,6 +258,7 @@ results_server <- function(
       } else {
         NULL
       }
+      cfg <- config_r()
       sp <- tryCatch(
         withProgress(
           message = "Running specialists on the top candidates...",
@@ -258,13 +266,16 @@ results_server <- function(
           candid_llm_run(
             run_specialists,
             result(),
-            config,
+            cfg,
             restrict_to = restrict
           )
         ),
         error = function(e) {
           showNotification(
-            paste("Specialist analysis failed:", conditionMessage(e)),
+            paste(
+              "Specialist analysis failed:",
+              candid_redact_secret(conditionMessage(e), cfg$api_key %||% "")
+            ),
             type = "error"
           )
           NULL

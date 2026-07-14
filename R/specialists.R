@@ -251,7 +251,8 @@ run_parallel_structured <- function(
   chat <- build_chat(
     config$provider %||% "anthropic",
     model_for(role, config),
-    system_prompt
+    system_prompt,
+    api_key = config$api_key
   )
   out <- ellmer::parallel_chat_structured(
     chat,

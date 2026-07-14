@@ -111,7 +111,9 @@ input_ui <- function(id, registry = candid_signal_registry()) {
       class = "mb-3",
       bslib::card_header("Run"),
       bslib::card_body(
-        agent_mode_ui(ns),
+        # Rendered server-side so the input/both agent modes appear as soon as a key
+        # is available (env or a session BYOK key), not only at page-load time.
+        uiOutput(ns("agent_mode_ui")),
         actionButton(ns("run"), "Rank genes", class = "btn-primary w-100 mt-2")
       )
     ),
@@ -281,13 +283,14 @@ extra_source_row <- function(ns, rid) {
   )
 }
 
-# The "Agent involvement" selector. The input/both modes are offered only when an
-# LLM key is set; the default "final" preserves today's behavior (final curator
-# only). Cross-source corroboration needs no toggle - it applies automatically
-# when the run has two or more sources.
-agent_mode_ui <- function(ns) {
-  llm_ok <- tryCatch(candid_llm_available(), error = function(e) FALSE)
-  choices <- if (llm_ok) {
+# The "Agent involvement" selector, rendered from the current LLM availability. The
+# input/both modes are offered only when a key is available (env or a session BYOK
+# key); the default "final" preserves today's behavior (final curator only).
+# Cross-source corroboration needs no toggle - it applies automatically when the run
+# has two or more sources. `selected` keeps the user's current pick across
+# re-renders (e.g. when a key is pasted), defaulting to "final".
+agent_mode_control <- function(ns, llm_ok, selected = "final") {
+  choices <- if (isTRUE(llm_ok)) {
     c(
       "None - deterministic only" = "none",
       "Curate my input up front" = "input",
@@ -300,25 +303,44 @@ agent_mode_ui <- function(ns) {
       "Curate the final list (default)" = "final"
     )
   }
+  if (!selected %in% choices) {
+    selected <- "final"
+  }
   tagList(
     radioButtons(
       ns("agent_mode"),
       "Agent involvement",
       choices = choices,
-      selected = "final"
+      selected = selected
     ),
-    if (!llm_ok) {
+    if (!isTRUE(llm_ok)) {
       helpText(
         class = "small",
-        "Set an API key (.Renviron) to enable the input-curation agent."
+        "Add an API key above (or set one in .Renviron) to enable AI curation,",
+        "the specialists, and the input-curation agent."
       )
     }
   )
 }
 
-input_server <- function(id, registry = candid_registry) {
+input_server <- function(
+  id,
+  registry = candid_registry,
+  llm_ready = reactive(FALSE)
+) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # The agent-mode radio reacts to LLM availability so pasting a key on the Review
+    # tab unlocks the input/both modes without a reload. isolate() the current pick
+    # so re-rendering on a key change preserves the user's selection.
+    output$agent_mode_ui <- renderUI({
+      agent_mode_control(
+        ns,
+        llm_ok = tryCatch(llm_ready(), error = function(e) FALSE),
+        selected = isolate(input$agent_mode) %||% "final"
+      )
+    })
 
     # The picker's selectable (runnable, per-gene) source keys - used only to tell a
     # genuine deselect-all (character(0) -> query nothing) from a picker that never

@@ -19,6 +19,14 @@ about_page <- fluidPage(
         "becomes disease-specific rather than measuring a gene's general",
         "prominence."
       ),
+      p(
+        "The deterministic ranking needs no API key. To add the optional AI stages",
+        "- input/final curation, the specialist verdicts, and the grounded Chat",
+        "assistant - paste your own Anthropic, Google (Gemini) or OpenAI key in the",
+        tags$strong("AI provider (your key)"),
+        "card on the Review tab. Your key stays in this browser session only: it is",
+        "never stored, logged, or sent anywhere but the provider you pick."
+      ),
       div(
         class = "alert alert-warning",
         role = "alert",
