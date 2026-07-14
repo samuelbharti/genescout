@@ -3,159 +3,184 @@
 # weight sliders re-rank the cached result live (no re-query, because the
 # normalization is absolute); the description is stored for the later AI step.
 
-# `registry` defaults to a freshly built registry (not the `genescout_registry`
-# global, which global.R defines only after the UI is sourced). Its keys match
-# the global, so the slider input ids line up with what input_server() reads.
-input_ui <- function(id, registry = genescout_signal_registry()) {
-  ns <- NS(id)
+# The input UI is split into placement-agnostic component cards so the Review page
+# can arrange them in a fluidPage grid (candidate genes; study context + run) with
+# the secondary controls (data sources, advanced weights, API key) in the sidebar.
+# Every widget id is namespaced under the same `input` module, so input_server()
+# reads them regardless of where each card is rendered on the page.
 
-  tagList(
-    # 1 - Candidate genes ----------------------------------------------------
-    bslib::card(
-      class = "mb-3",
-      bslib::card_header("Candidate genes"),
-      bslib::card_body(
-        textAreaInput(
-          ns("paste"),
-          NULL,
-          rows = 6,
-          placeholder = "Paste gene symbols, one per line\nNF1\nSUZ12\nCDKN2A"
-        ),
-        div(
-          class = "d-flex gap-2 align-items-center mb-2",
-          actionButton(
-            ns("load_example"),
-            "Load NF1 example",
-            class = "btn-outline-secondary btn-sm"
-          ),
-          tags$span(class = "text-muted small", "or upload a table below")
-        ),
-        fileInput(
-          ns("file"),
-          NULL,
-          accept = c(".tsv", ".csv", ".txt"),
-          placeholder = "gene table (TSV/CSV)"
-        ),
-        # Progressive disclosure: the paste box above is the default single source;
-        # "add a source" reveals named/typed rows for genes from a different
-        # analysis (WES calls, DEGs, ATAC-seq hits, ...). A gene found in more of
-        # your sources ranks higher (cross-source corroboration, automatic).
-        actionLink(
-          ns("add_source"),
-          "+ add another source (tag by assay)",
-          class = "small d-block"
-        ),
-        tags$div(id = ns("sources_anchor"), class = "mt-2")
-      )
-    ),
-    # 2 - Study context ------------------------------------------------------
-    bslib::card(
-      class = "mb-3",
-      bslib::card_header("Study context"),
-      bslib::card_body(
-        textAreaInput(
-          ns("description"),
-          "What are you studying? (optional)",
-          rows = 3,
-          placeholder = paste(
-            "e.g. germline drivers of NF1-associated MPNST",
-            "in peripheral nerve"
-          )
-        ),
-        selectInput(
-          ns("study_context"),
-          "Study context (applies disease priors)",
-          choices = context_choices(),
-          selected = "none"
-        ),
-        helpText(
-          class = "small",
-          "Applies a curated context - relevant pathways, known drivers,",
-          "artifact-gene (FLAGS) flags, and tissues of interest - so ranking is",
-          "disease-aware (pathway/function evidence is matched to the context and",
-          "the veto extends to its FLAGS genes). Independent of the disease",
-          "discovery box below."
-        ),
-        tags$label(
-          class = "form-label small text-muted mb-1",
-          "Discovery (optional): seed genes from a disease"
-        ),
-        div(
-          class = "input-group input-group-sm",
-          textInput(
-            ns("disease"),
-            label = NULL,
-            placeholder = "e.g. neurofibromatosis type 1"
-          ),
-          actionButton(
-            ns("resolve_disease"),
-            "Find",
-            class = "btn-outline-secondary"
-          )
-        ),
-        uiOutput(ns("disease_matches")),
-        textInput(
-          ns("tissues"),
-          "Tissue(s) of interest (optional)",
-          placeholder = "e.g. peripheral nerve, Schwann cell"
-        ),
-        helpText(
-          class = "small",
-          "Comma-separated. Genes expressed there (GTEx) score higher; genes",
-          "expressed only elsewhere are flagged."
-        )
-      )
-    ),
-    # 3 - Run ----------------------------------------------------------------
-    bslib::card(
-      class = "mb-3",
-      bslib::card_header("Run"),
-      bslib::card_body(
-        # Rendered server-side so the input/both agent modes appear as soon as a key
-        # is available (env or a session BYOK key), not only at page-load time.
-        uiOutput(ns("agent_mode_ui")),
-        actionButton(ns("run"), "Rank genes", class = "btn-primary w-100 mt-2")
-      )
-    ),
-    # Advanced (collapsed) ---------------------------------------------------
-    bslib::accordion(
-      class = "mb-3",
-      open = FALSE,
-      bslib::accordion_panel(
-        "Data sources",
-        helpText(
-          "Choose which sources to query for per-gene evidence. An unchecked",
-          "source is not fetched (saving its network cost); the default set is a",
-          "lean, fast core. In a disease-context review the disease still seeds",
-          "the candidate list."
-        ),
-        source_picker_ui(ns)
+# Row 1: the candidate-gene sources (paste / upload / extra tagged sources).
+candidate_genes_ui <- function(id) {
+  ns <- NS(id)
+  bslib::card(
+    class = "mb-3",
+    bslib::card_header("Candidate genes"),
+    bslib::card_body(
+      textAreaInput(
+        ns("paste"),
+        NULL,
+        rows = 6,
+        placeholder = "Paste gene symbols, one per line\nNF1\nSUZ12\nCDKN2A"
       ),
-      bslib::accordion_panel(
-        "Advanced - weights & caveats",
-        helpText(
-          "Adjust how much each source counts; the table re-ranks instantly",
-          "with no re-query."
+      div(
+        class = "d-flex gap-2 align-items-center mb-2",
+        actionButton(
+          ns("load_example"),
+          "Load NF1 example",
+          class = "btn-outline-secondary btn-sm"
         ),
-        weight_sliders_ui(ns, registry),
-        checkboxInput(
-          ns("coverage_bonus"),
-          "Reward genes supported by many evidence sources",
-          value = FALSE
-        ),
-        checkboxInput(
-          ns("caveats"),
-          paste(
-            "Apply caveats & veto (sink FLAGS sequencing-artifact genes;",
-            "down-weight single-weak-source genes)"
-          ),
-          value = TRUE
+        tags$span(class = "text-muted small", "or upload a table below")
+      ),
+      fileInput(
+        ns("file"),
+        NULL,
+        accept = c(".tsv", ".csv", ".txt"),
+        placeholder = "gene table (TSV/CSV)"
+      ),
+      # Progressive disclosure: the paste box above is the default single source;
+      # "add a source" reveals named/typed rows for genes from a different
+      # analysis (WES calls, DEGs, ATAC-seq hits, ...). A gene found in more of
+      # your sources ranks higher (cross-source corroboration, automatic).
+      actionLink(
+        ns("add_source"),
+        "+ add another source (tag by assay)",
+        class = "small d-block"
+      ),
+      tags$div(id = ns("sources_anchor"), class = "mt-2")
+    )
+  )
+}
+
+# Row 2 (left): the study description, curated context, disease discovery, tissues.
+study_context_ui <- function(id) {
+  ns <- NS(id)
+  bslib::card(
+    class = "mb-3",
+    bslib::card_header("Study context"),
+    bslib::card_body(
+      textAreaInput(
+        ns("description"),
+        "What are you studying? (optional)",
+        rows = 3,
+        placeholder = paste(
+          "e.g. germline drivers of NF1-associated MPNST",
+          "in peripheral nerve"
         )
+      ),
+      selectInput(
+        ns("study_context"),
+        "Study context (applies disease priors)",
+        choices = context_choices(),
+        selected = "none"
+      ),
+      helpText(
+        class = "small",
+        "Applies a curated context - relevant pathways, known drivers,",
+        "artifact-gene (FLAGS) flags, and tissues of interest - so ranking is",
+        "disease-aware (pathway/function evidence is matched to the context and",
+        "the veto extends to its FLAGS genes). Independent of the disease",
+        "discovery box below."
+      ),
+      tags$label(
+        class = "form-label small text-muted mb-1",
+        "Discovery (optional): seed genes from a disease"
+      ),
+      div(
+        class = "input-group input-group-sm",
+        textInput(
+          ns("disease"),
+          label = NULL,
+          placeholder = "e.g. neurofibromatosis type 1"
+        ),
+        actionButton(
+          ns("resolve_disease"),
+          "Find",
+          class = "btn-outline-secondary"
+        )
+      ),
+      uiOutput(ns("disease_matches")),
+      textInput(
+        ns("tissues"),
+        "Tissue(s) of interest (optional)",
+        placeholder = "e.g. peripheral nerve, Schwann cell"
+      ),
+      helpText(
+        class = "small",
+        "Comma-separated. Genes expressed there (GTEx) score higher; genes",
+        "expressed only elsewhere are flagged."
       )
-    ),
-    helpText(
-      class = "small",
-      "Research use only. Not for clinical or diagnostic use."
+    )
+  )
+}
+
+# Row 2 (right): agent involvement + the Rank button.
+run_ui <- function(id) {
+  ns <- NS(id)
+  bslib::card(
+    class = "mb-3",
+    bslib::card_header("Run"),
+    bslib::card_body(
+      # Rendered server-side so the input/both agent modes appear as soon as a key
+      # is available (env or a session BYOK key), not only at page-load time.
+      uiOutput(ns("agent_mode_ui")),
+      actionButton(ns("run"), "Rank genes", class = "btn-primary w-100 mt-2"),
+      helpText(
+        class = "small mt-2",
+        "Research use only. Not for clinical or diagnostic use."
+      )
+    )
+  )
+}
+
+# Sidebar: which per-gene connectors to query.
+data_sources_ui <- function(id) {
+  ns <- NS(id)
+  bslib::card(
+    class = "mb-3",
+    bslib::card_header("Data sources"),
+    bslib::card_body(
+      helpText(
+        class = "small",
+        "Choose which sources to query for per-gene evidence. An unchecked",
+        "source is not fetched (saving its network cost); the default set is a",
+        "lean, fast core. In a disease-context review the disease still seeds",
+        "the candidate list."
+      ),
+      source_picker_ui(ns)
+    )
+  )
+}
+
+# Sidebar: per-source weights + the coverage/caveats toggles (collapsed by default
+# to keep the sidebar compact). `registry` defaults to a freshly built registry
+# (not the `genescout_registry` global, which global.R defines only after the UI is
+# sourced); its keys match the global so the slider ids line up with input_server().
+advanced_ui <- function(id, registry = genescout_signal_registry()) {
+  ns <- NS(id)
+  bslib::accordion(
+    class = "mb-3",
+    open = FALSE,
+    bslib::accordion_panel(
+      "Advanced - weights & caveats",
+      helpText(
+        class = "small",
+        "Adjust how much each source counts; the table re-ranks instantly",
+        "with no re-query."
+      ),
+      weight_sliders_ui(ns, registry),
+      checkboxInput(
+        ns("coverage_bonus"),
+        "Reward genes supported by many evidence sources",
+        value = FALSE
+      ),
+      checkboxInput(
+        ns("caveats"),
+        paste(
+          "Apply caveats & veto (sink FLAGS sequencing-artifact genes;",
+          "down-weight single-weak-source genes)"
+        ),
+        value = TRUE
+      )
     )
   )
 }
