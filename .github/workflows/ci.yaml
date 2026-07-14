@@ -36,7 +36,9 @@ jobs:
           use-public-rspm: true
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::testthat
+          extra-packages: |
+            any::testthat
+            any::mirai
       - name: Run tests
         run: testthat::test_dir("tests/testthat", stop_on_failure = TRUE)
         shell: Rscript {0}

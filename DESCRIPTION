@@ -31,6 +31,7 @@ Imports:
     tibble,
     yaml
 Suggests:
+    mirai,
     plumber,
     quarto,
     testthat (>= 3.0.0),

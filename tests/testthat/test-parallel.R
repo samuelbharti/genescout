@@ -44,6 +44,7 @@ test_that("enrich_genes_dispatch() forwards the progress callback per gene", {
 })
 
 test_that("worker count caps at the max and never exceeds the gene count", {
+  skip_if_not_installed("mirai")
   # Lift the testthat off-switch (mirai is installed) to exercise the real arithmetic.
   # This computes a count only - genescout_parallel_workers() never spawns a daemon.
   withr::with_envvar(c(TESTTHAT = ""), {
