@@ -130,7 +130,7 @@ agents_page <- gs_page(fluidPage(
       tags$div(
         class = "text-center",
         tags$strong("One per-gene verdict"),
-        " — integrated read, research plausibility",
+        ": integrated read, research plausibility",
         tags$span(
           class = "text-muted",
           " (compelling / plausible / uncertain / weak)"
