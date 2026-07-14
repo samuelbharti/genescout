@@ -7,18 +7,36 @@ review_ui <- function(id) {
   ns <- NS(id)
 
   layout_sidebar(
+    # Collapsed by default and title-less: the sidebar holds the secondary "which
+    # sources / how to weight" controls, so it opens straight onto Data sources
+    # with no header gap. The primary inputs live on the main grid.
     sidebar = sidebar(
-      title = "Set up your review",
-      width = 400,
-      input_ui(ns("input")),
-      keys_ui(ns("keys")),
-      bslib::card(
-        class = "mb-2",
-        bslib::card_header("Export"),
-        bslib::card_body(report_ui(ns("report")))
-      )
+      open = FALSE,
+      width = 360,
+      data_sources_ui(ns("input")),
+      advanced_ui(ns("input"))
     ),
-    div(class = "p-2", results_ui(ns("results")))
+    # Primary inputs on a grid: candidate genes beside study context, then the API
+    # key beside the run controls; results and the export panel fill the width below.
+    fluidPage(
+      fluidRow(
+        column(6, candidate_genes_ui(ns("input"))),
+        column(6, study_context_ui(ns("input")))
+      ),
+      fluidRow(
+        column(6, keys_ui(ns("keys"))),
+        column(6, run_ui(ns("input")))
+      ),
+      fluidRow(column(12, results_ui(ns("results")))),
+      fluidRow(column(
+        12,
+        bslib::card(
+          class = "mb-3",
+          bslib::card_header("Export"),
+          bslib::card_body(report_ui(ns("report")))
+        )
+      ))
+    )
   )
 }
 

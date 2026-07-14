@@ -14,12 +14,14 @@ results_ui <- function(id) {
       condition = "output.has_result == true",
       ns = ns,
       div(class = "mb-3", uiOutput(ns("results_header"))),
-      div(class = "mb-3", uiOutput(ns("legend"))),
+      div(class = "mb-2", uiOutput(ns("legend"))),
       div(class = "mb-3", DT::DTOutput(ns("ranked_table"))),
-      uiOutput(ns("curate_control")),
-      uiOutput(ns("curation")),
-      uiOutput(ns("specialist_control")),
-      div(class = "mt-3", uiOutput(ns("drilldown")))
+      # Per-gene evidence sits directly under the table, so selecting a row is
+      # never pushed below the AI controls.
+      div(class = "mb-3", uiOutput(ns("drilldown"))),
+      # The optional AI actions (shortlist + specialists) are grouped in one card
+      # below the evidence.
+      uiOutput(ns("ai_assist"))
     )
   )
 }
@@ -98,11 +100,40 @@ results_server <- function(
 
     output$ranked_table <- DT::renderDT({
       req(ranked_display())
+      # scrollX keeps the many signal columns inside the table's own horizontal
+      # scroll region instead of overflowing the card and widening the page;
+      # nowrap stops cells from wrapping so rows stay a single line.
       DT::datatable(
         ranked_display(),
         rownames = FALSE,
         selection = "single",
-        options = list(pageLength = 25)
+        class = "compact stripe hover nowrap",
+        width = "100%",
+        options = list(
+          pageLength = 25,
+          scrollX = TRUE,
+          autoWidth = FALSE
+        )
+      )
+    })
+
+    # Group the optional AI actions (shortlist + specialists) into one card, shown
+    # only when the final-curator agent mode is on, and placed below the per-gene
+    # evidence so it never displaces the drill-down.
+    output$ai_assist <- renderUI({
+      req(result())
+      if (!final_curator_on()) {
+        return(NULL)
+      }
+      bslib::card(
+        class = "mb-3",
+        bslib::card_header("Refine with AI (optional)"),
+        bslib::card_body(
+          uiOutput(ns("curate_control")),
+          uiOutput(ns("curation")),
+          tags$hr(class = "my-3"),
+          uiOutput(ns("specialist_control"))
+        )
       )
     })
 
@@ -121,7 +152,7 @@ results_server <- function(
       }
       n_ranked <- nrow(result()$genes)
       div(
-        class = "my-3",
+        div(class = "fw-semibold mb-1", "Shortlist to a target size"),
         div(
           class = "d-flex align-items-end gap-2 flex-wrap",
           div(
@@ -144,10 +175,9 @@ results_server <- function(
         div(
           class = "text-muted small mt-1",
           paste(
-            "The deterministic rank shortlists the top candidates; the model",
-            "filters them down to about your target size, choosing only from the",
-            "ranked genes and citing the evidence shown. The grounded,",
-            "source-linked evidence stays in the table and drill-down above."
+            "The model filters the top ranked genes down to about your target",
+            "size, choosing only from them and citing the evidence shown. The",
+            "curated shortlist (with a CSV download) appears just below."
           )
         )
       )
@@ -227,20 +257,20 @@ results_server <- function(
         return(NULL)
       }
       div(
-        class = "my-3",
+        div(class = "fw-semibold mb-1", "Deep-dive the top candidates"),
         actionButton(
           ns("do_specialists"),
-          "Analyze top candidates with specialists →",
+          "Analyze with specialists →",
           class = "btn-outline-primary"
         ),
-        span(
-          class = "text-muted small ms-2",
+        div(
+          class = "text-muted small mt-1",
           paste(
             "Three grounded specialists (variant · pathway/disease · literature)",
-            "synthesize each top candidate's own evidence, then an orchestrator",
-            "rolls them into one verdict + a priority next experiment. Runs on the",
-            "top of your curated list when you have curated, else the top ranked",
-            "genes. Select a gene row to read its analysis."
+            "synthesize each candidate's evidence into one verdict + a priority",
+            "next experiment. Results appear as a Plausibility column in the table",
+            "above and, per gene, inside the Evidence panel (select a row). Runs",
+            "on your curated shortlist if you curated, else the top ranked genes."
           )
         )
       )
