@@ -1,6 +1,6 @@
 # Pinned to the R version recorded in renv.lock (see `renv.lock` -> R.Version), so the
 # base R matches the locked package set. Bump this tag and re-snapshot together.
-FROM rocker/shiny:4.5.3
+FROM rocker/shiny:4.6.1
 
 ARG CRAN_MIRROR=https://cloud.r-project.org
 ENV CRAN_MIRROR=${CRAN_MIRROR}
