@@ -24,8 +24,20 @@ genescout_cache_key <- function(...) {
 # A descriptive, contact-bearing User-Agent. NCBI E-utilities and Europe PMC ask
 # callers to identify themselves with a contact; the public repo URL is the stable
 # identifier, and a hosted operator can add a mailto via GENESCOUT_CONTACT_EMAIL.
-GENESCOUT_VERSION <- "0.1.0"
 GENESCOUT_REPO_URL <- "https://github.com/samuelbharti/genescout"
+# Read once from DESCRIPTION (sourced from the app root at startup) so the outbound
+# User-Agent and the in-app footer share one version and never drift. This is the
+# single source of truth for both; falls back to a literal if DESCRIPTION is absent.
+GENESCOUT_VERSION <- local({
+  v <- tryCatch(
+    as.character(read.dcf(
+      genescout_app_path("DESCRIPTION"),
+      fields = "Version"
+    )[1, 1]),
+    error = function(e) NA_character_
+  )
+  if (is.na(v) || !nzchar(v)) "0.1.0" else v
+})
 
 genescout_user_agent <- function() {
   email <- Sys.getenv("GENESCOUT_CONTACT_EMAIL", "")

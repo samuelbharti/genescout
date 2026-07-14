@@ -21,10 +21,10 @@ specialist_box <- function(title, sources) {
   )
 }
 
-agents_page <- fluidPage(
+agents_page <- gs_page(fluidPage(
   tags$style(HTML(
     "
-    .genescout-flow { max-width: 780px; }
+    .genescout-flow { max-width: 820px; }
     .genescout-stage { border: 1px solid var(--bs-border-color);
       border-radius: .5rem; padding: .85rem 1.1rem; background: var(--bs-body-bg); }
     .genescout-stage h5 { margin: 0 0 .15rem 0; font-size: 1.05rem; }
@@ -273,4 +273,4 @@ agents_page <- fluidPage(
       )
     )
   )
-)
+))
