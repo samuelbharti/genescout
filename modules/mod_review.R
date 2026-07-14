@@ -3,39 +3,124 @@
 # enrichment once (run_enrich), then re-ranks reactively (rank_result) whenever a
 # weight slider moves - no re-query. Failures surface as notifications.
 
+# The head resources for the review workbench: the scientific-clean design
+# system + its client behaviour. Included from review_ui; Shiny hoists <head>
+# tags to the document head, so it applies app-wide (the tokens, body, and navbar
+# restyle are global; the component styles are scoped under `.gs`).
+genescout_head <- function() {
+  tags$head(
+    tags$link(rel = "icon", href = "img/mascot.svg", type = "image/svg+xml"),
+    tags$link(
+      rel = "stylesheet",
+      type = "text/css",
+      href = "css/genescout.css"
+    ),
+    tags$script(src = "js/genescout.js"),
+    tags$script(src = "js/tour.js")
+  )
+}
+
 review_ui <- function(id) {
   ns <- NS(id)
+  # The input-module widgets live under the "input" namespace; `ins` builds those
+  # ids so the run button + agent-mode selector can sit in the setup foot while
+  # input_server still reads them (they are placement-agnostic components).
+  ins <- NS(ns("input"))
 
-  layout_sidebar(
-    # Collapsed by default and title-less: the sidebar holds the secondary "which
-    # sources / how to weight" controls, so it opens straight onto Data sources
-    # with no header gap. The primary inputs live on the main grid.
-    sidebar = sidebar(
-      open = FALSE,
-      width = 360,
-      data_sources_ui(ns("input")),
-      advanced_ui(ns("input"))
-    ),
-    # Primary inputs on a grid: candidate genes beside study context, then the API
-    # key beside the run controls; results and the export panel fill the width below.
-    fluidPage(
-      fluidRow(
-        column(6, candidate_genes_ui(ns("input"))),
-        column(6, study_context_ui(ns("input")))
-      ),
-      fluidRow(
-        column(6, keys_ui(ns("keys"))),
-        column(6, run_ui(ns("input")))
-      ),
-      fluidRow(column(12, results_ui(ns("results")))),
-      fluidRow(column(
-        12,
-        bslib::card(
-          class = "mb-3",
-          bslib::card_header("Export"),
-          bslib::card_body(report_ui(ns("report")))
+  div(
+    class = "gs",
+    genescout_head(),
+    # Intro hero: what GeneScout is + the primary call to action. Shown before the
+    # first run; the JS hides it once a ranking exists and the context strip takes
+    # over. It also carries the pre-run "Set up your own review" affordance, so
+    # hiding the setup can never trap the user (no strip yet -> intro is visible).
+    div(
+      class = "gs-intro",
+      genescout_mascot(size = 66),
+      div(
+        class = "gs-intro-copy",
+        tags$h1("Scout your candidate genes."),
+        tags$p(
+          "GeneScout turns one or more candidate gene lists plus a disease context",
+          "into a plausibility-ranked, fully-cited research review — every signal",
+          "traceable to a public source. Triage sequencing, screen, or omics hits",
+          "before you commit bench time."
         )
-      ))
+      ),
+      div(
+        class = "gs-intro-cta",
+        # Starts the client-side guided tour (www/js/tour.js): it loads the
+        # example, then walks the user click-by-click through ranking, the veto,
+        # the grounded evidence, the AI layer, and Chat.
+        tags$button(
+          type = "button",
+          class = "gs-btn gs-btn-primary",
+          `data-gs-tour` = "start",
+          "▶ Guided demo"
+        ),
+        tags$button(
+          type = "button",
+          class = "gs-btn gs-btn-soft",
+          `data-gs-setup` = "open",
+          `data-gs-target` = "gs-setup",
+          "Set up your own"
+        )
+      )
+    ),
+    # Results: the context strip + toolbar + master-detail grid + AI panels. Empty
+    # before the first run (the setup below is the call to action then); after a
+    # run the strip summarizes the setup and this fills with the ranking.
+    results_ui(ns("results")),
+    # Setup: every input, collapsible. Open before the first run; "Rank genes"
+    # collapses it and the strip's "Edit setup" reopens it (client-side, JS).
+    tags$section(
+      id = "gs-setup",
+      class = "gs-setup open",
+      div(
+        class = "gs-setup-head",
+        tags$h2(class = "gs-setup-title", "Set up the review"),
+        tags$button(
+          type = "button",
+          class = "gs-ghost",
+          `data-gs-setup` = "close",
+          `data-gs-target` = "gs-setup",
+          "Hide setup"
+        )
+      ),
+      div(
+        class = "gs-grid2",
+        candidate_genes_ui(ns("input")),
+        study_context_ui(ns("input"))
+      ),
+      div(
+        class = "gs-grid2",
+        keys_ui(ns("keys")),
+        data_sources_ui(ns("input"))
+      ),
+      advanced_ui(ns("input")),
+      div(
+        class = "gs-setup-foot",
+        uiOutput(ins("agent_mode_ui")),
+        actionButton(
+          ins("run"),
+          "Rank genes",
+          class = "gs-btn gs-btn-primary",
+          `data-gs-setup` = "close",
+          `data-gs-target` = "gs-setup"
+        ),
+        # Marked with data-gs-reset-target so the results toolbar's Reset can
+        # trigger this same clear (see www/js/genescout.js).
+        actionButton(
+          ins("reset"),
+          "Clear",
+          class = "gs-btn gs-btn-soft",
+          `data-gs-reset-target` = "1"
+        ),
+        tags$span(
+          class = "gs-foot-note",
+          "The deterministic ranking needs no API key."
+        )
+      )
     )
   )
 }
@@ -61,19 +146,39 @@ review_server <- function(
     # The input agent's proposal awaiting user confirmation (input/both modes).
     pending_proposal <- reactiveVal(NULL)
 
+    # "Clear all": drop the ranked result (which cascades to clear the AI curation
+    # and specialist panels, via their observeEvent(result()) resets) and any
+    # pending proposal. The input module clears the form fields itself.
+    observeEvent(
+      inputs$reset(),
+      {
+        enriched(NULL)
+        pending_proposal(NULL)
+      },
+      ignoreInit = TRUE
+    )
+
     # Run the expensive enrichment on a CONFIRMED candidate_set. Shared by the
     # direct path (none/final) and the post-confirm path (input/both).
-    enrich_confirmed <- function(cs, disease) {
+    enrich_confirmed <- function(cs, disease, priors_override = NULL) {
       active_registry <- if (!is.null(disease)) {
         genescout_registry_disease
       } else {
         registry
       }
       context <- if (!is.null(disease)) list(disease = disease) else list()
+      # Per-list trust weights (source label -> weight) the user set next to each
+      # candidate list, threaded to the weighted cross-source corroboration signal.
+      # All-default (1) weights leave the ranking byte-identical.
+      sw <- inputs$source_weights()
+      if (length(sw) > 0) {
+        context$source_weights <- sw
+      }
       # Study-context priors (context/<id>.yaml): FLAGS genes, relevant pathways,
       # tissues, drivers. run_enrich loads them from priors_id and degrades to no
-      # priors on a bad id, so a plain run (priors_id = NULL) is unchanged.
-      priors_id <- inputs$priors_id()
+      # priors on a bad id, so a plain run (priors_id = NULL) is unchanged. The
+      # demo passes an explicit override so it always runs the NF1 context.
+      priors_id <- priors_override %||% inputs$priors_id()
       if (!is.null(priors_id)) {
         context$priors_id <- priors_id
       }
@@ -263,6 +368,9 @@ review_server <- function(
     # Specialist synthesis, owned here so both the results tab (which triggers it)
     # and the report module (which embeds the verdict in the download) share it.
     specialists <- reactiveVal(NULL)
+    # The results module owns the ranked-table presentation, the optional AI
+    # actions, and the exports (auditable HTML report + flat CSV); it reads the
+    # shared `specialists` so the download embeds the verdict.
     results_server(
       "results",
       result,
@@ -270,7 +378,6 @@ review_server <- function(
       agent_mode = inputs$agent_mode,
       specialists = specialists
     )
-    report_server("report", result, specialists = specialists)
   })
 }
 

@@ -4,6 +4,17 @@
 library(shiny)
 library(bslib)
 
+# Deployment hardening (see docs/deployment.md). Allow reasonably large gene-list
+# uploads (Shiny's default cap is 5 MB). In a public deployment, set the env var
+# GENESCOUT_PRODUCTION to also sanitize error messages shown in the browser (so
+# internals are not leaked) - left off in development so errors stay debuggable.
+# Host-level idle/connection timeouts are set where the app is deployed
+# (shinyapps.io appIdleTimeout / ShinyProxy heartbeat / Shiny Server), not here.
+options(shiny.maxRequestSize = 30 * 1024^2)
+if (nzchar(Sys.getenv("GENESCOUT_PRODUCTION"))) {
+  options(shiny.sanitize.errors = TRUE)
+}
+
 # Optionally theme base/ggplot/lattice output to match the app theme. Activates
 # only if the {thematic} package is installed, so it adds no hard dependency.
 if (requireNamespace("thematic", quietly = TRUE)) {

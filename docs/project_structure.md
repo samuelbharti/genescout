@@ -19,8 +19,9 @@ genescout/
 │   ├── scoring.R                 Plausibility score + caveats/veto.
 │   ├── report.R                  Auditable HTML cards + report.
 │   └── tools/                    One bio-DB client per source (no ellmer imports).
-├── modules/                     Shiny modules (input, results, report, review).
-├── userInterface/               Page layouts (review, about).
+├── modules/                     Shiny modules (input, keys, results, review, chat).
+├── userInterface/               Page layouts (review, chat, guide, connectors,
+│                                agents, about).
 ├── prompts/                     Agent system prompts + scoring rubric.
 ├── context/                     Disease-context priors (nf1.yaml).
 ├── data/examples/               Public/synthetic candidate tables.

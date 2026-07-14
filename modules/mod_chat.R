@@ -32,11 +32,11 @@ chat_ui <- function(id) {
     ))
   }
   div(
-    class = "p-3",
+    class = "gs-chat px-3 pt-3 pb-1",
     div(class = "mb-2", uiOutput(ns("status"))),
     shinychat::chat_ui(
       ns("chat"),
-      height = "72vh",
+      height = "62vh",
       placeholder = "Ask about your ranked genes, how GeneScout works, or how to read the results...",
       greeting = paste(
         "Hi! I'm the GeneScout assistant. I can explain how the ranking, grades, and",
@@ -46,7 +46,7 @@ chat_ui <- function(id) {
       )
     ),
     helpText(
-      class = "small mt-2",
+      class = "small mt-1 mb-0",
       "Research use only. Grounded in your current run's evidence; not for clinical",
       "or diagnostic use."
     )

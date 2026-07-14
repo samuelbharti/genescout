@@ -16,10 +16,10 @@ grade_row <- function(badge_class, label, threshold, meaning) {
   )
 }
 
-guide_page <- fluidPage(
+guide_page <- gs_page(fluidPage(
   tags$style(HTML(
     "
-    .genescout-guide { max-width: 860px; }
+    .genescout-guide { max-width: 920px; }
     .genescout-grade-table { width: 100%; border-collapse: collapse; }
     .genescout-grade-table td { padding: .5rem .6rem; vertical-align: top;
       border-top: 1px solid var(--bs-border-color); }
@@ -111,7 +111,7 @@ guide_page <- fluidPage(
             "is rewarded); present annotations then only nudge the score up.",
             "This is the number the table is sorted by. Open the",
             tags$strong("“How the composite score works”"),
-            "panel above the table to see every source, its role, and its weight -",
+            "panel below the table to see every source, its role, and its weight -",
             "and use the weight sliders to re-rank instantly (no re-query)."
           )
         )
@@ -182,7 +182,8 @@ guide_page <- fluidPage(
     p(
       "Select a gene row and the",
       tags$strong("Evidence"),
-      "panel below the table opens its provenance: for every signal, the specific",
+      "panel beside the table (below it on a narrow screen) opens its provenance:",
+      "for every signal, the specific",
       "records behind it, each with a",
       tags$strong("source id"),
       "(a database accession or a PMID) linking out to the source. If you ran the",
@@ -211,4 +212,4 @@ guide_page <- fluidPage(
       "treatment guidance, or ACMG/AMP variant classification."
     )
   )
-)
+))
