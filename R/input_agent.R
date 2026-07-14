@@ -399,7 +399,8 @@ curate_input <- function(
       build_chat(
         config$provider %||% "anthropic",
         model_for("input_curator", config),
-        system_prompt
+        system_prompt,
+        api_key = config$api_key
       )
     }
   }

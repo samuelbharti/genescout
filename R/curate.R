@@ -362,7 +362,8 @@ curate_gene_list <- function(
       build_chat(
         config$provider %||% "anthropic",
         model_for("orchestrator", config),
-        system_prompt
+        system_prompt,
+        api_key = config$api_key
       )
     }
   }

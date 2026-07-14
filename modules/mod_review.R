@@ -11,6 +11,7 @@ review_ui <- function(id) {
       title = "Set up your review",
       width = 400,
       input_ui(ns("input")),
+      keys_ui(ns("keys")),
       bslib::card(
         class = "mb-2",
         bslib::card_header("Export"),
@@ -24,11 +25,19 @@ review_ui <- function(id) {
 review_server <- function(
   id,
   config = candid_config,
-  registry = candid_registry
+  registry = candid_registry,
+  creds = reactiveVal(NULL),
+  shared_result = reactiveVal(NULL)
 ) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    inputs <- input_server("input", registry)
+    # The session-scoped BYOK credential (shared with the Chat tab) folded onto the
+    # static config, and whether an LLM can run under it. eff_config() drives every
+    # LLM stage; llm_ready() gates the agent-mode options and help.
+    keys_server("keys", creds, config)
+    eff_config <- reactive(byok_effective_config(config, creds()))
+    llm_ready <- reactive(candid_llm_available(eff_config()))
+    inputs <- input_server("input", registry, llm_ready = llm_ready)
     # The enriched (unranked) result, recomputed only on a "Rank genes" click.
     enriched <- reactiveVal(NULL)
     # The input agent's proposal awaiting user confirmation (input/both modes).
@@ -165,12 +174,12 @@ review_server <- function(
       # taken only when the mode asks for it AND an LLM is available; otherwise the
       # one-click path below runs immediately, exactly as before.
       mode <- inputs$agent_mode()
-      if (mode %in% c("input", "both") && candid_llm_available(config)) {
+      if (mode %in% c("input", "both") && candid_llm_available(eff_config())) {
         proposal <- tryCatch(
           withProgress(
             message = "Reviewing your input with the agent...",
             # Background process so Stop/refresh mid-call can't crash the session.
-            candid_llm_run(curate_input, cs, inputs$description(), config)
+            candid_llm_run(curate_input, cs, inputs$description(), eff_config())
           ),
           error = function(e) {
             showNotification(
@@ -222,13 +231,17 @@ review_server <- function(
       )
     })
 
+    # Mirror the ranked result up to the app level so the Chat tab can ground its
+    # answers in the current run.
+    observe(shared_result(result()))
+
     # Specialist synthesis, owned here so both the results tab (which triggers it)
     # and the report module (which embeds the verdict in the download) share it.
     specialists <- reactiveVal(NULL)
     results_server(
       "results",
       result,
-      config,
+      config_r = eff_config,
       agent_mode = inputs$agent_mode,
       specialists = specialists
     )

@@ -556,9 +556,10 @@ candid_provenance <- function(context = list()) {
   sources
 }
 
-# TRUE when an LLM step can run: ellmer installed AND the configured provider's
-# credentials are present. Reserved for the later subjective-ranking agent.
+# TRUE when an LLM step can run: ellmer installed AND a credential exists for the
+# configured provider - either a session-scoped BYOK key (`config$api_key`, set by
+# the Review-tab key card via R/byok.R) or the environment.
 candid_llm_available <- function(config = load_config()) {
   requireNamespace("ellmer", quietly = TRUE) &&
-    provider_credentials_ready(config$provider %||% "anthropic")
+    provider_credentials_ready(config$provider %||% "anthropic", config$api_key)
 }

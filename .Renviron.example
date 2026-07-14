@@ -1,5 +1,11 @@
 # Example environment file. Copy to `.Renviron` (git-ignored) and fill in the
 # credential for the provider set in config.yml. R reads `.Renviron` on startup.
+#
+# These are OPTIONAL: the app also supports bring-your-own-key (BYOK) - a user can
+# paste an Anthropic / Google (Gemini) / OpenAI key in the "AI provider (your key)"
+# card on the Review tab, held only in that browser session. A key set here is the
+# server-side fallback used when no session key is entered. The deterministic
+# ranking needs no key at all.
 
 # --- Google Gemini API (API key - default provider) -------------------------
 # ellmer chat_google_gemini() (Gemini Developer API). API-key path: key only - no

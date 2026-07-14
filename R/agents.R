@@ -30,7 +30,10 @@ candid_chat <- function(
   build_chat(
     provider = config$provider %||% "anthropic",
     model = model_for(model_role, config),
-    system_prompt = read_prompt(role_prompt)
+    system_prompt = read_prompt(role_prompt),
+    # A session-scoped BYOK key rides on the config as `api_key` (R/byok.R);
+    # NULL for a plain .Renviron deploy, where ellmer reads the key from the env.
+    api_key = config$api_key
   )
 }
 
@@ -56,21 +59,40 @@ vertex_location <- function() {
   env_first("VERTEX_LOCATION", "GOOGLE_CLOUD_LOCATION")
 }
 
-# Map the configured provider to its ellmer constructor. Credentials come from
-# the environment (see .Renviron.example), never from config. Adding a provider
-# is a new case here plus its credential env var in provider_credentials_ready();
-# the rest of the engine is untouched.
-build_chat <- function(provider, model, system_prompt) {
+# Map the configured provider to its ellmer constructor. Credentials come from the
+# environment (see .Renviron.example) by default; a user-pasted BYOK key may instead
+# be passed as `api_key` (held in the session, never written to disk/env - see
+# R/byok.R). Adding a provider is a new case here plus its credential env var in
+# provider_credentials_ready(); the rest of the engine is untouched.
+#
+# `api_key`: NULL/"" -> ellmer resolves the key from the environment (unchanged
+# behavior). A non-empty value is passed straight to the constructor, superseding
+# the env for this session. `echo`: NULL keeps ellmer's default; the chat assistant
+# passes "none" so a streamed key can never reach the console/logs.
+build_chat <- function(
+  provider,
+  model,
+  system_prompt,
+  api_key = NULL,
+  echo = NULL
+) {
+  key <- if (is.null(api_key) || !nzchar(api_key)) NULL else api_key
+  # Assemble the shared constructor args, adding api_key/echo only when supplied so
+  # a plain deploy calls the constructor exactly as before.
+  keyed_args <- function() {
+    a <- list(model = model, system_prompt = system_prompt)
+    if (!is.null(key)) {
+      a$api_key <- key
+    }
+    if (!is.null(echo)) {
+      a$echo <- echo
+    }
+    a
+  }
   switch(
     provider,
-    anthropic = ellmer::chat_anthropic(
-      model = model,
-      system_prompt = system_prompt
-    ),
-    google_gemini = ellmer::chat_google_gemini(
-      model = model,
-      system_prompt = system_prompt
-    ),
+    anthropic = do.call(ellmer::chat_anthropic, keyed_args()),
+    google_gemini = do.call(ellmer::chat_google_gemini, keyed_args()),
     # Vertex authenticates with Application Default Credentials (OAuth), NOT an API
     # key, and requires the project + region positionally - passing them from the
     # environment (this call previously omitted them and errored on every use). ellmer
@@ -92,10 +114,7 @@ build_chat <- function(provider, model, system_prompt) {
         system_prompt = system_prompt
       )
     },
-    openai = ellmer::chat_openai(
-      model = model,
-      system_prompt = system_prompt
-    ),
+    openai = do.call(ellmer::chat_openai, keyed_args()),
     stop(
       sprintf(
         paste0(
@@ -109,12 +128,16 @@ build_chat <- function(provider, model, system_prompt) {
   )
 }
 
-# Does the environment carry the credentials the given provider needs? A presence
-# check only (nonblank env vars), not a live auth test. Vertex uses Application
-# Default Credentials, so we gate on project + region being set; the actual ADC
-# token (service-account JSON or `gcloud auth application-default login`) is
-# resolved by ellmer/gargle at call time.
-provider_credentials_ready <- function(provider) {
+# Does a credential exist for the given provider? A presence check only (nonblank
+# key / env vars), not a live auth test. A session-scoped BYOK key (`api_key`)
+# satisfies the check directly - it supersedes the environment. Otherwise the env
+# is consulted: Vertex uses Application Default Credentials, so we gate on project +
+# region being set; the actual ADC token (service-account JSON or `gcloud auth
+# application-default login`) is resolved by ellmer/gargle at call time.
+provider_credentials_ready <- function(provider, api_key = NULL) {
+  if (!is.null(api_key) && nzchar(api_key)) {
+    return(TRUE)
+  }
   switch(
     provider,
     anthropic = nzchar(Sys.getenv("ANTHROPIC_API_KEY")),

@@ -40,3 +40,20 @@ model_for <- function(role, config = load_config()) {
   }
   model
 }
+
+# The per-provider role -> model map for BYOK (config.yml `byok:` block). A sibling
+# of the profiles, so it is read from the whole file rather than a single profile.
+# Returns a named list with the pipeline roles plus a `chat` model. Model strings
+# stay in config; the BYOK layer (R/byok.R) reads them here, never hardcodes them.
+load_byok_models <- function(provider, path = "config.yml") {
+  path <- candid_app_path(path)
+  if (!file.exists(path)) {
+    stop("Config file not found: ", path, call. = FALSE)
+  }
+  cfg <- yaml::read_yaml(path)
+  models <- cfg$byok[[provider]]
+  if (is.null(models)) {
+    stop("No BYOK model map configured for provider: ", provider, call. = FALSE)
+  }
+  models
+}
