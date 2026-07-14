@@ -6,14 +6,14 @@
 # The same renderers serve the Shiny app (results module) and the downloadable
 # standalone HTML. Every signal value and evidence row links to its source.
 
-CANDID_DISCLAIMER <- paste(
-  "Research use only. CANDID is a hypothesis-prioritization aid for researchers.",
+GENESCOUT_DISCLAIMER <- paste(
+  "Research use only. GeneScout is a hypothesis-prioritization aid for researchers.",
   "It is not a clinical decision-support tool and does not provide diagnosis,",
   "treatment guidance, or ACMG/AMP variant classification."
 )
 
 # Human-readable labels for the evidence domains, in display order.
-CANDID_DOMAIN_LABELS <- c(
+GENESCOUT_DOMAIN_LABELS <- c(
   `pathway-disease` = "Pathway & disease",
   `gene-disease` = "Gene–disease association",
   cancer = "Cancer relevance",
@@ -237,7 +237,7 @@ ranked_matrix_html <- function(genes, registry, verdicts = NULL) {
 
 # How many excluded genes to list in the "not curated" panel before collapsing the
 # rest to a count (the full ranking is always in the table above).
-CANDID_NONCURATED_MAX <- 50L
+GENESCOUT_NONCURATED_MAX <- 50L
 
 # Render the grounded evidence ids a rationale cites as a compact cell (or an em
 # dash when none survived grounding).
@@ -353,7 +353,7 @@ render_noncurated <- function(curated, ranked, included_syms) {
     ex <- ex[order(ex$rank), , drop = FALSE]
   }
   n_total <- nrow(ex)
-  shown <- utils::head(ex, CANDID_NONCURATED_MAX)
+  shown <- utils::head(ex, GENESCOUT_NONCURATED_MAX)
 
   # The model's own exclusion rationales, keyed by uppercased symbol.
   excl_rat <- character()
@@ -448,7 +448,11 @@ build_curated_csv <- function(curated) {
 # --- Specialist analysis (optional LLM synthesis) ---------------------------
 
 # Canonical display order for the specialists.
-CANDID_SPECIALIST_ORDER <- c("variant-effect", "pathway-disease", "literature")
+GENESCOUT_SPECIALIST_ORDER <- c(
+  "variant-effect",
+  "pathway-disease",
+  "literature"
+)
 
 # A colored badge for a specialist's domain-support strength.
 specialist_strength_badge <- function(strength) {
@@ -534,7 +538,7 @@ render_specialist_analysis <- function(gene_row, specialists) {
   if (is.null(g) || length(g) == 0) {
     return(NULL)
   }
-  ordered <- intersect(CANDID_SPECIALIST_ORDER, names(g))
+  ordered <- intersect(GENESCOUT_SPECIALIST_ORDER, names(g))
   cards <- lapply(ordered, function(k) {
     sp <- g[[k]]
     findings <- if (length(sp$findings) > 0) {
@@ -673,13 +677,13 @@ evidence_sections <- function(evidence) {
       "No grounded evidence for this gene."
     ))
   }
-  domains <- intersect(names(CANDID_DOMAIN_LABELS), unique(evidence$domain))
+  domains <- intersect(names(GENESCOUT_DOMAIN_LABELS), unique(evidence$domain))
   htmltools::tagList(lapply(domains, function(d) {
     sub <- evidence[evidence$domain == d, , drop = FALSE]
     htmltools::tagList(
       htmltools::tags$h5(
         class = "h6 text-muted mt-3",
-        CANDID_DOMAIN_LABELS[[d]]
+        GENESCOUT_DOMAIN_LABELS[[d]]
       ),
       evidence_domain_table(sub)
     )
@@ -815,17 +819,17 @@ render_report <- function(result, file, specialists = NULL) {
   doc <- htmltools::tags$html(
     htmltools::tags$head(
       htmltools::tags$meta(charset = "utf-8"),
-      htmltools::tags$title("CANDID gene-list review"),
-      htmltools::tags$style(candid_report_css())
+      htmltools::tags$title("GeneScout gene-list review"),
+      htmltools::tags$style(genescout_report_css())
     ),
     htmltools::tags$body(
       htmltools::div(
         class = "container",
-        htmltools::tags$h1("CANDID gene-list review"),
+        htmltools::tags$h1("GeneScout gene-list review"),
         if (!is_blank(result$description)) {
           htmltools::p(htmltools::strong("Studying: "), result$description)
         },
-        htmltools::div(class = "disclaimer", CANDID_DISCLAIMER),
+        htmltools::div(class = "disclaimer", GENESCOUT_DISCLAIMER),
         htmltools::tags$h2("Ranked genes"),
         registry_legend_html(result$registry),
         ranked_matrix_html(genes, result$registry, verdicts = verdicts),
@@ -896,7 +900,7 @@ report_footer <- function(result) {
   )
 }
 
-candid_report_css <- function() {
+genescout_report_css <- function() {
   paste(
     ".container { max-width: 960px; margin: 2rem auto;",
     "  font-family: system-ui, sans-serif; padding: 0 1rem; }",

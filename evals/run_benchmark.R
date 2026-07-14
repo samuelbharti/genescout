@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# CANDID caveats benchmark - the evaluation's novelty hook.
+# GeneScout caveats benchmark - the evaluation's novelty hook.
 #
 # It quantifies how the deterministic CAVEATS / VETO stage changes the ranking
 # versus a no-caveats baseline. Each case is enriched ONCE (the expensive, live-API
@@ -21,7 +21,7 @@ cases <- yaml::read_yaml("evals/test_cases.yaml")
 # aligning the two rankings, or NULL if the case's disease could not be resolved.
 bench_case <- function(case) {
   context <- list()
-  registry <- candid_registry
+  registry <- genescout_registry
   if (!is.null(case$disease)) {
     dr <- resolve_disease(case$disease)
     if (!isTRUE(dr$ok) || nrow(dr$matches) == 0) {
@@ -31,28 +31,28 @@ bench_case <- function(case) {
     context <- list(
       disease = list(id = dr$matches$id[1], name = dr$matches$name[1])
     )
-    registry <- candid_registry_disease
+    registry <- genescout_registry_disease
   }
   enriched <- run_enrich(
     list(eval = case$candidates),
     description = case$description %||% "",
-    config = candid_config,
+    config = genescout_config,
     registry = registry,
     context = context,
     enabled = case$sources
   )
   baseline <- rank_result(enriched, caveats = FALSE) # no caveats stage
-  candid <- rank_result(enriched, caveats = TRUE) # CANDID (caveats on)
+  genescout <- rank_result(enriched, caveats = TRUE) # GeneScout (caveats on)
 
   b <- baseline$genes
-  cix <- match(toupper(b$symbol), toupper(candid$genes$symbol))
+  cix <- match(toupper(b$symbol), toupper(genescout$genes$symbol))
   tab <- data.frame(
     symbol = b$symbol,
     base_grade = b$grade,
     base_rank = b$rank, # rank within the FULL universe (seeded in discovery)
-    cav_grade = candid$genes$grade[cix],
-    cav_rank = candid$genes$rank[cix],
-    delta_rank = candid$genes$rank[cix] - b$rank, # +ve = demoted by caveats
+    cav_grade = genescout$genes$grade[cix],
+    cav_rank = genescout$genes$rank[cix],
+    delta_rank = genescout$genes$rank[cix] - b$rank, # +ve = demoted by caveats
     stringsAsFactors = FALSE
   )
   # Show only the case's own candidates (in discovery mode the seeder adds ~200

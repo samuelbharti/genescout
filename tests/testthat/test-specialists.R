@@ -153,7 +153,7 @@ test_that("clean_specialist_result coerces an unknown strength to moderate", {
 test_that("run_specialists routes evidence to the right specialists, grounded", {
   sp <- run_specialists(
     fake_spec_result(),
-    config = candid_config,
+    config = genescout_config,
     top_n = 10,
     runner = fake_runner
   )
@@ -180,7 +180,7 @@ test_that("run_specialists never calls the runner for a gene without domain evid
     called$prompts <- called$prompts + length(user_prompts)
     fake_runner(system_prompt, user_prompts, schema)
   }
-  run_specialists(fake_spec_result(), config = candid_config, runner = spy)
+  run_specialists(fake_spec_result(), config = genescout_config, runner = spy)
   # NF1 has evidence in all three domains (3 prompts); TP53 has none (0).
   expect_equal(called$prompts, 3L)
 })
@@ -193,7 +193,7 @@ test_that("run_specialists returns ai_used = FALSE for an empty ranking", {
   )
   sp <- run_specialists(
     empty,
-    config = candid_config,
+    config = genescout_config,
     runner = function(...) stop("runner should not be called")
   )
   expect_false(sp$ai_used)
@@ -203,7 +203,7 @@ test_that("run_specialists returns ai_used = FALSE for an empty ranking", {
 test_that("a runner error degrades gracefully (no findings, not a crash)", {
   sp <- run_specialists(
     fake_spec_result(),
-    config = candid_config,
+    config = genescout_config,
     runner = function(...) stop("boom")
   )
   expect_false(sp$ai_used)
@@ -227,7 +227,7 @@ fake_synth_runner <- function(system_prompt, user_prompts, schema) {
 test_that("gene_grounded_ids unions the specialists' grounded finding ids", {
   sp <- run_specialists(
     fake_spec_result(),
-    config = candid_config,
+    config = genescout_config,
     runner = fake_runner,
     synthesize = FALSE
   )
@@ -258,7 +258,7 @@ test_that("clean_synthesis_result normalizes plausibility and grounds ids", {
 test_that("run_synthesis attaches a grounded verdict per gene", {
   sp <- run_specialists(
     fake_spec_result(),
-    config = candid_config,
+    config = genescout_config,
     runner = fake_runner,
     synthesize = FALSE
   )
@@ -273,7 +273,7 @@ test_that("run_synthesis attaches a grounded verdict per gene", {
 test_that("run_specialists chains synthesis when a synth_runner is given", {
   sp <- run_specialists(
     fake_spec_result(),
-    config = candid_config,
+    config = genescout_config,
     runner = fake_runner,
     synth_runner = fake_synth_runner
   )
@@ -290,7 +290,7 @@ test_that("run_specialists skips synthesis when only a specialist runner is inje
   # trigger a live synthesis call.
   sp <- run_specialists(
     fake_spec_result(),
-    config = candid_config,
+    config = genescout_config,
     runner = fake_runner
   )
   expect_null(sp$by_gene[["NF1"]]$verdict)
@@ -315,7 +315,7 @@ test_that("render_verdict renders the verdict, badge, and grounded ids or NULL",
 test_that("render_specialist_analysis renders grounded cards or NULL", {
   sp <- run_specialists(
     fake_spec_result(),
-    config = candid_config,
+    config = genescout_config,
     runner = fake_runner
   )
   gene_row <- fake_spec_result()$genes[1, , drop = FALSE] # NF1

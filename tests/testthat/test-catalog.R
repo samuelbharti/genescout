@@ -3,8 +3,8 @@
 
 rubric_path <- function() test_path("..", "..", "rubric.yml")
 
-test_that("candid_source_catalog() lists every known source, incl. gtex + string", {
-  cat <- candid_source_catalog(load_rubric(rubric_path()))
+test_that("genescout_source_catalog() lists every known source, incl. gtex + string", {
+  cat <- genescout_source_catalog(load_rubric(rubric_path()))
   keys <- vapply(cat, function(s) s$key, character(1))
   expect_true(all(
     c(
@@ -41,8 +41,22 @@ test_that("source_selection() precedence: explicit > config > NULL(default_on)",
 
 test_that("resolve_active_sources() honors selection, config, and default_on", {
   cat <- list(
-    candid_signal("a", "A", "S", NULL, normalize_identity, default_on = TRUE),
-    candid_signal("b", "B", "S", NULL, normalize_identity, default_on = FALSE)
+    genescout_signal(
+      "a",
+      "A",
+      "S",
+      NULL,
+      normalize_identity,
+      default_on = TRUE
+    ),
+    genescout_signal(
+      "b",
+      "B",
+      "S",
+      NULL,
+      normalize_identity,
+      default_on = FALSE
+    )
   )
   # No selection -> only default_on.
   expect_equal(resolve_active_sources(cat), "a")
@@ -58,22 +72,22 @@ test_that("resolve_active_sources() honors selection, config, and default_on", {
 })
 
 test_that("signal_available() drops a key-gated source with no key", {
-  keyless <- candid_signal("k", "K", "S", NULL, normalize_identity)
-  gated <- candid_signal(
+  keyless <- genescout_signal("k", "K", "S", NULL, normalize_identity)
+  gated <- genescout_signal(
     "g",
     "G",
     "S",
     NULL,
     normalize_identity,
     auth = "header",
-    key_env = "CANDID_TEST_ABSENT_KEY"
+    key_env = "GENESCOUT_TEST_ABSENT_KEY"
   )
   expect_true(signal_available(keyless))
-  withr::with_envvar(c(CANDID_TEST_ABSENT_KEY = ""), {
+  withr::with_envvar(c(GENESCOUT_TEST_ABSENT_KEY = ""), {
     expect_false(signal_available(gated))
     expect_false("g" %in% resolve_active_sources(list(keyless, gated)))
   })
-  withr::with_envvar(c(CANDID_TEST_ABSENT_KEY = "xyz"), {
+  withr::with_envvar(c(GENESCOUT_TEST_ABSENT_KEY = "xyz"), {
     expect_true(signal_available(gated))
   })
 })
@@ -92,7 +106,7 @@ spy_signal <- function(key, calls) {
       evidence = empty_evidence_long()
     )
   }
-  candid_signal(key, toupper(key), "Spy", extractor, normalize_identity, 1)
+  genescout_signal(key, toupper(key), "Spy", extractor, normalize_identity, 1)
 }
 
 test_that("run_enrich() QUERIES only selected sources (deselected never called)", {
@@ -137,7 +151,7 @@ test_that("run_review_request() reads options$sources as the selection", {
   calls <- new.env(parent = emptyenv())
   reg <- list(spy_signal("a", calls), spy_signal("b", calls))
   req <- list(
-    sources = candidate_set(candid_source(c("NF1", "TP53"), label = "mine")),
+    sources = candidate_set(genescout_source(c("NF1", "TP53"), label = "mine")),
     options = list(sources = c("b"), caveats = FALSE)
   )
   run_review_request(req, registry = reg, resolver = stub_resolver)
@@ -145,8 +159,8 @@ test_that("run_review_request() reads options$sources as the selection", {
   expect_true((calls$b %||% 0L) > 0L)
 })
 
-test_that("candid_source_stubs() are catalog-visible but off + unavailable keyless", {
-  cat <- candid_source_catalog(load_rubric(rubric_path()))
+test_that("genescout_source_stubs() are catalog-visible but off + unavailable keyless", {
+  cat <- genescout_source_catalog(load_rubric(rubric_path()))
   keys <- vapply(cat, function(s) s$key, character(1))
   # The key-gated stubs appear in the catalog (so a front end can show 'needs key')...
   expect_true(all(
@@ -163,8 +177,8 @@ test_that("candid_source_stubs() are catalog-visible but off + unavailable keyle
   )
 })
 
-test_that("candid_catalog_json() is plain, JSON-serializable data with metadata", {
-  j <- candid_catalog_json(candid_source_catalog(load_rubric(rubric_path())))
+test_that("genescout_catalog_json() is plain, JSON-serializable data with metadata", {
+  j <- genescout_catalog_json(genescout_source_catalog(load_rubric(rubric_path())))
   expect_gt(length(j), 8)
   one <- j[[1]]
   expect_true(all(
@@ -188,7 +202,7 @@ test_that("candid_catalog_json() is plain, JSON-serializable data with metadata"
   expect_false(hpa$default_on) # opt-in
   # A key-gated stub is unavailable without its key.
   withr::with_envvar(c(ONCOKB_API_KEY = ""), {
-    oncokb <- candid_catalog_json(candid_source_catalog(load_rubric(rubric_path())))
+    oncokb <- genescout_catalog_json(genescout_source_catalog(load_rubric(rubric_path())))
     ok <- oncokb[[which(
       vapply(oncokb, function(s) s$key, character(1)) == "oncokb"
     )]]
@@ -198,21 +212,21 @@ test_that("candid_catalog_json() is plain, JSON-serializable data with metadata"
 })
 
 test_that("source_auth_headers() builds bearer headers only when a key is present", {
-  keyless <- candid_signal("k", "K", "S", NULL, normalize_identity)
+  keyless <- genescout_signal("k", "K", "S", NULL, normalize_identity)
   expect_null(source_auth_headers(keyless))
-  gated <- candid_signal(
+  gated <- genescout_signal(
     "g",
     "G",
     "S",
     NULL,
     normalize_identity,
     auth = "bearer",
-    key_env = "CANDID_TEST_TOKEN"
+    key_env = "GENESCOUT_TEST_TOKEN"
   )
-  withr::with_envvar(c(CANDID_TEST_TOKEN = ""), {
+  withr::with_envvar(c(GENESCOUT_TEST_TOKEN = ""), {
     expect_null(source_auth_headers(gated)) # no key -> no headers
   })
-  withr::with_envvar(c(CANDID_TEST_TOKEN = "tok123"), {
+  withr::with_envvar(c(GENESCOUT_TEST_TOKEN = "tok123"), {
     h <- source_auth_headers(gated)
     expect_equal(h$Authorization, "Bearer tok123")
   })
@@ -270,9 +284,9 @@ test_that("an explicit empty selection (deselect-all) queries nothing and errors
   )
 })
 
-test_that("candid_provenance() audits GTEx only when gtex_tissue actually ran", {
+test_that("genescout_provenance() audits GTEx only when gtex_tissue actually ran", {
   # Regression: tissues set but GTEx deselected -> not queried -> must not appear.
-  off <- candid_provenance(list(
+  off <- genescout_provenance(list(
     tissues_of_interest = "nerve",
     active_sources = c("ot_assoc")
   ))
@@ -280,7 +294,7 @@ test_that("candid_provenance() audits GTEx only when gtex_tissue actually ran", 
     "GTEx",
     vapply(off, function(s) s$source, character(1))
   )))
-  on <- candid_provenance(list(
+  on <- genescout_provenance(list(
     tissues_of_interest = "nerve",
     active_sources = c("ot_assoc", "gtex_tissue")
   ))
@@ -290,11 +304,11 @@ test_that("candid_provenance() audits GTEx only when gtex_tissue actually ran", 
   )))
 })
 
-test_that("candid_provenance() audits disease seeding even if those signals are off", {
+test_that("genescout_provenance() audits disease seeding even if those signals are off", {
   # Regression: in discovery mode the seeder always queries Open Targets, PanelApp
   # and DISEASES, so the audit must list them even when their per-gene signal was
   # deselected (else provenance under-reports what actually ran).
-  prov <- candid_provenance(list(
+  prov <- genescout_provenance(list(
     disease = list(id = "MONDO_0018975", name = "neurofibromatosis type 1"),
     active_sources = c("gnomad_loeuf") # none of the three seeders selected
   ))
@@ -304,10 +318,10 @@ test_that("candid_provenance() audits disease seeding even if those signals are 
   expect_true(any(grepl("DISEASES", labs)))
 })
 
-test_that("candid_provenance() audits the cancer connectors when they ran", {
+test_that("genescout_provenance() audits the cancer connectors when they ran", {
   # A selected opt-in connector that produced evidence must appear in the audit
   # trail (the base provenance list has to know its endpoint).
-  prov <- candid_provenance(list(
+  prov <- genescout_provenance(list(
     active_sources = c("ot_assoc", "cbioportal", "civic", "clingen")
   ))
   labs <- vapply(prov, function(s) s$source, character(1))
@@ -316,8 +330,8 @@ test_that("candid_provenance() audits the cancer connectors when they ran", {
   expect_true(any(grepl("ClinGen", labs)))
 })
 
-test_that("candid_catalog_json() flags catalog-only stubs as not selectable", {
-  j <- candid_catalog_json(candid_source_catalog(load_rubric(rubric_path())))
+test_that("genescout_catalog_json() flags catalog-only stubs as not selectable", {
+  j <- genescout_catalog_json(genescout_source_catalog(load_rubric(rubric_path())))
   by_key <- function(k) {
     j[[which(vapply(j, function(s) s$key, character(1)) == k)]]
   }

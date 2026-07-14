@@ -1,4 +1,4 @@
-# CANDID HTTP API - DESIGN-ONLY REFERENCE (not deployed, not in the test suite).
+# GeneScout HTTP API - DESIGN-ONLY REFERENCE (not deployed, not in the test suite).
 #
 # This file exists to PROVE the engine surface is UI-agnostic: a React / Shiny-
 # Python / any front end drives the exact same core functions the Shiny app and
@@ -27,8 +27,8 @@ if (!file.exists("global.R") && file.exists(file.path("..", "global.R"))) {
 }
 # Anchor the file-based loaders (rubric.yml, context/) to the app root: plumber
 # serves each request with a working directory of its own choosing, so a plain
-# relative path would fail at request time. candid_app_path() reads this.
-Sys.setenv(CANDID_APP_ROOT = normalizePath(getwd()))
+# relative path would fail at request time. genescout_app_path() reads this.
+Sys.setenv(GENESCOUT_APP_ROOT = normalizePath(getwd()))
 source("global.R")
 
 # --- (de)serialization helpers ---------------------------------------------
@@ -63,7 +63,7 @@ proposal_response <- function(p) {
   )
 }
 
-#* @apiTitle CANDID
+#* @apiTitle GeneScout
 #* @apiDescription Research-use-only gene-list prioritization. Not clinical.
 
 #* The source catalog: every connector + its selection metadata, so a front end can
@@ -72,7 +72,7 @@ proposal_response <- function(p) {
 #* @get /catalog
 #* @serializer unboxedJSON
 function() {
-  list(sources = candid_catalog_json())
+  list(sources = genescout_catalog_json())
 }
 
 #* Interpret + clean multi-source input into a proposal (front-of-pipeline agent).
@@ -81,7 +81,7 @@ function() {
 function(req) {
   body <- jsonlite::fromJSON(req$postBody, simplifyVector = FALSE)
   cs <- candidate_set_from_list(body$sources)
-  proposal <- curate_input(cs, body$description %||% "", candid_config)
+  proposal <- curate_input(cs, body$description %||% "", genescout_config)
   proposal_response(proposal)
 }
 
@@ -118,13 +118,13 @@ function(req) {
   body <- jsonlite::fromJSON(req$postBody, simplifyVector = FALSE)
   disease <- body$disease
   registry <- if (!is.null(disease) && !is_blank(disease$id %||% "")) {
-    candid_registry_disease
+    genescout_registry_disease
   } else {
-    candid_registry
+    genescout_registry
   }
   result <- run_review_request(
     body,
-    config = candid_config,
+    config = genescout_config,
     registry = registry
   )
   list(

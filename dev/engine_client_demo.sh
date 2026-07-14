@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CANDID engine client demo (curl) - the raw HTTP contract behind the UI-agnostic
+# GeneScout engine client demo (curl) - the raw HTTP contract behind the UI-agnostic
 # core, driven with zero R. Discovers the source catalog, then posts a candidate
 # gene list + a chosen subset of sources to /review. A richer, catalog-driven
 # version (parses the catalog, groups by domain) is dev/engine_client_demo.py.

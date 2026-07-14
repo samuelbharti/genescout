@@ -147,7 +147,7 @@ test_that("curate_gene_list() falls back (with the error) when the model throws"
   res <- fake_curate_result()
   cur <- curate_gene_list(
     res,
-    config = candid_config,
+    config = genescout_config,
     chat_factory = function(system_prompt) stop("boom")
   )
   expect_false(attr(cur, "ai_used"))
@@ -202,7 +202,7 @@ test_that("curate_gene_list() caps the AI selection to the target size", {
   }
   cur <- curate_gene_list(
     res,
-    config = candid_config,
+    config = genescout_config,
     top_n = 2,
     chat_factory = factory
   )
@@ -233,7 +233,11 @@ test_that("curate_gene_list() uses a stubbed model and drops hallucinations", {
       list(selections = sel, overall_notes = "n")
     })
   }
-  cur <- curate_gene_list(res, config = candid_config, chat_factory = factory)
+  cur <- curate_gene_list(
+    res,
+    config = genescout_config,
+    chat_factory = factory
+  )
   expect_true(attr(cur, "ai_used"))
   expect_equal(cur$gene_symbol, "NF1") # GHOST not a candidate -> dropped
 })

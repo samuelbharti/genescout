@@ -25,13 +25,13 @@ test_that("model_for() resolves a role or errors when it is absent", {
   expect_error(model_for("nonexistent", cfg), "No model configured for role")
 })
 
-test_that("candid_app_path() honors CANDID_APP_ROOT, else stays relative", {
-  withr::with_envvar(c(CANDID_APP_ROOT = ""), {
-    expect_equal(candid_app_path("rubric.yml"), "rubric.yml")
+test_that("genescout_app_path() honors GENESCOUT_APP_ROOT, else stays relative", {
+  withr::with_envvar(c(GENESCOUT_APP_ROOT = ""), {
+    expect_equal(genescout_app_path("rubric.yml"), "rubric.yml")
   })
-  withr::with_envvar(c(CANDID_APP_ROOT = "/srv/app"), {
+  withr::with_envvar(c(GENESCOUT_APP_ROOT = "/srv/app"), {
     expect_equal(
-      candid_app_path("rubric.yml"),
+      genescout_app_path("rubric.yml"),
       file.path("/srv/app", "rubric.yml")
     )
   })

@@ -3,7 +3,7 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-CANDID is pre-release, so everything lives under **Unreleased** until the first
+GeneScout is pre-release, so everything lives under **Unreleased** until the first
 tagged version; entries are grouped by theme rather than by date.
 
 ## [Unreleased]

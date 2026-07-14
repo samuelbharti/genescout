@@ -24,14 +24,14 @@ report_ui <- function(id) {
 report_server <- function(id, result, specialists = reactive(NULL)) {
   moduleServer(id, function(input, output, session) {
     output$download <- downloadHandler(
-      filename = function() "candid_report.html",
+      filename = function() "genescout_report.html",
       content = function(file) {
         req(result())
         render_report(result(), file, specialists = specialists())
       }
     )
     output$download_csv <- downloadHandler(
-      filename = function() "candid_ranking.csv",
+      filename = function() "genescout_ranking.csv",
       content = function(file) {
         req(result())
         utils::write.csv(

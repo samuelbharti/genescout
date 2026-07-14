@@ -1,4 +1,4 @@
-// Conventional Commits rules for CANDID (used by the commitlint hook and CI).
+// Conventional Commits rules for GeneScout (used by the commitlint hook and CI).
 // See https://www.conventionalcommits.org and @commitlint/config-conventional.
 module.exports = {
   extends: ["@commitlint/config-conventional"],

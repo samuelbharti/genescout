@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# CANDID eval harness. Runs the deterministic ranking on known gene lists and
+# GeneScout eval harness. Runs the deterministic ranking on known gene lists and
 # checks three invariants per case: (1) IDENTITY - every candidate resolves to the
 # gene it named (guards the TTN->TTR class of bug); (2) GRADE - the expect_high
 # genes grade High; (3) ORDER - the expect_below negative control ranks last. Treat
@@ -30,7 +30,7 @@ cases <- yaml::read_yaml("evals/test_cases.yaml")
 # the per-case snapshot serialized into baseline.json when --write-baseline is set.
 run_case <- function(case) {
   context <- list()
-  registry <- candid_registry
+  registry <- genescout_registry
   disease_id <- NULL
   disease_name <- NULL
   if (!is.null(case$disease)) {
@@ -46,12 +46,12 @@ run_case <- function(case) {
     disease_id <- dr$matches$id[1]
     disease_name <- dr$matches$name[1]
     context <- list(disease = list(id = disease_id, name = disease_name))
-    registry <- candid_registry_disease
+    registry <- genescout_registry_disease
   }
   result <- run_review(
     list(eval = case$candidates),
     case$description %||% "",
-    candid_config,
+    genescout_config,
     registry,
     context = context,
     # Optional per-case source selection (a character vector of connector keys),

@@ -1,6 +1,6 @@
 # Data sources
 
-Provenance for every external source CANDID queries. Keep this current: when you
+Provenance for every external source GeneScout queries. Keep this current: when you
 add or change a source, record its endpoint, version/release, access date, and terms.
 This table is what a reviewer will ask for and what makes the method reproducible.
 
@@ -36,7 +36,7 @@ This table is what a reviewer will ask for and what makes the method reproducibl
 
 ## Source selection
 
-Sources form a **catalog** (`candid_source_catalog()`); each run activates a
+Sources form a **catalog** (`genescout_source_catalog()`); each run activates a
 **selected subset**, gated at query time — a deselected source is never called (a
 weight of 0 only mutes its ranking contribution, still paying the network cost).
 The active set resolves by precedence: an explicit selection (the review-request

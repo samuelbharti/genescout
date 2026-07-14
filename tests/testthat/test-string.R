@@ -150,7 +150,7 @@ test_that("enrich_network_signals() is a clean no-op without a network signal", 
 })
 
 test_that("run_enrich() appends STRING for a >= 5-token list and audits provenance", {
-  # The gate fires at CANDID_STRING_MIN_GENES tokens; the network fetch is injected
+  # The gate fires at GENESCOUT_STRING_MIN_GENES tokens; the network fetch is injected
   # so this end-to-end path stays offline. Two tokens resolve (NF1, TP53) and
   # interact in the fixture; three are junk and never queried.
   fake_fetch <- function(symbols, ...) {

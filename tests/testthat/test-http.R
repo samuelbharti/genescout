@@ -17,26 +17,26 @@ test_that("pluck_at() walks nested lists and falls back", {
   expect_equal(pluck_at(x, "data", "missing", default = "-"), "-")
 })
 
-test_that("candid_cache_key() is stable and order-sensitive", {
+test_that("genescout_cache_key() is stable and order-sensitive", {
   expect_identical(
-    candid_cache_key("GET", "u", list(a = 1)),
-    candid_cache_key("GET", "u", list(a = 1))
+    genescout_cache_key("GET", "u", list(a = 1)),
+    genescout_cache_key("GET", "u", list(a = 1))
   )
   expect_false(identical(
-    candid_cache_key("GET", "u"),
-    candid_cache_key("POST", "u")
+    genescout_cache_key("GET", "u"),
+    genescout_cache_key("POST", "u")
   ))
 })
 
-test_that("candid_cached() caches successes but not failures", {
-  candid_cache$reset()
+test_that("genescout_cached() caches successes but not failures", {
+  genescout_cache$reset()
   calls <- 0
   ok_fetch <- function() {
     calls <<- calls + 1
     list(ok = TRUE, data = "x")
   }
-  candid_cached("k1", ok_fetch)
-  candid_cached("k1", ok_fetch)
+  genescout_cached("k1", ok_fetch)
+  genescout_cached("k1", ok_fetch)
   expect_equal(calls, 1) # second call served from cache
 
   fails <- 0
@@ -44,13 +44,13 @@ test_that("candid_cached() caches successes but not failures", {
     fails <<- fails + 1
     list(ok = FALSE, error = "nope")
   }
-  candid_cached("k2", bad_fetch)
-  candid_cached("k2", bad_fetch)
+  genescout_cached("k2", bad_fetch)
+  genescout_cached("k2", bad_fetch)
   expect_equal(fails, 2) # failures never cached
 })
 
-test_that("candid_req_defaults() attaches auth headers and redacts the secret", {
-  req <- candid_req_defaults(
+test_that("genescout_req_defaults() attaches auth headers and redacts the secret", {
+  req <- genescout_req_defaults(
     httr2::request("https://example.org"),
     timeout = 15,
     max_tries = 3,
@@ -67,17 +67,17 @@ test_that("http_get_text uses a cache key distinct from http_get_json", {
   # The text and JSON GETs must not collide in the shared cache (different prefix),
   # or a bulk CSV could be served where parsed JSON is expected and vice versa.
   expect_false(identical(
-    candid_cache_key("GET", "https://x", NULL, list()),
-    candid_cache_key("GET_TEXT", "https://x", NULL, list())
+    genescout_cache_key("GET", "https://x", NULL, list()),
+    genescout_cache_key("GET_TEXT", "https://x", NULL, list())
   ))
 })
 
 test_that("the cache key excludes auth headers (secret never enters the hash)", {
-  # candid_cache_key is computed from method/url/path/query only - headers are not
+  # genescout_cache_key is computed from method/url/path/query only - headers are not
   # passed to it, so the same request caches identically with or without a token.
   expect_identical(
-    candid_cache_key("GET", "https://x", "p", list(geneId = "TP53")),
-    candid_cache_key("GET", "https://x", "p", list(geneId = "TP53"))
+    genescout_cache_key("GET", "https://x", "p", list(geneId = "TP53")),
+    genescout_cache_key("GET", "https://x", "p", list(geneId = "TP53"))
   )
 })
 
@@ -103,67 +103,76 @@ test_that("graphql_error() flags transport failures and in-body query errors", {
 
 # --- Contact-bearing User-Agent ---------------------------------------------
 
-test_that("candid_user_agent() identifies CANDID and carries a contact", {
-  ua <- withr::with_envvar(c(CANDID_CONTACT_EMAIL = ""), candid_user_agent())
-  expect_match(ua, "CANDID/", fixed = TRUE)
-  expect_match(ua, "github.com/samuelbharti/candid", fixed = TRUE)
+test_that("genescout_user_agent() identifies GeneScout and carries a contact", {
+  ua <- withr::with_envvar(
+    c(GENESCOUT_CONTACT_EMAIL = ""),
+    genescout_user_agent()
+  )
+  expect_match(ua, "GeneScout/", fixed = TRUE)
+  expect_match(ua, "github.com/samuelbharti/genescout", fixed = TRUE)
   expect_false(grepl("mailto:", ua, fixed = TRUE)) # no email set -> no mailto
   # A hosted operator can add a contact email for the polite-usage etiquette.
   ua2 <- withr::with_envvar(
-    c(CANDID_CONTACT_EMAIL = "ops@example.org"),
-    candid_user_agent()
+    c(GENESCOUT_CONTACT_EMAIL = "ops@example.org"),
+    genescout_user_agent()
   )
   expect_match(ua2, "mailto:ops@example.org", fixed = TRUE)
 })
 
 # --- Per-host circuit breaker ------------------------------------------------
 
-test_that("candid_url_host() extracts the hostname (falls back safely)", {
+test_that("genescout_url_host() extracts the hostname (falls back safely)", {
   expect_equal(
-    candid_url_host("https://gnomad.broadinstitute.org/api"),
+    genescout_url_host("https://gnomad.broadinstitute.org/api"),
     "gnomad.broadinstitute.org"
   )
-  expect_equal(candid_url_host("not a url"), "unknown-host")
+  expect_equal(genescout_url_host("not a url"), "unknown-host")
 })
 
 test_that("the per-host breaker trips after K transport failures and self-heals", {
-  candid_breaker_reset()
-  on.exit(candid_breaker_reset(), add = TRUE)
+  genescout_breaker_reset()
+  on.exit(genescout_breaker_reset(), add = TRUE)
   h <- "dead.example.org"
-  expect_false(candid_breaker_open(h, now = 100))
+  expect_false(genescout_breaker_open(h, now = 100))
   # Below the threshold does not trip.
-  candid_breaker_record(h, ok = FALSE, now = 100)
-  candid_breaker_record(h, ok = FALSE, now = 100)
-  expect_false(candid_breaker_open(h, now = 100)) # 2 < threshold 3
+  genescout_breaker_record(h, ok = FALSE, now = 100)
+  genescout_breaker_record(h, ok = FALSE, now = 100)
+  expect_false(genescout_breaker_open(h, now = 100)) # 2 < threshold 3
   # The Kth consecutive transport failure trips it for the cooldown window.
-  candid_breaker_record(h, ok = FALSE, now = 100)
-  expect_true(candid_breaker_open(h, now = 100))
-  expect_true(candid_breaker_open(h, now = 100 + CANDID_BREAKER_COOLDOWN - 1))
+  genescout_breaker_record(h, ok = FALSE, now = 100)
+  expect_true(genescout_breaker_open(h, now = 100))
+  expect_true(genescout_breaker_open(
+    h,
+    now = 100 + GENESCOUT_BREAKER_COOLDOWN - 1
+  ))
   # It self-heals once the cooldown elapses.
-  expect_false(candid_breaker_open(h, now = 100 + CANDID_BREAKER_COOLDOWN + 1))
+  expect_false(genescout_breaker_open(
+    h,
+    now = 100 + GENESCOUT_BREAKER_COOLDOWN + 1
+  ))
 })
 
 test_that("a success clears the breaker's failure count", {
-  candid_breaker_reset()
-  on.exit(candid_breaker_reset(), add = TRUE)
+  genescout_breaker_reset()
+  on.exit(genescout_breaker_reset(), add = TRUE)
   h <- "flaky.example.org"
-  candid_breaker_record(h, ok = FALSE, now = 0)
-  candid_breaker_record(h, ok = FALSE, now = 0)
-  candid_breaker_record(h, ok = TRUE, now = 0) # reachable again -> reset
-  candid_breaker_record(h, ok = FALSE, now = 0)
-  expect_false(candid_breaker_open(h, now = 0)) # count restarted -> only 1 failure
+  genescout_breaker_record(h, ok = FALSE, now = 0)
+  genescout_breaker_record(h, ok = FALSE, now = 0)
+  genescout_breaker_record(h, ok = TRUE, now = 0) # reachable again -> reset
+  genescout_breaker_record(h, ok = FALSE, now = 0)
+  expect_false(genescout_breaker_open(h, now = 0)) # count restarted -> only 1 failure
 })
 
-test_that("candid_perform() short-circuits a tripped host without a request", {
-  candid_breaker_reset()
-  on.exit(candid_breaker_reset(), add = TRUE)
-  # Trip the host directly, then assert candid_perform returns a fast miss WITHOUT
+test_that("genescout_perform() short-circuits a tripped host without a request", {
+  genescout_breaker_reset()
+  on.exit(genescout_breaker_reset(), add = TRUE)
+  # Trip the host directly, then assert genescout_perform returns a fast miss WITHOUT
   # performing (a real request to this fake host would otherwise error/hang).
-  host <- candid_url_host("https://nowhere.invalid/x")
-  for (i in seq_len(CANDID_BREAKER_THRESHOLD)) {
-    candid_breaker_record(host, ok = FALSE)
+  host <- genescout_url_host("https://nowhere.invalid/x")
+  for (i in seq_len(GENESCOUT_BREAKER_THRESHOLD)) {
+    genescout_breaker_record(host, ok = FALSE)
   }
-  res <- candid_perform(httr2::request("https://nowhere.invalid/x"), "Test")
+  res <- genescout_perform(httr2::request("https://nowhere.invalid/x"), "Test")
   expect_false(res$ok)
   expect_match(res$error, "skipped", fixed = TRUE)
 })

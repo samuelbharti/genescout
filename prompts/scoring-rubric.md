@@ -1,6 +1,6 @@
 # Scoring & caveats rubric
 
-How CANDID turns gated evidence + disease-context priors into a plausibility
+How GeneScout turns gated evidence + disease-context priors into a plausibility
 grade, and when the caveats stage down-ranks or vetoes a candidate. This rubric
 is explicit and reviewable on purpose - it is the spine of the eventual methods
 evaluation.

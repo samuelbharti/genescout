@@ -31,7 +31,7 @@ run_enrich <- function(
   gene_lists,
   description = "",
   config = NULL,
-  registry = candid_signal_registry(),
+  registry = genescout_signal_registry(),
   resolver = resolve_symbol,
   context = list(),
   seeder = seed_disease_genes,
@@ -55,7 +55,7 @@ run_enrich <- function(
   }
   # Discovery: with a disease context, seed candidate genes from the disease-keyed
   # sources (union with the user's set) and stash their per-gene tables for the
-  # disease-mode extractors. The seeded genes go in as their own candid_source
+  # disease-mode extractors. The seeded genes go in as their own genescout_source
   # marked `seeded = TRUE` (id prefixed `seed:`), so a later stage can tell the
   # engine's own universe from the user's real sources. `seeder` is injectable.
   disease <- pluck_at(context, "disease")
@@ -66,7 +66,7 @@ run_enrich <- function(
       label <- paste0("disease: ", disease$name %||% disease$id)
       cs <- candidate_set_add(
         cs,
-        candid_source(
+        genescout_source(
           seeded$symbols,
           label = label,
           id = paste0("seed:disease:", disease$id %||% slugify(label)),
@@ -166,7 +166,7 @@ run_enrich <- function(
   # every small offline test is byte-for-byte unchanged. Recorded in context so the
   # provenance can report the source.
   if (
-    nrow(flat) >= CANDID_STRING_MIN_GENES &&
+    nrow(flat) >= GENESCOUT_STRING_MIN_GENES &&
       auto_active("string") &&
       !("string" %in% registry_keys)
   ) {
@@ -201,7 +201,7 @@ run_enrich <- function(
     fetch_network = fetch_network
   )
   # Record a truncated STRING query so the dropped genes are an audited limit
-  # (surfaced by candid_provenance below), mirroring the discovery seed cap.
+  # (surfaced by genescout_provenance below), mirroring the discovery seed cap.
   if (!is.null(network_enr$capped)) {
     context$string_capped <- network_enr$capped
   }
@@ -226,7 +226,7 @@ run_enrich <- function(
     rejected = gated$rejected,
     registry = registry_summary(registry),
     registry_obj = registry,
-    provenance = candid_provenance(context),
+    provenance = genescout_provenance(context),
     context = context
   )
 }
@@ -280,7 +280,7 @@ run_review <- function(
   gene_lists,
   description = "",
   config = NULL,
-  registry = candid_signal_registry(),
+  registry = genescout_signal_registry(),
   resolver = resolve_symbol,
   coverage_bonus = rubric_coverage_bonus(),
   caveats = TRUE,
@@ -313,7 +313,7 @@ run_review <- function(
 # through as_candidate_set(). The JSON form must be detected FIRST - as_candidate_
 # set() would otherwise read each source OBJECT as a gene vector.
 coerce_request_sources <- function(sources) {
-  if (inherits(sources, "candid_candidate_set")) {
+  if (inherits(sources, "genescout_candidate_set")) {
     return(sources)
   }
   looks_json <- is.list(sources) &&
@@ -334,13 +334,13 @@ coerce_request_sources <- function(sources) {
 #        tissues = <chr>, priors_id = <context/<id>.yaml id | NULL>,
 #        options = list(weights, coverage_bonus, caveats, sources))
 # `options$sources` is the source SELECTION - a character vector of connector keys
-# (from candid_source_catalog); omitted -> the catalog's default_on subset. The
+# (from genescout_source_catalog); omitted -> the catalog's default_on subset. The
 # disease is assumed ALREADY RESOLVED (the confirm step grounds it), so this stays
 # deterministic. Returns the ranked run_review() result.
 run_review_request <- function(
   req,
   config = NULL,
-  registry = candid_signal_registry(),
+  registry = genescout_signal_registry(),
   resolver = resolve_symbol,
   fetch_network = string_network
 ) {
@@ -382,17 +382,17 @@ run_review_request <- function(
 # Coerce assorted inputs into the named list of character vectors that
 # flatten_gene_lists() expects. The canonical model is now a `candidate_set`
 # (R/parse_input.R); this is a thin back-compat shim over it. Dispatch runs
-# through as_candidate_set(), which keys on the candidate_set / candid_source S3
+# through as_candidate_set(), which keys on the candidate_set / genescout_source S3
 # classes FIRST - a candidate_set is itself a list, so the old bare
 # `if (is.list(x)) return(x)` passthrough would have handed a list of
-# candid_source records straight to flatten and corrupted the run.
+# genescout_source records straight to flatten and corrupted the run.
 as_gene_lists <- function(x) {
   candidate_set_to_named_lists(as_candidate_set(x))
 }
 
 # Provenance for the sources the deterministic pipeline queries. `context` may
 # carry a resolved disease (PR2 discovery mode), recorded here for the audit.
-candid_provenance <- function(context = list()) {
+genescout_provenance <- function(context = list()) {
   # Only the sources this run actually queried. `active_sources` (set by run_enrich)
   # is the selected key set; when absent (older callers), every source is listed.
   active <- pluck_at(context, "active_sources")
@@ -559,7 +559,7 @@ candid_provenance <- function(context = list()) {
 # TRUE when an LLM step can run: ellmer installed AND a credential exists for the
 # configured provider - either a session-scoped BYOK key (`config$api_key`, set by
 # the Review-tab key card via R/byok.R) or the environment.
-candid_llm_available <- function(config = load_config()) {
+genescout_llm_available <- function(config = load_config()) {
   requireNamespace("ellmer", quietly = TRUE) &&
     provider_credentials_ready(config$provider %||% "anthropic", config$api_key)
 }

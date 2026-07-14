@@ -1,4 +1,4 @@
-# Run the CANDID engine as an HTTP service - the UI-agnostic core behind a plain
+# Run the GeneScout engine as an HTTP service - the UI-agnostic core behind a plain
 # JSON API (api/plumber.R). This is how a non-R front end (React / Python / CLI)
 # drives the exact same core functions the Shiny app and the CLI use.
 #
@@ -23,5 +23,5 @@ if (is.na(port)) {
   port <- 8000L
 }
 
-message("Starting CANDID engine API on http://127.0.0.1:", port)
+message("Starting GeneScout engine API on http://127.0.0.1:", port)
 pr("api/plumber.R") |> pr_run(host = "127.0.0.1", port = port)

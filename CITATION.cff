@@ -1,19 +1,20 @@
 cff-version: 1.2.0
-message: "If you use CANDID, please cite it using these metadata."
-title: "CANDID: Candidate Annotation and Disease-informed Interpretation of Evidence"
+message: "If you use GeneScout, please cite it using these metadata."
+title: "GeneScout: an agentic evidence-review workbench for gene prioritization"
 abstract: >-
-  An agentic evidence-review workbench for research genomics. CANDID takes a
-  candidate list (variants, genes, or perturbation hits) and a biological
-  context and produces a plausibility-ranked, cited research review with
-  caveats and suggested next experiments. Research use only.
+  An agentic evidence-review workbench for research genomics. GeneScout
+  investigates one or more candidate gene lists against a disease context and
+  returns a disease-informed, plausibility-ranked shortlist with the supporting
+  evidence, the uncertainties, and recommended next experiments. Research use
+  only.
 type: software
 authors:
   - given-names: Samuel
     family-names: Bharti
     affiliation: "University of Alabama at Birmingham"
     # orcid: "https://orcid.org/0000-0000-0000-0000"  # add when available
-repository-code: "https://github.com/samuelbharti/candid"
-url: "https://github.com/samuelbharti/candid"
+repository-code: "https://github.com/samuelbharti/genescout"
+url: "https://github.com/samuelbharti/genescout"
 license: MIT
 keywords:
   - genomics

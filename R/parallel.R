@@ -14,7 +14,7 @@
 #    testthat, and any setup/serialization/daemon failure falls back to the serial
 #    enrich_genes() - correctness never depends on it, and the output is byte-for-byte
 #    the same shape (a single gene through enrich_genes() is just the serial loop of 1).
-#  - The workers are isolated: a named mirai compute profile ("candid_enrich") so we
+#  - The workers are isolated: a named mirai compute profile ("genescout_enrich") so we
 #    never collide with the LLM path (ellmer's own parallel pool uses the default one),
 #    the run's registry + context are shipped ONCE per daemon via everywhere(), and the
 #    pool is torn down when the run ends.
@@ -23,41 +23,41 @@
 
 # Below this many genes the daemon startup + per-gene serialization overhead is not
 # worth it, so we stay serial. Overridable for tuning/tests.
-CANDID_PARALLEL_MIN_GENES <- 12L
+GENESCOUT_PARALLEL_MIN_GENES <- 12L
 # Bounded concurrency: a politeness cap so we never open more simultaneous connections
 # to a single bio-database host than is neighbourly (pairs with the per-host throttle
 # and circuit-breaker in R/http.R). Overridable via the option below.
-CANDID_PARALLEL_MAX_WORKERS <- 6L
+GENESCOUT_PARALLEL_MAX_WORKERS <- 6L
 # The isolated mirai compute profile for enrichment (kept separate from ellmer's pool).
-CANDID_PARALLEL_COMPUTE <- "candid_enrich"
+GENESCOUT_PARALLEL_COMPUTE <- "genescout_enrich"
 
 # Is the parallel path allowed right now? Never under testthat (offline tests must stay
 # serial and deterministic), only when explicitly enabled (default TRUE), and only when
 # mirai is actually installed.
-candid_parallel_available <- function() {
+genescout_parallel_available <- function() {
   !identical(Sys.getenv("TESTTHAT"), "true") &&
-    isTRUE(getOption("candid.parallel", TRUE)) &&
+    isTRUE(getOption("genescout.parallel", TRUE)) &&
     requireNamespace("mirai", quietly = TRUE)
 }
 
 # Worker count for a run of `n_genes`: the configured cap, never more than one per gene,
 # and 1 (i.e. serial) when the parallel path is unavailable.
-candid_parallel_workers <- function(n_genes) {
-  if (!candid_parallel_available()) {
+genescout_parallel_workers <- function(n_genes) {
+  if (!genescout_parallel_available()) {
     return(1L)
   }
   cap <- as.integer(getOption(
-    "candid.parallel.workers",
-    CANDID_PARALLEL_MAX_WORKERS
+    "genescout.parallel.workers",
+    GENESCOUT_PARALLEL_MAX_WORKERS
   ))
   max(1L, min(cap, as.integer(n_genes)))
 }
 
 # The directory a worker must source the engine from. The Shiny app / CLI run with the
-# app root as the working directory, and a hosted service sets CANDID_APP_ROOT; use that
+# app root as the working directory, and a hosted service sets GENESCOUT_APP_ROOT; use that
 # when present, else the current working directory.
-candid_engine_root <- function() {
-  root <- Sys.getenv("CANDID_APP_ROOT", "")
+genescout_engine_root <- function() {
+  root <- Sys.getenv("GENESCOUT_APP_ROOT", "")
   if (!nzchar(root)) {
     root <- getwd()
   }
@@ -74,8 +74,8 @@ enrich_genes_dispatch <- function(
   progress = NULL
 ) {
   n <- nrow(resolved)
-  workers <- if (n >= CANDID_PARALLEL_MIN_GENES) {
-    candid_parallel_workers(n)
+  workers <- if (n >= GENESCOUT_PARALLEL_MIN_GENES) {
+    genescout_parallel_workers(n)
   } else {
     1L
   }
@@ -120,16 +120,16 @@ enrich_genes_parallel <- function(
   workers,
   progress = NULL
 ) {
-  root <- candid_engine_root()
+  root <- genescout_engine_root()
   libs <- .libPaths()
   gene_timeout <- as.numeric(getOption(
-    "candid.parallel.gene_timeout_ms",
+    "genescout.parallel.gene_timeout_ms",
     120000
   ))
 
-  mirai::daemons(workers, .compute = CANDID_PARALLEL_COMPUTE)
+  mirai::daemons(workers, .compute = GENESCOUT_PARALLEL_COMPUTE)
   on.exit(
-    mirai::daemons(0, .compute = CANDID_PARALLEL_COMPUTE),
+    mirai::daemons(0, .compute = GENESCOUT_PARALLEL_COMPUTE),
     add = TRUE
   )
 
@@ -139,10 +139,10 @@ enrich_genes_parallel <- function(
   # as daemon globals the per-gene tasks reference.
   mirai::everywhere(
     {
-      .libPaths(candid_libs)
-      Sys.setenv(CANDID_APP_ROOT = candid_root)
+      .libPaths(genescout_libs)
+      Sys.setenv(GENESCOUT_APP_ROOT = genescout_root)
       eng <- list.files(
-        file.path(candid_root, "R"),
+        file.path(genescout_root, "R"),
         pattern = "[.][Rr]$",
         full.names = TRUE
       )
@@ -151,30 +151,30 @@ enrich_genes_parallel <- function(
         sys.source(f, envir = globalenv())
       }
       tools <- list.files(
-        file.path(candid_root, "R", "tools"),
+        file.path(genescout_root, "R", "tools"),
         pattern = "[.][Rr]$",
         full.names = TRUE
       )
       for (f in sort(tools)) {
         sys.source(f, envir = globalenv())
       }
-      assign(".candid_reg", candid_reg, envir = globalenv())
-      assign(".candid_ctx", candid_ctx, envir = globalenv())
+      assign(".genescout_reg", genescout_reg, envir = globalenv())
+      assign(".genescout_ctx", genescout_ctx, envir = globalenv())
     },
-    candid_libs = libs,
-    candid_root = root,
-    candid_reg = registry,
-    candid_ctx = context,
-    .compute = CANDID_PARALLEL_COMPUTE
+    genescout_libs = libs,
+    genescout_root = root,
+    genescout_reg = registry,
+    genescout_ctx = context,
+    .compute = GENESCOUT_PARALLEL_COMPUTE
   )
 
   n <- nrow(resolved)
   jobs <- lapply(seq_len(n), function(i) {
     mirai::mirai(
-      enrich_genes(candid_row, .candid_reg, context = .candid_ctx),
-      candid_row = resolved[i, , drop = FALSE],
+      enrich_genes(genescout_row, .genescout_reg, context = .genescout_ctx),
+      genescout_row = resolved[i, , drop = FALSE],
       .timeout = gene_timeout,
-      .compute = CANDID_PARALLEL_COMPUTE
+      .compute = GENESCOUT_PARALLEL_COMPUTE
     )
   })
 

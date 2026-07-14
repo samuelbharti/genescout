@@ -2,9 +2,9 @@
 # BYOK credential the Review tab captures (shared `creds`), builds a per-session
 # ellmer chat client from it, and streams answers. The assistant is deliberately
 # grounded: each turn is prefixed with a compact snapshot of the CURRENT run's
-# ranked results (R/byok.R::candid_chat_grounding) and the system prompt
+# ranked results (R/byok.R::genescout_chat_grounding) and the system prompt
 # (prompts/chat.md) forbids ungrounded biological claims and clinical output, per
-# CANDID's non-negotiables. See R/byok.R for the credential/redaction layer.
+# GeneScout's non-negotiables. See R/byok.R for the credential/redaction layer.
 
 # TRUE when the chat can run at all (its packages are installed). shinychat + ellmer
 # are pinned deps; guard anyway so a stripped install degrades to a notice, not an
@@ -15,7 +15,7 @@ chat_available <- function() {
 }
 
 # Cap turns per session to bound cost on a pasted key; generous for a help chat.
-CANDID_CHAT_MAX_TURNS <- 30L
+GENESCOUT_CHAT_MAX_TURNS <- 30L
 
 chat_ui <- function(id) {
   ns <- NS(id)
@@ -37,9 +37,9 @@ chat_ui <- function(id) {
     shinychat::chat_ui(
       ns("chat"),
       height = "72vh",
-      placeholder = "Ask about your ranked genes, how CANDID works, or how to read the results...",
+      placeholder = "Ask about your ranked genes, how GeneScout works, or how to read the results...",
       greeting = paste(
-        "Hi! I'm the CANDID assistant. I can explain how the ranking, grades, and",
+        "Hi! I'm the GeneScout assistant. I can explain how the ranking, grades, and",
         "veto work, and help you interpret **your current run's** cited results.",
         "I only discuss the grounded evidence in front of us - no clinical advice,",
         "no ungrounded gene facts. Set your API key on the **Review** tab, then ask away."
@@ -59,7 +59,7 @@ chat_server <- function(
   id,
   creds,
   result_r = reactive(NULL),
-  config = candid_config
+  config = genescout_config
 ) {
   moduleServer(id, function(input, output, session) {
     if (!chat_available()) {
@@ -82,7 +82,7 @@ chat_server <- function(
       creds(),
       {
         cred <- creds()
-        if (!candid_credential_ready(cred)) {
+        if (!genescout_credential_ready(cred)) {
           client(NULL)
           n_turns(0L)
           status(list(
@@ -92,13 +92,13 @@ chat_server <- function(
           return()
         }
         cl <- tryCatch(
-          candid_build_chat_client(cred),
+          genescout_build_chat_client(cred),
           error = function(e) {
             status(list(
               ok = FALSE,
               msg = paste0(
                 "Could not connect: ",
-                candid_redact_secret(conditionMessage(e), cred$api_key)
+                genescout_redact_secret(conditionMessage(e), cred$api_key)
               )
             ))
             NULL
@@ -111,7 +111,7 @@ chat_server <- function(
             ok = TRUE,
             msg = sprintf(
               "Connected via %s. Grounded in your current run.",
-              candid_provider_meta(cred$provider)$label
+              genescout_provider_meta(cred$provider)$label
             )
           ))
         }
@@ -137,7 +137,7 @@ chat_server <- function(
         do_append("Set your API key on the **Review** tab, then ask again.")
         return()
       }
-      if (n_turns() >= CANDID_CHAT_MAX_TURNS) {
+      if (n_turns() >= GENESCOUT_CHAT_MAX_TURNS) {
         do_append(
           "_Turn limit reached for this session. Reload to start a new chat._"
         )
@@ -146,7 +146,7 @@ chat_server <- function(
       n_turns(n_turns() + 1L)
       secret <- creds()$api_key %||% ""
       # Prefix the current grounded snapshot so every answer is tied to this run.
-      grounded <- candid_chat_grounding(result_r())
+      grounded <- genescout_chat_grounding(result_r())
       full <- paste0(grounded, "\n\n---\nUser question: ", msg)
 
       p <- tryCatch(
@@ -154,7 +154,7 @@ chat_server <- function(
         error = function(e) {
           do_append(paste0(
             "Sorry - that request failed: ",
-            candid_redact_secret(conditionMessage(e), secret)
+            genescout_redact_secret(conditionMessage(e), secret)
           ))
           NULL
         }
@@ -165,7 +165,7 @@ chat_server <- function(
           onRejected = function(err) {
             do_append(paste0(
               "Sorry - that request failed: ",
-              candid_redact_secret(conditionMessage(err), secret)
+              genescout_redact_secret(conditionMessage(err), secret)
             ))
           }
         )

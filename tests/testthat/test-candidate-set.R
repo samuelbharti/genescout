@@ -1,9 +1,13 @@
-# The multi-source candidate model (candid_source / candidate_set) and its
+# The multi-source candidate model (genescout_source / candidate_set) and its
 # coercions. Pure, offline: shapes and round-trips only, no network.
 
-test_that("candid_source() builds a classed record with sensible defaults", {
-  s <- candid_source(c("NF1", "TP53"), label = "my DEGs", type = "rnaseq_deg")
-  expect_s3_class(s, "candid_source")
+test_that("genescout_source() builds a classed record with sensible defaults", {
+  s <- genescout_source(
+    c("NF1", "TP53"),
+    label = "my DEGs",
+    type = "rnaseq_deg"
+  )
+  expect_s3_class(s, "genescout_source")
   expect_equal(s$label, "my DEGs")
   expect_equal(s$id, "my-degs") # slugified
   expect_equal(s$type, "rnaseq_deg")
@@ -13,7 +17,7 @@ test_that("candid_source() builds a classed record with sensible defaults", {
 
 test_that("as_candidate_set() maps a named list to one source per name", {
   cs <- as_candidate_set(list(mine = c("NF1"), other = c("TP53", "NF1")))
-  expect_s3_class(cs, "candid_candidate_set")
+  expect_s3_class(cs, "genescout_candidate_set")
   expect_equal(length(cs), 2)
   expect_equal(
     vapply(cs, function(s) s$label, character(1)),
@@ -30,21 +34,21 @@ test_that("as_candidate_set() handles bare vectors, data frames, and passthrough
   df <- data.frame(gene = c("NF1", "TP53"), stringsAsFactors = FALSE)
   expect_equal(as_candidate_set(df)[[1]]$genes, c("NF1", "TP53"))
 
-  cs <- candidate_set(candid_source("NF1", label = "a"))
+  cs <- candidate_set(genescout_source("NF1", label = "a"))
   expect_identical(as_candidate_set(cs), cs) # passthrough, no re-wrap
 })
 
 test_that("candidate_set() accepts both varargs and a list of sources", {
-  a <- candid_source("NF1", label = "a")
-  b <- candid_source("TP53", label = "b")
+  a <- genescout_source("NF1", label = "a")
+  b <- genescout_source("TP53", label = "b")
   expect_equal(length(candidate_set(a, b)), 2)
   expect_equal(length(candidate_set(list(a, b))), 2)
 })
 
 test_that("dedupe_source_ids() makes colliding ids unique", {
   cs <- candidate_set(
-    candid_source("NF1", label = "My List"),
-    candid_source("TP53", label = "My List")
+    genescout_source("NF1", label = "My List"),
+    genescout_source("TP53", label = "My List")
   )
   ids <- vapply(cs, function(s) s$id, character(1))
   expect_equal(ids, c("my-list", "my-list-2"))
@@ -60,9 +64,9 @@ test_that("candidate_set_to_named_lists() round-trips a named list byte-identica
 
 test_that("as_gene_lists() shim down-converts a candidate_set (no raw passthrough)", {
   # A candidate_set is itself a list; the old `if (is.list(x)) return(x)` would
-  # have handed flatten a list of candid_source records. The shim must dispatch
+  # have handed flatten a list of genescout_source records. The shim must dispatch
   # on class and return a clean named list of character vectors.
-  cs <- candidate_set(candid_source(c("NF1", "TP53"), label = "mine"))
+  cs <- candidate_set(genescout_source(c("NF1", "TP53"), label = "mine"))
   expect_identical(as_gene_lists(cs), list(mine = c("NF1", "TP53")))
   # Old named-list callers keep working.
   expect_identical(
@@ -73,8 +77,8 @@ test_that("as_gene_lists() shim down-converts a candidate_set (no raw passthroug
 
 test_that("flatten_candidate_set() unions tokens with per-source provenance", {
   cs <- candidate_set(
-    candid_source(c("NF1", "TP53"), label = "degs", type = "rnaseq_deg"),
-    candid_source(c("TP53"), label = "atac", type = "atacseq")
+    genescout_source(c("NF1", "TP53"), label = "degs", type = "rnaseq_deg"),
+    genescout_source(c("TP53"), label = "atac", type = "atacseq")
   )
   flat <- flatten_candidate_set(cs)
   expect_setequal(flat$token, c("NF1", "TP53"))
@@ -106,14 +110,14 @@ test_that("collect_candidate_set() builds from specs and drops empty sources", {
 
 test_that("a candidate_set round-trips through jsonlite for a non-R frontend", {
   cs <- candidate_set(
-    candid_source(c("NF1", "TP53"), label = "degs", type = "rnaseq_deg")
+    genescout_source(c("NF1", "TP53"), label = "degs", type = "rnaseq_deg")
   )
   json <- jsonlite::toJSON(candidate_set_to_list(cs), auto_unbox = TRUE)
   back <- candidate_set_from_list(jsonlite::fromJSON(
     json,
     simplifyVector = FALSE
   ))
-  expect_s3_class(back, "candid_candidate_set")
+  expect_s3_class(back, "genescout_candidate_set")
   expect_equal(back[[1]]$label, "degs")
   expect_equal(back[[1]]$type, "rnaseq_deg")
   expect_equal(back[[1]]$genes, c("NF1", "TP53")) # array preserved at any length

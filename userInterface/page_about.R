@@ -1,20 +1,20 @@
-# About page: what CANDID is, and the research-use-only disclaimer.
+# About page: what GeneScout is, and the research-use-only disclaimer.
 about_page <- fluidPage(
-  titlePanel("About CANDID"),
+  titlePanel("About GeneScout"),
   hr(),
   fluidRow(
     column(
       width = 8,
       p(
-        "CANDID (Candidate Annotation aNd Disease-informed Interpretation of",
-        "eviDence) takes a gene list and prioritizes it for any disease or",
-        "phenotype. It pulls a signal from each of several public sources,",
+        "GeneScout investigates one or more candidate gene lists and prioritizes",
+        "them for any disease or phenotype. It pulls a signal from each of several",
+        "public sources,",
         "merges and de-duplicates them, and ranks the genes by a transparent",
         "composite score - every value traceable to its source."
       ),
       p(
         "Bring your own gene list from an analysis, or start from a disease and",
-        "let CANDID discover candidate genes for it (Open Targets, PanelApp,",
+        "let GeneScout discover candidate genes for it (Open Targets, PanelApp,",
         "DISEASES) - or do both and merge. With a disease context the ranking",
         "becomes disease-specific rather than measuring a gene's general",
         "prominence."
@@ -31,7 +31,7 @@ about_page <- fluidPage(
         class = "alert alert-warning",
         role = "alert",
         tags$strong("Research use only. "),
-        "CANDID is a hypothesis-prioritization aid for researchers. It is not a",
+        "GeneScout is a hypothesis-prioritization aid for researchers. It is not a",
         "clinical decision-support tool and does not provide diagnosis,",
         "treatment guidance, or ACMG/AMP variant classification."
       )
