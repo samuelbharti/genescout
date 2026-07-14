@@ -9,11 +9,13 @@
 # Every widget id is namespaced under the same `input` module, so input_server()
 # reads them regardless of where each card is rendered on the page.
 
-# Row 1: the candidate-gene sources (paste / upload / extra tagged sources).
+# Row 1: the candidate-gene sources (paste / upload / extra tagged sources), each
+# with a per-list weight (how much its genes count toward cross-source
+# corroboration - see the info icon).
 candidate_genes_ui <- function(id) {
   ns <- NS(id)
   bslib::card(
-    class = "mb-3",
+    class = "mb-3 gs-card-genes",
     bslib::card_header("Candidate genes"),
     bslib::card_body(
       textAreaInput(
@@ -23,19 +25,53 @@ candidate_genes_ui <- function(id) {
         placeholder = "Paste gene symbols, one per line\nNF1\nSUZ12\nCDKN2A"
       ),
       div(
-        class = "d-flex gap-2 align-items-center mb-2",
+        class = "gs-weight",
+        tags$label(`for` = ns("w_pasted"), "List weight"),
+        numericInput(
+          ns("w_pasted"),
+          label = NULL,
+          value = 1,
+          min = 0,
+          max = 5,
+          step = 0.5,
+          width = "84px"
+        ),
+        gs_info(
+          tags$p(
+            tags$b("Per-list weight. "),
+            "How much a gene's appearance in this list counts toward",
+            "cross-source corroboration."
+          ),
+          tags$p(
+            "Raise it for an assay you trust more, lower it for a noisier one.",
+            "It only affects ranking when you provide two or more lists, and a",
+            "high weight can never manufacture support from a single list."
+          )
+        )
+      ),
+      div(
+        class = "d-flex gap-2 align-items-center flex-wrap",
         actionButton(
           ns("load_example"),
           "Load NF1 example",
           class = "btn-outline-secondary btn-sm"
         ),
-        tags$span(class = "text-muted small", "or upload a table below")
+        actionButton(
+          ns("load_multisource"),
+          "Load 4-source example",
+          class = "btn-outline-secondary btn-sm"
+        ),
+        tags$span(class = "text-muted small", "or upload a list")
       ),
-      fileInput(
-        ns("file"),
-        NULL,
-        accept = c(".tsv", ".csv", ".txt"),
-        placeholder = "gene table (TSV/CSV)"
+      # The file input lives in a uiOutput so the Clear button can re-render it to
+      # a fresh (empty) control - a Shiny fileInput cannot otherwise be reset.
+      uiOutput(ns("main_upload")),
+      helpText(
+        class = "small",
+        "Upload accepts one gene symbol per line - a single-column",
+        tags$b(".txt, .tsv, or .csv"),
+        "with no header row. Pasted and uploaded genes are combined into this one",
+        "list (the List weight above covers both)."
       ),
       # Progressive disclosure: the paste box above is the default single source;
       # "add a source" reveals named/typed rows for genes from a different
@@ -46,7 +82,12 @@ candidate_genes_ui <- function(id) {
         "+ add another source (tag by assay)",
         class = "small d-block"
       ),
-      tags$div(id = ns("sources_anchor"), class = "mt-2")
+      tags$div(id = ns("sources_anchor"), class = "mt-2"),
+      helpText(
+        class = "small",
+        "One gene symbol per line. Add more lists to reward genes corroborated",
+        "across your own sources; the deterministic ranking needs no API key."
+      )
     )
   )
 }
@@ -55,7 +96,7 @@ candidate_genes_ui <- function(id) {
 study_context_ui <- function(id) {
   ns <- NS(id)
   bslib::card(
-    class = "mb-3",
+    class = "mb-3 gs-card-context",
     bslib::card_header("Study context"),
     bslib::card_body(
       textAreaInput(
@@ -85,8 +126,11 @@ study_context_ui <- function(id) {
         class = "form-label small text-muted mb-1",
         "Discovery (optional): seed genes from a disease"
       ),
+      # A flex row rather than a Bootstrap `.input-group`: Shiny wraps each input
+      # in a `.shiny-input-container`, which breaks input-group's flush styling
+      # (the Find button ends up detached). Flex + a matching button avoids that.
       div(
-        class = "input-group input-group-sm",
+        class = "gs-inline-field",
         textInput(
           ns("disease"),
           label = NULL,
@@ -95,7 +139,7 @@ study_context_ui <- function(id) {
         actionButton(
           ns("resolve_disease"),
           "Find",
-          class = "btn-outline-secondary"
+          class = "gs-btn gs-btn-soft"
         )
       ),
       uiOutput(ns("disease_matches")),
@@ -113,24 +157,9 @@ study_context_ui <- function(id) {
   )
 }
 
-# Row 2 (right): agent involvement + the Rank button.
-run_ui <- function(id) {
-  ns <- NS(id)
-  bslib::card(
-    class = "mb-3",
-    bslib::card_header("Run"),
-    bslib::card_body(
-      # Rendered server-side so the input/both agent modes appear as soon as a key
-      # is available (env or a session BYOK key), not only at page-load time.
-      uiOutput(ns("agent_mode_ui")),
-      actionButton(ns("run"), "Rank genes", class = "btn-primary w-100 mt-2"),
-      helpText(
-        class = "small mt-2",
-        "Research use only. Not for clinical or diagnostic use."
-      )
-    )
-  )
-}
+# The agent-involvement selector + the Rank button are placed directly by the
+# review page (in the collapsible setup foot), reading the "input" namespace:
+# `uiOutput(agent_mode_ui)` (rendered by input_server) and `actionButton("run")`.
 
 # Sidebar: which per-gene connectors to query.
 data_sources_ui <- function(id) {
@@ -261,44 +290,100 @@ context_choices <- function() {
   stats::setNames(c("none", ids), c("None (no study priors)", labels))
 }
 
-# One slider per registry signal, initialized from its rubric weight.
+# The weight sliders, grouped by the evidence domain of each signal so related
+# sources sit together, and laid out in a full-width responsive grid rather than a
+# single stacked column. Group headings reuse the report's domain labels.
 weight_sliders_ui <- function(ns, registry) {
-  lapply(registry, function(s) {
-    sliderInput(
-      ns(paste0("w_", s$key)),
-      s$label,
-      min = 0,
-      max = 2,
-      value = s$weight,
-      step = 0.05
+  domains <- vapply(registry, function(s) s$domain %||% "other", character(1))
+  # Order groups by the canonical domain order, then any extras alphabetically.
+  order_keys <- names(GENESCOUT_DOMAIN_LABELS)
+  present <- unique(domains)
+  ordered <- c(
+    intersect(order_keys, present),
+    sort(setdiff(present, order_keys))
+  )
+  groups <- lapply(ordered, function(d) {
+    sigs <- registry[domains == d]
+    label <- GENESCOUT_DOMAIN_LABELS[[d]] %||% d
+    tags$div(
+      class = "gs-weights-group",
+      tags$div(class = "gs-weights-title", label),
+      tags$div(
+        class = "gs-weights-grid",
+        lapply(sigs, function(s) {
+          sliderInput(
+            ns(paste0("w_", s$key)),
+            s$label,
+            min = 0,
+            max = 2,
+            value = s$weight,
+            step = 0.05
+          )
+        })
+      )
     )
   })
+  tags$div(class = "gs-weights", groups)
 }
 
-# One removable extra-source row: a name, an assay type, and a genes box.
-extra_source_row <- function(ns, rid) {
+# One removable extra-source row: a name, an assay type, and a genes box. Accepts
+# prefilled values so the "Load 4-source example" button can render tagged rows
+# directly (the values are baked into the initial render, so no updateInput needed).
+extra_source_row <- function(
+  ns,
+  rid,
+  name = "",
+  type = "unspecified",
+  genes = "",
+  weight = 1
+) {
   tags$div(
     class = "border rounded p-2 mb-2",
     id = ns(paste0("src_row_", rid)),
     div(
-      class = "d-flex gap-2 mb-1",
-      textInput(
-        ns(paste0("src_name_", rid)),
-        label = NULL,
-        placeholder = "source name (e.g. my DEGs)"
+      class = "gs-source-head",
+      div(
+        class = "d-flex gap-2",
+        style = "flex:1 1 auto; min-width:0;",
+        textInput(
+          ns(paste0("src_name_", rid)),
+          label = NULL,
+          value = name,
+          placeholder = "source name (e.g. my DEGs)"
+        ),
+        selectInput(
+          ns(paste0("src_type_", rid)),
+          label = NULL,
+          choices = genescout_source_types(),
+          selected = type
+        )
       ),
-      selectInput(
-        ns(paste0("src_type_", rid)),
-        label = NULL,
-        choices = genescout_source_types(),
-        selected = "unspecified"
+      div(
+        class = "gs-weight",
+        tags$label(`for` = ns(paste0("src_w_", rid)), "Weight"),
+        numericInput(
+          ns(paste0("src_w_", rid)),
+          label = NULL,
+          value = weight,
+          min = 0,
+          max = 5,
+          step = 0.5,
+          width = "84px"
+        )
       )
     ),
     textAreaInput(
       ns(paste0("src_genes_", rid)),
       label = NULL,
+      value = genes,
       rows = 3,
-      placeholder = "genes for this source, one per line"
+      placeholder = "paste genes for this source, one per line"
+    ),
+    fileInput(
+      ns(paste0("src_file_", rid)),
+      NULL,
+      accept = c(".tsv", ".csv", ".txt"),
+      placeholder = "or upload a single-column list (no header)"
     ),
     actionLink(
       ns(paste0("src_rm_", rid)),
@@ -391,7 +476,29 @@ input_server <- function(
     extra_sources <- reactiveVal(character(0))
     row_seq <- reactiveVal(0L)
 
-    observeEvent(input$add_source, {
+    # The main file input renders inside a uiOutput keyed to `reset_seq` so the
+    # Clear button can re-render it to a fresh (empty) control - the only reliable
+    # way to reset a Shiny fileInput without an extra dependency.
+    reset_seq <- reactiveVal(0L)
+    output$main_upload <- renderUI({
+      reset_seq()
+      fileInput(
+        ns("file"),
+        NULL,
+        accept = c(".tsv", ".csv", ".txt"),
+        placeholder = "gene list (single column, no header)"
+      )
+    })
+
+    # Insert one extra tagged-source row (optionally prefilled) and wire its
+    # remove link. Shared by the "+ add another source" link and the "Load
+    # 4-source example" button.
+    add_extra_source <- function(
+      name = "",
+      type = "unspecified",
+      genes = "",
+      weight = 1
+    ) {
       n <- row_seq() + 1L
       row_seq(n)
       rid <- as.character(n)
@@ -399,7 +506,14 @@ input_server <- function(
       insertUI(
         selector = paste0("#", session$ns("sources_anchor")),
         where = "beforeEnd",
-        ui = extra_source_row(ns, rid)
+        ui = extra_source_row(
+          ns,
+          rid,
+          name = name,
+          type = type,
+          genes = genes,
+          weight = weight
+        )
       )
       observeEvent(
         input[[paste0("src_rm_", rid)]],
@@ -411,6 +525,76 @@ input_server <- function(
         },
         ignoreInit = TRUE,
         once = TRUE
+      )
+    }
+
+    observeEvent(input$add_source, add_extra_source())
+
+    # Populate the four-assay example as tagged sources: clear the paste box, add
+    # one row per list, and set the NF1 study context + a describing line.
+    # Demonstrates cross-source corroboration and the caveats/veto stage on
+    # real-shaped input. Shared by the "Load 4-source example" button and the demo.
+    load_multisource_example <- function() {
+      updateTextAreaInput(session, "paste", value = "")
+      for (rid in extra_sources()) {
+        removeUI(selector = paste0("#", session$ns(paste0("src_row_", rid))))
+      }
+      extra_sources(character(0))
+      for (src in genescout_multisource_example()) {
+        add_extra_source(
+          name = src$label,
+          type = src$type,
+          genes = paste(src$genes, collapse = "\n")
+        )
+      }
+      updateSelectInput(session, "study_context", selected = "nf1")
+      updateTextAreaInput(
+        session,
+        "description",
+        value = paste(
+          "Drivers of NF1-associated MPNST across WES, bulk RNA-seq,",
+          "ATAC-seq, and a CRISPR dependency screen"
+        )
+      )
+    }
+
+    observeEvent(input$load_multisource, {
+      load_multisource_example()
+      showNotification(
+        paste(
+          "Loaded a 4-source example (WES · RNA-seq · ATAC-seq · CRISPR).",
+          "Genes shared across lists rank higher; click Rank genes."
+        ),
+        type = "message",
+        duration = 6
+      )
+    })
+
+    # Clear everything back to a blank slate: inputs, tagged sources, weights,
+    # context, and the uploaded file. The review module clears the ranked result
+    # (and thus any AI panels) when it sees this fire.
+    observeEvent(input$reset, {
+      updateTextAreaInput(session, "paste", value = "")
+      updateTextAreaInput(session, "description", value = "")
+      updateTextInput(session, "disease", value = "")
+      updateTextInput(session, "tissues", value = "")
+      updateSelectInput(session, "study_context", selected = "none")
+      updateNumericInput(session, "w_pasted", value = 1)
+      for (s in registry) {
+        updateSliderInput(session, paste0("w_", s$key), value = s$weight)
+      }
+      updateCheckboxInput(session, "coverage_bonus", value = FALSE)
+      updateCheckboxInput(session, "caveats", value = TRUE)
+      for (rid in extra_sources()) {
+        removeUI(selector = paste0("#", session$ns(paste0("src_row_", rid))))
+      }
+      extra_sources(character(0))
+      disease_matches(NULL)
+      reset_seq(reset_seq() + 1L) # re-render the main file input -> cleared
+      showNotification(
+        "Cleared. Set up a new review.",
+        type = "message",
+        duration = 4
       )
     })
 
@@ -481,29 +665,33 @@ input_server <- function(
     # Empty sources are dropped by collect_candidate_set().
     candidate_set_r <- reactive({
       specs <- list()
-      if (!is.null(input$paste) && nzchar(trimws(input$paste %||% ""))) {
+      # The paste box and the main upload are ONE source ("pasted"): their genes are
+      # combined, so an overlap between them is not mistaken for cross-source
+      # corroboration. collect_candidate_set() unions text + file within a spec.
+      paste_txt <- input$paste
+      main_file <- input$file$datapath
+      has_paste <- !is.null(paste_txt) && nzchar(trimws(paste_txt %||% ""))
+      has_main_file <- !is.null(main_file) && nzchar(main_file)
+      if (has_paste || has_main_file) {
         specs[[length(specs) + 1L]] <- list(
           name = "pasted",
           type = "unspecified",
-          text = input$paste
-        )
-      }
-      fp <- input$file$datapath
-      if (!is.null(fp) && nzchar(fp)) {
-        specs[[length(specs) + 1L]] <- list(
-          name = "uploaded",
-          type = "unspecified",
-          file = fp
+          text = if (has_paste) paste_txt else NULL,
+          file = if (has_main_file) main_file else NULL
         )
       }
       for (rid in extra_sources()) {
         gv <- input[[paste0("src_genes_", rid)]]
-        if (!is.null(gv) && nzchar(trimws(gv %||% ""))) {
+        fp <- input[[paste0("src_file_", rid)]]$datapath
+        has_text <- !is.null(gv) && nzchar(trimws(gv %||% ""))
+        has_file <- !is.null(fp) && nzchar(fp)
+        if (has_text || has_file) {
           nm <- input[[paste0("src_name_", rid)]]
           specs[[length(specs) + 1L]] <- list(
             name = if (is_blank(nm)) paste0("source ", rid) else nm,
             type = input[[paste0("src_type_", rid)]] %||% "unspecified",
-            text = gv
+            text = if (has_text) gv else NULL,
+            file = if (has_file) fp else NULL
           )
         }
       }
@@ -512,6 +700,8 @@ input_server <- function(
 
     list(
       run = reactive(input$run),
+      # The "Clear all" click; the review module clears the ranked result on it.
+      reset = reactive(input$reset),
       # The rich candidate_set (canonical) plus the old named-list view for any
       # back-compat caller. run_enrich() accepts either.
       candidate_set = candidate_set_r,
@@ -555,6 +745,25 @@ input_server <- function(
           numeric(1)
         )
         stats::setNames(w, keys)
+      }),
+      # Per-source trust weights (source label -> weight), keyed to match the labels
+      # candidate_set_r() builds so the weighted cross-source corroboration lines up.
+      # Missing/blank -> 1 (neutral). Only affects runs with two or more sources.
+      source_weights = reactive({
+        norm <- function(v) {
+          if (is.null(v) || length(v) == 0 || is.na(v[1])) {
+            1
+          } else {
+            as.numeric(v[1])
+          }
+        }
+        w <- list(pasted = norm(input$w_pasted))
+        for (rid in extra_sources()) {
+          nm <- input[[paste0("src_name_", rid)]]
+          label <- if (is_blank(nm)) paste0("source ", rid) else nm
+          w[[label]] <- norm(input[[paste0("src_w_", rid)]])
+        }
+        w
       }),
       coverage_bonus = reactive(isTRUE(input$coverage_bonus)),
       # Caveats/veto on by default; NULL (pre-render) counts as on.

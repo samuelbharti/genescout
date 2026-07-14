@@ -1914,6 +1914,14 @@ enrich_input_signals <- function(resolved, registry, context = list()) {
     ))
   }
   user_sources <- context$user_sources %||% character()
+  # Optional per-source trust weights (label -> weight, default 1) the user set
+  # next to each candidate list. as.list() so a missing label yields NULL (not an
+  # out-of-bounds error) whether a named list or vector was passed.
+  source_weights <- as.list(context$source_weights %||% list())
+  src_weight <- function(l) {
+    v <- source_weights[[l]]
+    if (is.null(v) || length(v) == 0 || is.na(v[1])) 1 else as.numeric(v[1])
+  }
   has_input_lists <- "input_lists" %in% names(resolved)
   signals <- list()
   evidence <- list()
@@ -1922,8 +1930,17 @@ enrich_input_signals <- function(resolved, registry, context = list()) {
     corroborating <- sort(intersect(lists_i, user_sources))
     n <- length(corroborating)
     present <- n >= 2
+    # Weighted corroboration: sum the trust weights of the corroborating sources.
+    # A lone source stays neutral (raw = n < 2 normalizes to 0), so a high weight
+    # can never manufacture breadth from a single source. With every weight at the
+    # default 1, w_sum == n, so the signal is byte-identical to the unweighted case.
+    raw_corr <- if (present) {
+      sum(vapply(corroborating, src_weight, numeric(1)))
+    } else {
+      as.numeric(n)
+    }
     for (sig in input_signals) {
-      raw <- as.numeric(n)
+      raw <- raw_corr
       signals[[length(signals) + 1]] <- tibble::tibble(
         gene_id = resolved$gene_id[i],
         symbol = resolved$symbol[i],

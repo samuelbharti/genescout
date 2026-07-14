@@ -17,8 +17,7 @@
 #     --source atac=atacseq:my_atac.tsv \
 #     --description "NF1-associated MPNST" --agent both --out report.html
 #
-# Dependency-free arg parsing (matches dev/use_template.R style) so --help works
-# without any package installed.
+# Dependency-free arg parsing so --help works without any package installed.
 
 usage <- function() {
   cat(
