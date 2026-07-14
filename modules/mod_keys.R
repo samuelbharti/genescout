@@ -20,11 +20,32 @@ keys_ui <- function(id) {
     class = "mb-3",
     bslib::card_header("AI provider (your key)"),
     bslib::card_body(
-      selectInput(
-        ns("provider"),
-        "Provider",
-        choices = genescout_provider_choices(),
-        selected = default_provider
+      # Provider + model share a row; the key spans the full width beneath them.
+      div(
+        class = "row g-2",
+        div(
+          class = "col-sm-6",
+          selectInput(
+            ns("provider"),
+            "Provider",
+            choices = genescout_provider_choices(),
+            selected = default_provider
+          )
+        ),
+        div(
+          class = "col-sm-6",
+          selectizeInput(
+            ns("model"),
+            "Model (optional)",
+            choices = model_choices,
+            selected = character(0),
+            multiple = FALSE,
+            options = list(
+              create = TRUE,
+              placeholder = "Provider default"
+            )
+          )
+        )
       ),
       passwordInput(
         ns("api_key"),
@@ -32,17 +53,6 @@ keys_ui <- function(id) {
         placeholder = "Paste your key (kept in this session only)"
       ),
       uiOutput(ns("key_help")),
-      selectizeInput(
-        ns("model"),
-        "Model (optional)",
-        choices = model_choices,
-        selected = character(0),
-        multiple = FALSE,
-        options = list(
-          create = TRUE,
-          placeholder = "Default: a tuned model set for this provider"
-        )
-      ),
       div(
         class = "d-flex gap-2 mb-2",
         actionButton(

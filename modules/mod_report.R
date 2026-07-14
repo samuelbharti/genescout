@@ -4,7 +4,8 @@
 report_ui <- function(id) {
   ns <- NS(id)
 
-  tagList(
+  div(
+    class = "d-flex gap-2 flex-wrap",
     downloadButton(
       ns("download"),
       "Download report (HTML)",
@@ -13,7 +14,7 @@ report_ui <- function(id) {
     downloadButton(
       ns("download_csv"),
       "Download table (CSV)",
-      class = "btn-outline-secondary mt-2"
+      class = "btn-outline-secondary"
     )
   )
 }
