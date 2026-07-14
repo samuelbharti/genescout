@@ -374,7 +374,7 @@ gs_detail_pane <- function(
   verdict_block <- if (vetoed) {
     tags$div(
       class = "gs-verdict empty",
-      "Vetoed — not prioritized. See the caveat above for the reason."
+      "Vetoed: not prioritized. See the caveat above for the reason."
     )
   } else if (!is.null(verdict) && nzchar(verdict$verdict %||% "")) {
     ids <- if (length(verdict$source_ids) > 0) {

@@ -21,7 +21,7 @@ tagged version; entries are grouped by theme rather than by date.
   co-mention scoped to that disease).
 - **Caveats & veto stage** (deterministic anti-familiar-gene-bias): FLAGS-gene veto,
   single-weak-source, common-in-gnomAD (gene-level pLoF frequency), and
-  unrelated-tissue caveats — each recording its reason on the candidate.
+  unrelated-tissue caveats, each recording its reason on the candidate.
 - Disease-context priors as config (`context/*.yaml`) with an in-app study-context
   selector; NF1 and Lynch syndrome ship as references.
 
@@ -40,7 +40,7 @@ tagged version; entries are grouped by theme rather than by date.
 
 #### Grounding & the AI stages
 
-- **Citation gate**: every evidence row must carry a `source_id` or it is rejected —
+- **Citation gate**: every evidence row must carry a `source_id` or it is rejected:
   grounding enforced structurally, not by trust.
 - Optional interpretive **input agent** (propose → confirm → run; never invents genes).
 - Grounded, model-agnostic **AI curator** with a user-set target list size.

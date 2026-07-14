@@ -1,13 +1,13 @@
 <p align="center">
-  <img src="www/img/mascot.svg" alt="Scout — the GeneScout mascot" width="118" height="118">
+  <img src="www/img/mascot.svg" alt="Scout, the GeneScout mascot" width="118" height="118">
 </p>
 
 <h1 align="center">GeneScout</h1>
 
-<p align="center"><em>An agentic evidence-review workbench that investigates candidate gene lists and returns a disease-informed, cited shortlist — with the supporting evidence, the uncertainties, and the recommended next steps.</em></p>
+<p align="center"><em>An agentic evidence-review workbench that investigates candidate gene lists and returns a disease-informed, cited shortlist: the supporting evidence, the uncertainties, and the recommended next steps.</em></p>
 
 An agentic evidence-review workbench for research genomics. GeneScout takes a
-candidate list — variants, genes, or perturbation hits — plus a biological
+candidate list (variants, genes, or perturbation hits) plus a biological
 context (e.g. *NF1*-associated cancer), and turns it into a **plausibility-ranked
 research review**: what each candidate is, what evidence supports it, what is
 uncertain, and what experiment or analysis should come next.
@@ -27,12 +27,12 @@ own notes to decide which candidates are worth following up. It is slow, hard to
 reproduce, and biased toward genes you already know.
 
 GeneScout compresses that loop. Give it a candidate table and a disease context, and
-it returns a transparent, cited, ranked review you can act on — with the
+it returns a transparent, cited, ranked review you can act on, with the
 uncertainty made explicit instead of hidden.
 
 ## What makes it different
 
-- **Candidate-agnostic input.** Variants, gene symbols, or perturbation hits — the
+- **Candidate-agnostic input.** Variants, gene symbols, or perturbation hits: the
   same pipeline handles all three.
 - **Evidence is grounded, not guessed.** Every claim traces to a database record or
   a citation. Unsupported statements are blocked before they reach the report.
@@ -42,14 +42,14 @@ uncertainty made explicit instead of hidden.
   anti-familiar-gene-bias mechanism, and it is a first-class stage, not a footnote.
 - **Auditable output.** The report is a reviewable artifact: per-candidate scores, the
   evidence behind each score, the caveats, and suggested next experiments.
-- **Bring genes from several analyses.** Tag each source by assay — your WES calls,
-  significant DEGs, ATAC-seq-enriched genes — and a gene corroborated across more of
+- **Bring genes from several analyses.** Tag each source by assay (your WES calls,
+  significant DEGs, ATAC-seq-enriched genes), and a gene corroborated across more of
   your own sources ranks higher (*breadth beats a single loud source*). An optional
   input agent can clean messy input (typos, aliases, non-genes) and propose a disease
   context up front; it proposes, you confirm, then the deterministic run proceeds.
 - **UI-agnostic core.** The engine is plain data-in/data-out R functions
   (`candidate_set` → `run_review_request`), so the same core backs the Shiny app, a
-  CLI, and a design-only HTTP API — and could back a Python or React front end.
+  CLI, and a design-only HTTP API, and could back a Python or React front end.
 - **Context-driven, not NF1-locked.** The disease context is a config file; NF1 ships
   as the reference example, but any context can be dropped in.
 - **Provider-agnostic.** Orchestration runs on [ellmer](https://ellmer.tidyverse.org/),
@@ -70,7 +70,7 @@ weighted composite and applies the caveats/veto stage before assembling the repo
 
 On top of that spine, GeneScout adds an optional
 [ellmer](https://ellmer.tidyverse.org/)-based agent layer (needs a key). It **fetches
-nothing new** — it reads only the evidence the spine already retrieved and cited: an AI
+nothing new**: it reads only the evidence the spine already retrieved and cited. An AI
 curator compacts the ranked list, and three specialist agents run in **isolated,
 parallel contexts** (`parallel_chat_structured()`) to synthesize a per-gene
 plausibility verdict and a suggested next experiment. The agents accelerate
@@ -87,7 +87,7 @@ dates are tracked in [`docs/data_sources.md`](docs/data_sources.md) for reproduc
 | Variant effect | Ensembl VEP | Functional consequence |
 | Variant effect | gnomAD | Population frequency (rarity) |
 | Variant effect | ClinVar (NCBI E-utilities) | Known significance (evidence, not diagnosis) |
-| Pathway & disease | Open Targets Platform | Gene–disease associations |
+| Pathway & disease | Open Targets Platform | Gene-disease associations |
 | Pathway & disease | Reactome | Pathway membership |
 | Pathway & disease | STRING | Within-list interaction connectivity |
 | Expression | GTEx | Tissue-of-interest expression relevance |
@@ -96,10 +96,10 @@ dates are tracked in [`docs/data_sources.md`](docs/data_sources.md) for reproduc
 
 Sources form a **catalog**; each review activates a selected subset (a deselected
 source is never queried). Beyond the lean default set above, opt-in connectors span
-cancer (cBioPortal, CIViC), gene–disease (ClinGen, UniProt/Swiss-Prot, HPO),
+cancer (cBioPortal, CIViC), gene-disease (ClinGen, UniProt/Swiss-Prot, HPO),
 function (Gene Ontology / QuickGO), and structure (PDBe). The in-app **Connectors**
 tab lists every source, its domain, its status (default / opt-in / needs a key /
-planned), and what it contributes — rendered from the same catalog the engine uses.
+planned), and what it contributes, all rendered from the same catalog the engine uses.
 Key-gated databases (OncoKB, COSMIC, DisGeNET, OMIM, DrugBank) are catalog stubs
 until their keys are supplied.
 
@@ -107,7 +107,7 @@ until their keys are supplied.
 
 ### Requirements
 
-- **R ≥ 4.3** — the only hard requirement. The deterministic ranking, grades,
+- **R ≥ 4.3** is the only hard requirement. The deterministic ranking, grades,
   caveats/veto, and the report all run with **no API key**.
 - *Optional, for the AI stages only:* an LLM provider key (default Anthropic). Copy
   `.Renviron.example` to `.Renviron` and set `ANTHROPIC_API_KEY`, or paste a key in the
@@ -179,7 +179,7 @@ Rscript evals/run_benchmark.R   # the caveats benchmark (novelty hook, below)
 it **with and without** the deterministic caveats/veto stage. The demonstrable
 effect is that a prominent sequencing-artifact gene (TTN) grades **High** among the
 NF1 drivers in the no-caveats baseline, and the caveats stage sinks it to **Vetoed,
-last** — so the stage measurably changes outcomes, and the benchmark fails if it ever
+last**, so the stage measurably changes outcomes, and the benchmark fails if it ever
 stops doing so.
 
 ## Repository layout
