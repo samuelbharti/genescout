@@ -61,7 +61,7 @@ guide_page <- gs_page(fluidPage(
         grade_row(
           "bg-primary",
           "Moderate",
-          "0.20 – 0.50",
+          "0.20 to 0.50",
           "Real but partial support - worth a look, weaker or narrower than the High tier."
         ),
         grade_row(
@@ -107,7 +107,7 @@ guide_page <- gs_page(fluidPage(
           p(
             class = "mb-1",
             "A weighted mean over the gene's evidence signals, each normalized to",
-            "0–1 (a missing evidence signal counts as 0 but still divides, so breadth",
+            "0-1 (a missing evidence signal counts as 0 but still divides, so breadth",
             "is rewarded); present annotations then only nudge the score up.",
             "This is the number the table is sorted by. Open the",
             tags$strong("“How the composite score works”"),

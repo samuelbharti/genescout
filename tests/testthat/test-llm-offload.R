@@ -16,6 +16,7 @@ test_that("genescout_llm_run() is a pass-through when offloading is off", {
 })
 
 test_that("genescout_llm_run() honors the opt-out option without spawning a worker", {
+  skip_if_not_installed("mirai")
   withr::with_envvar(c(TESTTHAT = ""), {
     # With the off-switch lifted and mirai present, offloading WOULD engage...
     expect_true(genescout_llm_offload_available())
