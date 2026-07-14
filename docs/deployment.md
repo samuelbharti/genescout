@@ -42,7 +42,7 @@ reading results) are not disconnected:
 WebSockets must be proxied for Shiny to work, and read timeouts must exceed a long
 run:
 
-```
+```nginx
 proxy_http_version 1.1;
 proxy_set_header Upgrade $http_upgrade;
 proxy_set_header Connection "upgrade";
