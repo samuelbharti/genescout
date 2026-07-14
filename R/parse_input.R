@@ -103,8 +103,8 @@ collect_gene_lists <- function(pasted, file_path = NULL) {
 }
 
 # --- Multi-source candidate model -------------------------------------------
-# A `candidate_set` is CANDID's canonical, UI-agnostic input: an ordered list of
-# `candid_source` records, each a named/typed bag of raw gene tokens. The bare
+# A `candidate_set` is GeneScout's canonical, UI-agnostic input: an ordered list of
+# `genescout_source` records, each a named/typed bag of raw gene tokens. The bare
 # named list of character vectors the pipeline used before is a strict subset
 # (one source per name), so every existing caller keeps working through
 # as_candidate_set() / as_gene_lists(). Everything is a plain list, so a set
@@ -121,7 +121,7 @@ slugify <- function(x) {
 
 # Suggested (free-text) source types for the UI datalist / CLI hint. `type` stays
 # free text and is never treated as a claim - this is only a vocabulary.
-candid_source_types <- function() {
+genescout_source_types <- function() {
   c(
     "unspecified",
     "wes",
@@ -143,7 +143,7 @@ candid_source_types <- function() {
 # text; cleaned later by the flatten step). `seeded = TRUE` marks a source the
 # engine injected (e.g. a disease-discovery universe) so it is excluded from
 # cross-source corroboration. Classed for robust dispatch; still a plain list.
-candid_source <- function(
+genescout_source <- function(
   genes,
   label = NULL,
   type = "unspecified",
@@ -161,7 +161,7 @@ candid_source <- function(
       seeded = isTRUE(seeded),
       genes = as.character(genes)
     ),
-    class = "candid_source"
+    class = "genescout_source"
   )
 }
 
@@ -183,10 +183,10 @@ dedupe_source_ids <- function(sources) {
   sources
 }
 
-# The low-level constructor: an ordered, classed collection of candid_source
+# The low-level constructor: an ordered, classed collection of genescout_source
 # records (ids made unique). Order is the display / tie-break order.
 new_candidate_set <- function(sources = list()) {
-  structure(dedupe_source_ids(sources), class = "candid_candidate_set")
+  structure(dedupe_source_ids(sources), class = "genescout_candidate_set")
 }
 
 # Convenience constructor: candidate_set(src1, src2, ...) or candidate_set(<list
@@ -196,14 +196,14 @@ candidate_set <- function(...) {
   if (
     length(sources) == 1L &&
       is.list(sources[[1]]) &&
-      !inherits(sources[[1]], "candid_source")
+      !inherits(sources[[1]], "genescout_source")
   ) {
     sources <- sources[[1]]
   }
   new_candidate_set(sources)
 }
 
-# Append a candid_source to a candidate_set, returning a new set (ids re-deduped).
+# Append a genescout_source to a candidate_set, returning a new set (ids re-deduped).
 # Used to fold an engine-injected source (e.g. the disease-discovery universe)
 # into the user's set without mutating it.
 candidate_set_add <- function(cs, source) {
@@ -211,26 +211,26 @@ candidate_set_add <- function(cs, source) {
 }
 
 # Coerce assorted inputs into a candidate_set. Supersedes as_gene_lists(): passes
-# a candidate_set through; wraps a single candid_source; a bare character vector
+# a candidate_set through; wraps a single genescout_source; a bare character vector
 # -> one source "input"; a gene/candidate/symbol data frame -> one source; and a
 # NAMED list of character vectors (the pipeline's old shape) -> one source per
 # name with id = label = name, so downstream provenance (input_lists) stays
 # byte-identical. Dispatch on the classes FIRST (a candidate_set is itself a
 # list, so a bare is.list() branch would mis-handle it).
 as_candidate_set <- function(x) {
-  if (inherits(x, "candid_candidate_set")) {
+  if (inherits(x, "genescout_candidate_set")) {
     return(x)
   }
-  if (inherits(x, "candid_source")) {
+  if (inherits(x, "genescout_source")) {
     return(new_candidate_set(list(x)))
   }
   if (is.data.frame(x)) {
     col <- intersect(c("gene", "candidate", "symbol"), names(x))[1]
     genes <- if (!is.na(col)) as.character(x[[col]]) else character()
-    return(new_candidate_set(list(candid_source(genes, label = "input"))))
+    return(new_candidate_set(list(genescout_source(genes, label = "input"))))
   }
   if (is.character(x)) {
-    return(new_candidate_set(list(candid_source(x, label = "input"))))
+    return(new_candidate_set(list(genescout_source(x, label = "input"))))
   }
   if (is.list(x)) {
     nms <- names(x)
@@ -242,7 +242,7 @@ as_candidate_set <- function(x) {
       if (!nzchar(nm %||% "")) {
         nm <- if (length(x) == 1L) "input" else paste0("source_", i)
       }
-      candid_source(x[[i]], label = nm, id = nm)
+      genescout_source(x[[i]], label = nm, id = nm)
     })
     return(new_candidate_set(srcs))
   }
@@ -285,7 +285,7 @@ candidate_set_to_list <- function(cs) {
 # JSON, with simplifyVector = FALSE). The inverse of candidate_set_to_list().
 candidate_set_from_list <- function(x) {
   srcs <- lapply(x, function(s) {
-    candid_source(
+    genescout_source(
       genes = unlist(s$genes, use.names = FALSE) %||% character(),
       label = s$label,
       type = s$type %||% "unspecified",
@@ -334,7 +334,7 @@ collect_candidate_set <- function(specs) {
     if (length(genes) == 0L) {
       next
     }
-    srcs[[length(srcs) + 1L]] <- candid_source(
+    srcs[[length(srcs) + 1L]] <- genescout_source(
       genes,
       label = label,
       type = spec$type %||% "unspecified"

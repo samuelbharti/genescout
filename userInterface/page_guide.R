@@ -8,7 +8,7 @@
 grade_row <- function(badge_class, label, threshold, meaning) {
   tags$tr(
     tags$td(
-      class = "candid-grade-cell",
+      class = "genescout-grade-cell",
       tags$span(class = paste("badge", badge_class), label)
     ),
     tags$td(class = "text-nowrap text-muted small", threshold),
@@ -19,20 +19,20 @@ grade_row <- function(badge_class, label, threshold, meaning) {
 guide_page <- fluidPage(
   tags$style(HTML(
     "
-    .candid-guide { max-width: 860px; }
-    .candid-grade-table { width: 100%; border-collapse: collapse; }
-    .candid-grade-table td { padding: .5rem .6rem; vertical-align: top;
+    .genescout-guide { max-width: 860px; }
+    .genescout-grade-table { width: 100%; border-collapse: collapse; }
+    .genescout-grade-table td { padding: .5rem .6rem; vertical-align: top;
       border-top: 1px solid var(--bs-border-color); }
-    .candid-grade-cell { width: 1%; white-space: nowrap; }
-    .candid-col-card { border: 1px solid var(--bs-border-color);
+    .genescout-grade-cell { width: 1%; white-space: nowrap; }
+    .genescout-col-card { border: 1px solid var(--bs-border-color);
       border-radius: .5rem; padding: .85rem 1.1rem; background: var(--bs-body-bg);
       height: 100%; }
-    .candid-col-card h5 { font-size: 1rem; margin: 0 0 .3rem 0; }
-    .candid-col-card code { font-size: .82rem; }
+    .genescout-col-card h5 { font-size: 1rem; margin: 0 0 .3rem 0; }
+    .genescout-col-card code { font-size: .82rem; }
     "
   )),
   div(
-    class = "candid-guide",
+    class = "genescout-guide",
     titlePanel("Reading your results"),
     hr(),
     p(
@@ -50,7 +50,7 @@ guide_page <- fluidPage(
       "- not a probability, and never a clinical or pathogenicity call."
     ),
     tags$table(
-      class = "candid-grade-table mb-2",
+      class = "genescout-grade-table mb-2",
       tags$tbody(
         grade_row(
           "bg-success",
@@ -102,7 +102,7 @@ guide_page <- fluidPage(
       column(
         width = 6,
         div(
-          class = "candid-col-card mb-3",
+          class = "genescout-col-card mb-3",
           tags$h5("Composite"),
           p(
             class = "mb-1",
@@ -119,13 +119,13 @@ guide_page <- fluidPage(
       column(
         width = 6,
         div(
-          class = "candid-col-card mb-3",
+          class = "genescout-col-card mb-3",
           tags$h5("Caveats"),
           p(
             class = "mb-1",
             "The number of anti-bias flags raised for the gene (",
             tags$code("—"),
-            "when clean). CANDID down-ranks a candidate that looks compelling but is",
+            "when clean). GeneScout down-ranks a candidate that looks compelling but is",
             "common in gnomAD, backed by a single weak source, or expressed only in",
             "unrelated tissue - and vetoes FLAGS genes outright. Select the row to",
             "read each caveat's reason."
@@ -135,7 +135,7 @@ guide_page <- fluidPage(
       column(
         width = 6,
         div(
-          class = "candid-col-card mb-3",
+          class = "genescout-col-card mb-3",
           tags$h5(
             "Plausibility",
             tags$span(class = "badge bg-info ms-2", "after specialists")
@@ -162,7 +162,7 @@ guide_page <- fluidPage(
       column(
         width = 6,
         div(
-          class = "candid-col-card mb-3",
+          class = "genescout-col-card mb-3",
           tags$h5("Signal columns"),
           p(
             class = "mb-1",
@@ -187,7 +187,7 @@ guide_page <- fluidPage(
       tags$strong("source id"),
       "(a database accession or a PMID) linking out to the source. If you ran the",
       "specialists, their per-gene analysis and verdict appear here too. This is the",
-      "auditable core - nothing in a CANDID result is a claim you cannot trace to a",
+      "auditable core - nothing in a GeneScout result is a claim you cannot trace to a",
       "source."
     ),
     div(
@@ -207,7 +207,7 @@ guide_page <- fluidPage(
       class = "alert alert-warning",
       role = "alert",
       tags$strong("Research use only. "),
-      "CANDID prioritizes hypotheses for researchers. It does not provide diagnosis,",
+      "GeneScout prioritizes hypotheses for researchers. It does not provide diagnosis,",
       "treatment guidance, or ACMG/AMP variant classification."
     )
   )

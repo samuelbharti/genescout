@@ -1,4 +1,4 @@
-# CANDID technical-ranking rubric.
+# GeneScout technical-ranking rubric.
 #
 # Per-signal weights ("source definitions") and normalization midpoints for the
 # deterministic composite score. Edit here to retune ranking - no code change

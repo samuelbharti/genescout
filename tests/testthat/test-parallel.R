@@ -4,12 +4,15 @@
 # dispatcher's output is byte-identical to the serial enrich_genes().
 
 test_that("the parallel path is disabled under testthat (suite stays serial)", {
-  # testthat sets TESTTHAT=true, which candid_parallel_available() treats as a hard
+  # testthat sets TESTTHAT=true, which genescout_parallel_available() treats as a hard
   # off-switch - so CI never spawns worker processes regardless of list size.
-  expect_false(candid_parallel_available())
-  expect_equal(candid_parallel_workers(500), 1L)
+  expect_false(genescout_parallel_available())
+  expect_equal(genescout_parallel_workers(500), 1L)
   # Even a list well past the parallel threshold resolves to 1 worker here.
-  expect_equal(candid_parallel_workers(CANDID_PARALLEL_MIN_GENES + 50), 1L)
+  expect_equal(
+    genescout_parallel_workers(GENESCOUT_PARALLEL_MIN_GENES + 50),
+    1L
+  )
 })
 
 test_that("enrich_genes_dispatch() output is identical to serial enrich_genes()", {
@@ -42,32 +45,35 @@ test_that("enrich_genes_dispatch() forwards the progress callback per gene", {
 
 test_that("worker count caps at the max and never exceeds the gene count", {
   # Lift the testthat off-switch (mirai is installed) to exercise the real arithmetic.
-  # This computes a count only - candid_parallel_workers() never spawns a daemon.
+  # This computes a count only - genescout_parallel_workers() never spawns a daemon.
   withr::with_envvar(c(TESTTHAT = ""), {
-    expect_true(candid_parallel_available())
-    expect_equal(candid_parallel_workers(100), CANDID_PARALLEL_MAX_WORKERS)
-    expect_equal(candid_parallel_workers(3), 3L)
-    withr::with_options(list(candid.parallel.workers = 2), {
-      expect_equal(candid_parallel_workers(100), 2L)
+    expect_true(genescout_parallel_available())
+    expect_equal(
+      genescout_parallel_workers(100),
+      GENESCOUT_PARALLEL_MAX_WORKERS
+    )
+    expect_equal(genescout_parallel_workers(3), 3L)
+    withr::with_options(list(genescout.parallel.workers = 2), {
+      expect_equal(genescout_parallel_workers(100), 2L)
     })
     # The opt-out option forces the serial path even when mirai is present.
-    withr::with_options(list(candid.parallel = FALSE), {
-      expect_false(candid_parallel_available())
-      expect_equal(candid_parallel_workers(100), 1L)
+    withr::with_options(list(genescout.parallel = FALSE), {
+      expect_false(genescout_parallel_available())
+      expect_equal(genescout_parallel_workers(100), 1L)
     })
   })
 })
 
-test_that("candid_engine_root() honors CANDID_APP_ROOT, else the working dir", {
-  withr::with_envvar(c(CANDID_APP_ROOT = ""), {
+test_that("genescout_engine_root() honors GENESCOUT_APP_ROOT, else the working dir", {
+  withr::with_envvar(c(GENESCOUT_APP_ROOT = ""), {
     expect_equal(
-      candid_engine_root(),
+      genescout_engine_root(),
       normalizePath(getwd(), winslash = "/", mustWork = FALSE)
     )
   })
   app_root <- test_path("..", "..")
-  withr::with_envvar(c(CANDID_APP_ROOT = app_root), {
-    root <- candid_engine_root()
+  withr::with_envvar(c(GENESCOUT_APP_ROOT = app_root), {
+    root <- genescout_engine_root()
     # A worker sources the engine from here, so enrich.R must resolve under it.
     expect_true(file.exists(file.path(root, "R", "enrich.R")))
   })

@@ -1,4 +1,4 @@
-# Git hooks for CANDID, managed with prek (a drop-in pre-commit replacement).
+# Git hooks for GeneScout, managed with prek (a drop-in pre-commit replacement).
 #   Setup:  prek install --hook-type pre-commit --hook-type commit-msg
 #   Run on everything:  prek run --all-files
 # prek reads this same .pre-commit-config.yaml format.

@@ -3,10 +3,10 @@
 # weight sliders re-rank the cached result live (no re-query, because the
 # normalization is absolute); the description is stored for the later AI step.
 
-# `registry` defaults to a freshly built registry (not the `candid_registry`
+# `registry` defaults to a freshly built registry (not the `genescout_registry`
 # global, which global.R defines only after the UI is sourced). Its keys match
 # the global, so the slider input ids line up with what input_server() reads.
-input_ui <- function(id, registry = candid_signal_registry()) {
+input_ui <- function(id, registry = genescout_signal_registry()) {
   ns <- NS(id)
 
   tagList(
@@ -164,9 +164,9 @@ input_ui <- function(id, registry = candid_signal_registry()) {
 # the default_on + available subset. Key-gated sources with no key are shown but
 # labeled "needs API key" (and left unchecked). The input/network auto-signals
 # (cross-source, STRING) are not shown - they append from the run data, not a
-# checkbox. Built from candid_source_catalog(), so new connectors appear here for free.
+# checkbox. Built from genescout_source_catalog(), so new connectors appear here for free.
 source_picker_ui <- function(ns) {
-  catalog <- tryCatch(candid_source_catalog(), error = function(e) list())
+  catalog <- tryCatch(genescout_source_catalog(), error = function(e) list())
   # Only runnable, per-gene connectors are selectable. Stubs (key-gated sources
   # with no live client yet) are catalog/introspection-only - offering one as a
   # checkbox would be a silent no-op, so they are listed separately as "planned".
@@ -197,7 +197,7 @@ source_picker_ui <- function(ns) {
     choices = stats::setNames(keys, labels),
     selected = selected
   )
-  # Key-gated sources CANDID knows about but cannot query yet (no client). Shown as
+  # Key-gated sources GeneScout knows about but cannot query yet (no client). Shown as
   # an informational note, never a checkbox, so the picker offers only working ones.
   stub_cat <- Filter(function(s) isTRUE(s$stub), catalog)
   if (length(stub_cat) == 0) {
@@ -265,7 +265,7 @@ extra_source_row <- function(ns, rid) {
       selectInput(
         ns(paste0("src_type_", rid)),
         label = NULL,
-        choices = candid_source_types(),
+        choices = genescout_source_types(),
         selected = "unspecified"
       )
     ),
@@ -325,7 +325,7 @@ agent_mode_control <- function(ns, llm_ok, selected = "final") {
 
 input_server <- function(
   id,
-  registry = candid_registry,
+  registry = genescout_registry,
   llm_ready = reactive(FALSE)
 ) {
   moduleServer(id, function(input, output, session) {
@@ -349,7 +349,7 @@ input_server <- function(
       vapply(
         Filter(
           function(s) identical(s$needs %||% "gene", "gene") && !isTRUE(s$stub),
-          candid_source_catalog()
+          genescout_source_catalog()
         ),
         function(s) s$key,
         character(1)

@@ -21,7 +21,7 @@
 # Universal recurrent-artifact (FLAGS = FrequentLy mutAted GeneS) fallback, used
 # only when the rubric omits a caveats$flags_genes list. The canonical list is
 # from Shyr et al. 2014 (BMC Med Genomics 7:64); the rubric ships the tunable copy.
-CANDID_DEFAULT_FLAGS <- c(
+GENESCOUT_DEFAULT_FLAGS <- c(
   "TTN",
   "MUC16",
   "OBSCN",
@@ -41,7 +41,7 @@ caveat_config <- function(rubric = NULL) {
   list(
     enabled = isTRUE(cv$enabled %||% TRUE),
     flags_genes = toupper(as.character(
-      cv$flags_genes %||% CANDID_DEFAULT_FLAGS
+      cv$flags_genes %||% GENESCOUT_DEFAULT_FLAGS
     )),
     single_penalty = as.numeric(ss$penalty %||% 0.75),
     single_max_norm = as.numeric(ss$max_norm %||% 0.5),

@@ -1,6 +1,6 @@
-# CANDID methodology — how it works and why you can trust it
+# GeneScout methodology — how it works and why you can trust it
 
-This is the consolidated, human-readable account of what CANDID does to a gene
+This is the consolidated, human-readable account of what GeneScout does to a gene
 list and why each output can be traced back to a source. It is written for a
 researcher deciding whether to trust a ranking, and for a reviewer of the eventual
 methods paper. It complements, and does not replace:
@@ -11,7 +11,7 @@ methods paper. It complements, and does not replace:
   version/release, and access date (reproducibility).
 - [`README.md`](../README.md) — the product overview and quickstart.
 
-> **Research use only.** CANDID is a hypothesis-prioritization aid. It produces
+> **Research use only.** GeneScout is a hypothesis-prioritization aid. It produces
 > **research evidence**, never a clinical call — no diagnosis, no treatment advice,
 > and no ACMG/AMP pathogenicity classification. ClinVar and gnomAD are read as
 > research evidence, not as clinical determinations.
@@ -56,7 +56,7 @@ slider **re-ranks instantly without re-querying** (see
 
 ## 3. Grounding — no ungrounded claims, enforced structurally
 
-Grounding is CANDID's first non-negotiable, and it is enforced by construction, not
+Grounding is GeneScout's first non-negotiable, and it is enforced by construction, not
 by trust:
 
 - **Every signal is a real record.** Each per-source client (`R/tools/*.R`) returns
@@ -157,7 +157,7 @@ baseline is a snapshot, and the invariant assertions above are the pass/fail gat
 - **Recorded sources.** Every data source is logged in
   [`docs/data_sources.md`](data_sources.md) with endpoint and access date; adding or
   changing a source requires updating it. Each run also computes a **provenance**
-  list of exactly which sources it queried (`candid_provenance()`), including audited
+  list of exactly which sources it queried (`genescout_provenance()`), including audited
   truncations (seed cap, input cap, STRING cap) — nothing is silently limited.
 - **Deterministic core.** The ranking has no randomness and no model; the same input
   over the same source state yields the same ranking.

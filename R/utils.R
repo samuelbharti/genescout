@@ -11,12 +11,12 @@ safe_read_rds <- function(path, default = NULL) {
 }
 
 # Signal that a pipeline stage is not implemented yet. Raised by engine stubs so
-# callers (the Shiny app, the CLI) can catch `candid_not_implemented` and degrade
+# callers (the Shiny app, the CLI) can catch `genescout_not_implemented` and degrade
 # gracefully instead of crashing.
 not_implemented <- function(what) {
   msg <- sprintf("%s is not implemented yet - see PLAN.md.", what)
   cnd <- structure(
-    class = c("candid_not_implemented", "error", "condition"),
+    class = c("genescout_not_implemented", "error", "condition"),
     list(message = msg, call = sys.call(-1))
   )
   stop(cnd)

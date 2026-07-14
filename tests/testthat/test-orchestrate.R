@@ -57,7 +57,7 @@ test_that("run_review() carries grounded evidence through the citation gate", {
 
 test_that("run_review_request() unpacks an envelope (candidate_set + JSON form)", {
   req <- list(
-    sources = candidate_set(candid_source(c("NF1", "TP53"), label = "mine")),
+    sources = candidate_set(genescout_source(c("NF1", "TP53"), label = "mine")),
     description = "peripheral nerve tumors",
     options = list(caveats = FALSE)
   )
@@ -72,7 +72,7 @@ test_that("run_review_request() unpacks an envelope (candidate_set + JSON form)"
   # The plain list-of-source-objects a non-R frontend posts (must NOT be read as
   # a bare named list - each element is a source object, not a gene vector).
   json_sources <- candidate_set_to_list(
-    candidate_set(candid_source(c("NF1"), label = "mine"))
+    candidate_set(genescout_source(c("NF1"), label = "mine"))
   )
   out2 <- run_review_request(
     list(sources = json_sources),

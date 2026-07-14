@@ -52,7 +52,7 @@ test_that("pmc_paper_evidence() grounds each article on its PMID", {
   )
   ev <- pmc_paper_evidence("ENSG00000196712", papers)
 
-  expect_equal(nrow(ev), min(nrow(papers), CANDID_PMC_EVIDENCE_MAX))
+  expect_equal(nrow(ev), min(nrow(papers), GENESCOUT_PMC_EVIDENCE_MAX))
   expect_true(all(ev$gene_id == "ENSG00000196712"))
   expect_true(all(ev$signal_key == "pmc_hits"))
   expect_true(all(ev$domain == "literature"))
@@ -60,7 +60,7 @@ test_that("pmc_paper_evidence() grounds each article on its PMID", {
   # so a curation / specialist rationale can cite the actual paper.
   expect_true(all(nzchar(ev$source_id)))
   expect_true(any(grepl("^PMID:", ev$source_id)))
-  expect_equal(ev$title, utils::head(papers$title, CANDID_PMC_EVIDENCE_MAX))
+  expect_equal(ev$title, utils::head(papers$title, GENESCOUT_PMC_EVIDENCE_MAX))
 })
 
 test_that("pmc_paper_evidence() returns an empty evidence frame for no papers", {

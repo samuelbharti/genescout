@@ -33,7 +33,7 @@ results_ui <- function(id) {
 results_server <- function(
   id,
   result,
-  config_r = reactive(candid_config),
+  config_r = reactive(genescout_config),
   agent_mode = reactive("final"),
   specialists = reactiveVal(NULL)
 ) {
@@ -129,7 +129,7 @@ results_server <- function(
             numericInput(
               ns("target_size"),
               "Target list size",
-              value = min(CANDID_CURATE_TARGET_DEFAULT, n_ranked),
+              value = min(GENESCOUT_CURATE_TARGET_DEFAULT, n_ranked),
               min = 1,
               max = n_ranked,
               step = 1
@@ -158,20 +158,20 @@ results_server <- function(
       req(final_curator_on())
       ts <- input$target_size
       if (is.null(ts) || is.na(ts) || ts < 1) {
-        ts <- CANDID_CURATE_TARGET_DEFAULT
+        ts <- GENESCOUT_CURATE_TARGET_DEFAULT
       }
       cfg <- config_r()
       cur <- tryCatch(
         withProgress(
           message = "Curating with the configured model...",
           # Run in a background process so Stop/refresh mid-call can't crash the session.
-          candid_llm_run(curate_gene_list, result(), cfg, top_n = ts)
+          genescout_llm_run(curate_gene_list, result(), cfg, top_n = ts)
         ),
         error = function(e) {
           showNotification(
             paste(
               "Curation failed:",
-              candid_redact_secret(conditionMessage(e), cfg$api_key %||% "")
+              genescout_redact_secret(conditionMessage(e), cfg$api_key %||% "")
             ),
             type = "error"
           )
@@ -202,7 +202,7 @@ results_server <- function(
     })
 
     output$curated_download <- downloadHandler(
-      filename = function() "candid_curated.csv",
+      filename = function() "genescout_curated.csv",
       content = function(file) {
         req(result())
         req(curated())
@@ -263,7 +263,7 @@ results_server <- function(
         withProgress(
           message = "Running specialists on the top candidates...",
           # Background process: the specialists' libcurl calls stay out of the session.
-          candid_llm_run(
+          genescout_llm_run(
             run_specialists,
             result(),
             cfg,
@@ -274,7 +274,7 @@ results_server <- function(
           showNotification(
             paste(
               "Specialist analysis failed:",
-              candid_redact_secret(conditionMessage(e), cfg$api_key %||% "")
+              genescout_redact_secret(conditionMessage(e), cfg$api_key %||% "")
             ),
             type = "error"
           )

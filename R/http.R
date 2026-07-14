@@ -7,85 +7,88 @@
 #   list(ok = TRUE,  status = 200L, data = <parsed JSON>, error = NULL)
 #   list(ok = FALSE, status = <int|NA>, data = NULL, error = "<message>")
 #
-# Successful responses are cached in-process for CANDID_CACHE_TTL seconds so
+# Successful responses are cached in-process for GENESCOUT_CACHE_TTL seconds so
 # repeated lookups are instant; failures are never cached, so a transient outage
 # does not get stuck. Adapted from the sibling variant-reviewer app.
 #
 # No {ellmer} imports here - clients must be callable and testable in plain R.
 
-CANDID_CACHE_TTL <- 1800 # 30 minutes
-candid_cache <- cachem::cache_mem(max_age = CANDID_CACHE_TTL)
+GENESCOUT_CACHE_TTL <- 1800 # 30 minutes
+genescout_cache <- cachem::cache_mem(max_age = GENESCOUT_CACHE_TTL)
 
 # Stable cache key for a request.
-candid_cache_key <- function(...) {
+genescout_cache_key <- function(...) {
   rlang::hash(list(...))
 }
 
 # A descriptive, contact-bearing User-Agent. NCBI E-utilities and Europe PMC ask
 # callers to identify themselves with a contact; the public repo URL is the stable
-# identifier, and a hosted operator can add a mailto via CANDID_CONTACT_EMAIL.
-CANDID_VERSION <- "0.1.0"
-CANDID_REPO_URL <- "https://github.com/samuelbharti/candid"
+# identifier, and a hosted operator can add a mailto via GENESCOUT_CONTACT_EMAIL.
+GENESCOUT_VERSION <- "0.1.0"
+GENESCOUT_REPO_URL <- "https://github.com/samuelbharti/genescout"
 
-candid_user_agent <- function() {
-  email <- Sys.getenv("CANDID_CONTACT_EMAIL", "")
+genescout_user_agent <- function() {
+  email <- Sys.getenv("GENESCOUT_CONTACT_EMAIL", "")
   contact <- if (nzchar(email)) {
-    paste0("+", CANDID_REPO_URL, "; mailto:", email)
+    paste0("+", GENESCOUT_REPO_URL, "; mailto:", email)
   } else {
-    paste0("+", CANDID_REPO_URL)
+    paste0("+", GENESCOUT_REPO_URL)
   }
-  sprintf("CANDID/%s (%s)", CANDID_VERSION, contact)
+  sprintf("GeneScout/%s (%s)", GENESCOUT_VERSION, contact)
 }
 
 # --- Per-host circuit breaker ------------------------------------------------
 # The enrichment loop makes one call per (gene x source), so a single unreachable
 # host would otherwise cost `timeout x retries` on EVERY gene (failures are not
-# cached). The breaker trips a host after CANDID_BREAKER_THRESHOLD consecutive
+# cached). The breaker trips a host after GENESCOUT_BREAKER_THRESHOLD consecutive
 # TRANSPORT failures (unreachable / timeout - an HTTP response, even 404/5xx, means
 # the host is up and clears the count) and short-circuits further calls to it for
-# CANDID_BREAKER_COOLDOWN seconds, so one dead source degrades to fast misses instead
+# GENESCOUT_BREAKER_COOLDOWN seconds, so one dead source degrades to fast misses instead
 # of stalling the whole run. Process-global and self-healing via the cooldown.
-CANDID_BREAKER_THRESHOLD <- 3L
-CANDID_BREAKER_COOLDOWN <- 120 # seconds a tripped host is skipped before a retry
-candid_breaker <- new.env(parent = emptyenv())
+GENESCOUT_BREAKER_THRESHOLD <- 3L
+GENESCOUT_BREAKER_COOLDOWN <- 120 # seconds a tripped host is skipped before a retry
+genescout_breaker <- new.env(parent = emptyenv())
 
 # Hostname of a request URL, for keying the breaker (falls back to a constant so a
 # malformed URL never errors the breaker).
-candid_url_host <- function(url) {
+genescout_url_host <- function(url) {
   h <- tryCatch(httr2::url_parse(url)$hostname, error = function(e) NULL)
   if (is.null(h) || !nzchar(h)) "unknown-host" else h
 }
 
-candid_breaker_state <- function(host) {
-  candid_breaker[[host]] %||% list(fails = 0L, tripped_until = 0)
+genescout_breaker_state <- function(host) {
+  genescout_breaker[[host]] %||% list(fails = 0L, tripped_until = 0)
 }
 
 # TRUE when `host` is currently tripped (skip the network, return a fast miss).
-candid_breaker_open <- function(host, now = as.numeric(Sys.time())) {
-  isTRUE(candid_breaker_state(host)$tripped_until > now)
+genescout_breaker_open <- function(host, now = as.numeric(Sys.time())) {
+  isTRUE(genescout_breaker_state(host)$tripped_until > now)
 }
 
 # Record a call outcome: a success (host reachable) clears the count; the Kth
 # consecutive transport failure trips the breaker for the cooldown window.
-candid_breaker_record <- function(host, ok, now = as.numeric(Sys.time())) {
+genescout_breaker_record <- function(host, ok, now = as.numeric(Sys.time())) {
   if (isTRUE(ok)) {
-    candid_breaker[[host]] <- list(fails = 0L, tripped_until = 0)
+    genescout_breaker[[host]] <- list(fails = 0L, tripped_until = 0)
   } else {
-    st <- candid_breaker_state(host)
+    st <- genescout_breaker_state(host)
     fails <- st$fails + 1L
-    tripped_until <- if (fails >= CANDID_BREAKER_THRESHOLD) {
-      now + CANDID_BREAKER_COOLDOWN
+    tripped_until <- if (fails >= GENESCOUT_BREAKER_THRESHOLD) {
+      now + GENESCOUT_BREAKER_COOLDOWN
     } else {
       st$tripped_until
     }
-    candid_breaker[[host]] <- list(fails = fails, tripped_until = tripped_until)
+    genescout_breaker[[host]] <- list(
+      fails = fails,
+      tripped_until = tripped_until
+    )
   }
-  invisible(candid_breaker[[host]])
+  invisible(genescout_breaker[[host]])
 }
 
 # Clear all breaker state (used by tests to isolate; a fresh process starts clean).
-candid_breaker_reset <- function() {
-  rm(list = ls(candid_breaker), envir = candid_breaker)
+genescout_breaker_reset <- function() {
+  rm(list = ls(genescout_breaker), envir = genescout_breaker)
   invisible(NULL)
 }
 
@@ -107,9 +110,9 @@ http_get_json <- function(
   if (length(query) > 0) {
     query <- query[!vapply(query, is_blank, logical(1))]
   }
-  key <- candid_cache_key("GET", base_url, path, query)
+  key <- genescout_cache_key("GET", base_url, path, query)
 
-  candid_cached(key, function() {
+  genescout_cached(key, function() {
     req <- httr2::request(base_url)
     if (!is.null(path)) {
       req <- httr2::req_url_path_append(req, path)
@@ -117,8 +120,8 @@ http_get_json <- function(
     if (length(query) > 0) {
       req <- do.call(httr2::req_url_query, c(list(req), query))
     }
-    req <- candid_req_defaults(req, timeout, max_tries, headers)
-    candid_perform(req, source)
+    req <- genescout_req_defaults(req, timeout, max_tries, headers)
+    genescout_perform(req, source)
   })
 }
 
@@ -132,13 +135,13 @@ http_post_json <- function(
   max_tries = 3,
   headers = NULL
 ) {
-  key <- candid_cache_key("POST", url, body)
+  key <- genescout_cache_key("POST", url, body)
 
-  candid_cached(key, function() {
+  genescout_cached(key, function() {
     req <- httr2::request(url)
     req <- httr2::req_body_json(req, body)
-    req <- candid_req_defaults(req, timeout, max_tries, headers)
-    candid_perform(req, source)
+    req <- genescout_req_defaults(req, timeout, max_tries, headers)
+    genescout_perform(req, source)
   })
 }
 
@@ -178,9 +181,9 @@ http_get_text <- function(
   if (length(query) > 0) {
     query <- query[!vapply(query, is_blank, logical(1))]
   }
-  key <- candid_cache_key("GET_TEXT", base_url, path, query)
+  key <- genescout_cache_key("GET_TEXT", base_url, path, query)
 
-  candid_cached(key, function() {
+  genescout_cached(key, function() {
     req <- httr2::request(base_url)
     if (!is.null(path)) {
       req <- httr2::req_url_path_append(req, path)
@@ -188,16 +191,16 @@ http_get_text <- function(
     if (length(query) > 0) {
       req <- do.call(httr2::req_url_query, c(list(req), query))
     }
-    req <- candid_req_defaults(req, timeout, max_tries, headers)
-    candid_perform_text(req, source)
+    req <- genescout_req_defaults(req, timeout, max_tries, headers)
+    genescout_perform_text(req, source)
   })
 }
 
 # Perform a request and normalize into an ok/status/text/error list (text variant
-# of candid_perform, for non-JSON bodies). Same per-host breaker as candid_perform.
-candid_perform_text <- function(req, source) {
-  host <- candid_url_host(req$url)
-  if (candid_breaker_open(host)) {
+# of genescout_perform, for non-JSON bodies). Same per-host breaker as genescout_perform.
+genescout_perform_text <- function(req, source) {
+  host <- genescout_url_host(req$url)
+  if (genescout_breaker_open(host)) {
     return(list(
       ok = FALSE,
       status = NA_integer_,
@@ -234,20 +237,20 @@ candid_perform_text <- function(req, source) {
       )
     }
   )
-  candid_breaker_record(host, ok = !is.na(res$status))
+  genescout_breaker_record(host, ok = !is.na(res$status))
   res
 }
 
 # Return a cached successful result for `key`, otherwise run `fetch()` and cache
 # it only when it succeeded.
-candid_cached <- function(key, fetch) {
-  hit <- candid_cache$get(key, missing = NULL)
+genescout_cached <- function(key, fetch) {
+  hit <- genescout_cache$get(key, missing = NULL)
   if (!is.null(hit)) {
     return(hit)
   }
   res <- fetch()
   if (isTRUE(res$ok)) {
-    candid_cache$set(key, res)
+    genescout_cache$set(key, res)
   }
   res
 }
@@ -256,12 +259,12 @@ candid_cached <- function(key, fetch) {
 # `headers` (a named list) is supplied for a key-gated source, they are attached and
 # marked sensitive via `.redact`, so httr2 never prints or logs the token (e.g. in a
 # transport-error message). Header auth keeps the secret out of the URL entirely.
-candid_req_defaults <- function(req, timeout, max_tries, headers = NULL) {
+genescout_req_defaults <- function(req, timeout, max_tries, headers = NULL) {
   req <- httr2::req_timeout(req, timeout)
   req <- httr2::req_retry(req, max_tries = max_tries)
   # Don't let httr2 raise on HTTP errors; we normalize them ourselves.
   req <- httr2::req_error(req, is_error = function(resp) FALSE)
-  req <- httr2::req_user_agent(req, candid_user_agent())
+  req <- httr2::req_user_agent(req, genescout_user_agent())
   if (!is.null(headers) && length(headers) > 0) {
     req <- do.call(
       httr2::req_headers,
@@ -274,9 +277,9 @@ candid_req_defaults <- function(req, timeout, max_tries, headers = NULL) {
 # Perform a request and normalize into the standard ok/status/data/error list.
 # Short-circuits to a fast miss when the host's breaker is tripped, and records the
 # outcome (only a transport failure - status NA - counts against the host).
-candid_perform <- function(req, source) {
-  host <- candid_url_host(req$url)
-  if (candid_breaker_open(host)) {
+genescout_perform <- function(req, source) {
+  host <- genescout_url_host(req$url)
+  if (genescout_breaker_open(host)) {
     return(list(
       ok = FALSE,
       status = NA_integer_,
@@ -317,7 +320,7 @@ candid_perform <- function(req, source) {
       )
     }
   )
-  candid_breaker_record(host, ok = !is.na(res$status))
+  genescout_breaker_record(host, ok = !is.na(res$status))
   res
 }
 

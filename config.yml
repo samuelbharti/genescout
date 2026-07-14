@@ -1,4 +1,4 @@
-# CANDID model configuration.
+# GeneScout model configuration.
 #
 # Each pipeline role maps to a provider + model. R/agents.R (build_chat) selects
 # the ellmer constructor from `provider`, so switching providers or models is a
@@ -35,7 +35,7 @@ default:
     input_curator: gemini-2.5-flash
   # OPTIONAL source selection: the default set of connector keys this deploy runs
   # when a review names none. Omit to use each source's built-in default_on. Keys
-  # come from candid_source_catalog(); an explicit envelope/UI/CLI selection still
+  # come from genescout_source_catalog(); an explicit envelope/UI/CLI selection still
   # overrides this. Example (a lean cancer-research default):
   #   sources: [ot_assoc, clinvar_path, pmc_hits, pubtator, cbioportal, civic]
 

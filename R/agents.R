@@ -5,7 +5,7 @@
 # switching providers is a config change.
 #
 # Live pieces used today: build_chat() + provider_credentials_ready(), which back
-# candid_llm_available(). The narrate_* helpers and the specialist_tools allowlist
+# genescout_llm_available(). The narrate_* helpers and the specialist_tools allowlist
 # are scaffolding for the agent stage. Everything is guarded: if {ellmer} is not
 # installed or no credentials are set, the app runs deterministically.
 
@@ -19,7 +19,7 @@ specialist_tools <- list(
 
 # Build an ellmer Chat for a role, using the provider + model from config and the
 # matching system prompt from prompts/. Kept thin so provider swaps are config-only.
-candid_chat <- function(
+genescout_chat <- function(
   role_prompt,
   model_role = "specialist",
   config = load_config()
@@ -164,7 +164,7 @@ narrate_candidate <- function(
   }
   tryCatch(
     {
-      chat <- candid_chat("pathway-disease", "specialist", config)
+      chat <- genescout_chat("pathway-disease", "specialist", config)
       chat$chat(build_narrative_prompt(symbol, evidence, context))
     },
     error = function(e) NA_character_

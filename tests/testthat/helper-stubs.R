@@ -38,7 +38,7 @@ stub_signal <- function(key, values, role = "evidence") {
       )
     )
   }
-  candid_signal(
+  genescout_signal(
     key,
     toupper(key),
     "Stub",

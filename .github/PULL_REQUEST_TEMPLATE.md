@@ -1,6 +1,6 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
-Thanks for contributing to CANDID!
+Thanks for contributing to GeneScout!
 PR TITLE must follow Conventional Commits, e.g.:
   feat: add Open Targets client
   fix: handle empty candidate list

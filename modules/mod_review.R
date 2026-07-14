@@ -24,8 +24,8 @@ review_ui <- function(id) {
 
 review_server <- function(
   id,
-  config = candid_config,
-  registry = candid_registry,
+  config = genescout_config,
+  registry = genescout_registry,
   creds = reactiveVal(NULL),
   shared_result = reactiveVal(NULL)
 ) {
@@ -36,7 +36,7 @@ review_server <- function(
     # LLM stage; llm_ready() gates the agent-mode options and help.
     keys_server("keys", creds, config)
     eff_config <- reactive(byok_effective_config(config, creds()))
-    llm_ready <- reactive(candid_llm_available(eff_config()))
+    llm_ready <- reactive(genescout_llm_available(eff_config()))
     inputs <- input_server("input", registry, llm_ready = llm_ready)
     # The enriched (unranked) result, recomputed only on a "Rank genes" click.
     enriched <- reactiveVal(NULL)
@@ -47,7 +47,7 @@ review_server <- function(
     # direct path (none/final) and the post-confirm path (input/both).
     enrich_confirmed <- function(cs, disease) {
       active_registry <- if (!is.null(disease)) {
-        candid_registry_disease
+        genescout_registry_disease
       } else {
         registry
       }
@@ -73,7 +73,7 @@ review_server <- function(
       # Discovery seeds a large gene universe; cap it for interactive runs so a
       # click returns in bounded time (the CLI/eval seeder default stays larger).
       seeder <- function(d) {
-        seed_disease_genes(d, max_seed = CANDID_INTERACTIVE_SEED_MAX)
+        seed_disease_genes(d, max_seed = GENESCOUT_INTERACTIVE_SEED_MAX)
       }
       # A determinate per-gene progress bar so a long disease run visibly advances
       # instead of sitting behind a generic spinner (which read as "stuck").
@@ -97,7 +97,7 @@ review_server <- function(
             enabled = inputs$enabled(),
             seeder = seeder,
             progress = on_progress,
-            max_genes = CANDID_INTERACTIVE_INPUT_MAX
+            max_genes = GENESCOUT_INTERACTIVE_INPUT_MAX
           )
         ),
         error = function(e) {
@@ -174,12 +174,19 @@ review_server <- function(
       # taken only when the mode asks for it AND an LLM is available; otherwise the
       # one-click path below runs immediately, exactly as before.
       mode <- inputs$agent_mode()
-      if (mode %in% c("input", "both") && candid_llm_available(eff_config())) {
+      if (
+        mode %in% c("input", "both") && genescout_llm_available(eff_config())
+      ) {
         proposal <- tryCatch(
           withProgress(
             message = "Reviewing your input with the agent...",
             # Background process so Stop/refresh mid-call can't crash the session.
-            candid_llm_run(curate_input, cs, inputs$description(), eff_config())
+            genescout_llm_run(
+              curate_input,
+              cs,
+              inputs$description(),
+              eff_config()
+            )
           ),
           error = function(e) {
             showNotification(
@@ -295,7 +302,7 @@ confirmed_set_from_panel <- function(proposal, input) {
     if (length(genes) == 0) {
       next
     }
-    srcs[[length(srcs) + 1L]] <- candid_source(
+    srcs[[length(srcs) + 1L]] <- genescout_source(
       genes,
       label = meta$label[i],
       type = meta$type[i],

@@ -12,7 +12,7 @@
 
 # Load the ranking rubric (per-signal weights + normalization midpoints).
 load_rubric <- function(
-  path = candid_app_path("rubric.yml"),
+  path = genescout_app_path("rubric.yml"),
   profile = "default"
 ) {
   if (!file.exists(path)) {
@@ -233,16 +233,16 @@ rank_genes <- function(gene_matrix) {
 }
 
 # Grade thresholds on the composite (0-1) - a UI badge only; rank is by composite.
-CANDID_GRADE_BREAKS <- c(high = 0.5, moderate = 0.2)
+GENESCOUT_GRADE_BREAKS <- c(high = 0.5, moderate = 0.2)
 
 grade_for_score <- function(score) {
   ifelse(
     is.na(score),
     "Insufficient",
     ifelse(
-      score >= CANDID_GRADE_BREAKS[["high"]],
+      score >= GENESCOUT_GRADE_BREAKS[["high"]],
       "High",
-      ifelse(score >= CANDID_GRADE_BREAKS[["moderate"]], "Moderate", "Low")
+      ifelse(score >= GENESCOUT_GRADE_BREAKS[["moderate"]], "Moderate", "Low")
     )
   )
 }

@@ -43,7 +43,7 @@ test_that("validate_input_curation() reconciles omitted tokens and coerces actio
 
 test_that("build_input_prompt() grounds on the sources, types, and description", {
   cs <- candidate_set(
-    candid_source(c("NF1", "TPP53"), label = "my degs", type = "rnaseq_deg")
+    genescout_source(c("NF1", "TPP53"), label = "my degs", type = "rnaseq_deg")
   )
   p <- with_app_root(build_input_prompt(cs, "studying peripheral nerve tumors"))
   expect_match(p$system, "Never invent a gene", fixed = TRUE)
@@ -54,7 +54,7 @@ test_that("build_input_prompt() grounds on the sources, types, and description",
 })
 
 test_that("fallback_input() passes every token through unchanged", {
-  cs <- candidate_set(candid_source(c("NF1", "TP53"), label = "mine"))
+  cs <- candidate_set(genescout_source(c("NF1", "TP53"), label = "mine"))
   prop <- fallback_input(cs)
   expect_equal(nrow(prop$tokens), 2)
   expect_true(all(prop$tokens$action == "keep"))
@@ -99,12 +99,12 @@ test_that("curate_input() applies the grounding gate with a stubbed model", {
     })
   }
   cs <- candidate_set(
-    candid_source(c("nf1", "TPP53"), label = "degs", type = "rnaseq_deg")
+    genescout_source(c("nf1", "TPP53"), label = "degs", type = "rnaseq_deg")
   )
   prop <- with_app_root(curate_input(
     cs,
     description = "studying NF1",
-    config = candid_config,
+    config = genescout_config,
     chat_factory = factory,
     validator = function(symbols, species = "human") NULL # isolate from biogate
   ))
@@ -118,8 +118,8 @@ test_that("curate_input() applies the grounding gate with a stubbed model", {
 
 test_that("curate_input() falls back (with the error) when the model throws", {
   prop <- with_app_root(curate_input(
-    candidate_set(candid_source("NF1", label = "mine")),
-    config = candid_config,
+    candidate_set(genescout_source("NF1", label = "mine")),
+    config = genescout_config,
     chat_factory = function(system_prompt) stop("boom")
   ))
   expect_false(attr(prop, "ai_used"))
@@ -129,8 +129,8 @@ test_that("curate_input() falls back (with the error) when the model throws", {
 
 test_that("confirm_input() groups kept symbols by source and excludes flag/drop", {
   cs <- candidate_set(
-    candid_source(c("nf1", "junk"), label = "degs", type = "rnaseq_deg"),
-    candid_source(c("TP53"), label = "atac", type = "atacseq")
+    genescout_source(c("nf1", "junk"), label = "degs", type = "rnaseq_deg"),
+    genescout_source(c("TP53"), label = "atac", type = "atacseq")
   )
   decisions <- tibble::tibble(
     original = c("nf1", "junk", "TP53"),
@@ -141,7 +141,7 @@ test_that("confirm_input() groups kept symbols by source and excludes flag/drop"
   )
   prop <- build_input_proposal(cs, decisions, empty_disease(), "n")
   confirmed <- confirm_input(prop)
-  expect_s3_class(confirmed, "candid_candidate_set")
+  expect_s3_class(confirmed, "genescout_candidate_set")
 
   degs <- Find(function(s) s$label == "degs", confirmed)
   atac <- Find(function(s) s$label == "atac", confirmed)
@@ -152,8 +152,8 @@ test_that("confirm_input() groups kept symbols by source and excludes flag/drop"
 
 test_that("confirm_input() honors user edits (add back and drop)", {
   cs <- candidate_set(
-    candid_source(c("nf1", "junk"), label = "degs", type = "rnaseq_deg"),
-    candid_source(c("TP53"), label = "atac", type = "atacseq")
+    genescout_source(c("nf1", "junk"), label = "degs", type = "rnaseq_deg"),
+    genescout_source(c("TP53"), label = "atac", type = "atacseq")
   )
   decisions <- tibble::tibble(
     original = c("nf1", "junk", "TP53"),
@@ -209,10 +209,10 @@ test_that("the biogate seam normalizes a retired symbol on the confirmed set", {
       )
     })
   }
-  cs <- candidate_set(candid_source(c("MLL", "TP53"), label = "mine"))
+  cs <- candidate_set(genescout_source(c("MLL", "TP53"), label = "mine"))
   prop <- with_app_root(curate_input(
     cs,
-    config = candid_config,
+    config = genescout_config,
     chat_factory = factory,
     validator = fake_validator
   ))
@@ -232,7 +232,7 @@ test_that("resolve_proposed_disease() short-circuits a blank term (no network)",
 })
 
 test_that("proposal_display() renders one row per token with the decision", {
-  cs <- candidate_set(candid_source(c("nf1", "junk"), label = "degs"))
+  cs <- candidate_set(genescout_source(c("nf1", "junk"), label = "degs"))
   decisions <- tibble::tibble(
     original = c("nf1", "junk"),
     symbol = c("NF1", NA),

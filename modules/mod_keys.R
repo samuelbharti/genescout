@@ -8,11 +8,11 @@
 keys_ui <- function(id) {
   ns <- NS(id)
   default_provider <- tryCatch(
-    candid_default_byok_provider(),
+    genescout_default_byok_provider(),
     error = function(e) "anthropic"
   )
   model_choices <- tryCatch(
-    candid_provider_model_suggestions(default_provider),
+    genescout_provider_model_suggestions(default_provider),
     error = function(e) character(0)
   )
 
@@ -23,7 +23,7 @@ keys_ui <- function(id) {
       selectInput(
         ns("provider"),
         "Provider",
-        choices = candid_provider_choices(),
+        choices = genescout_provider_choices(),
         selected = default_provider
       ),
       passwordInput(
@@ -68,16 +68,19 @@ keys_ui <- function(id) {
 }
 
 # `creds` is the shared session reactiveVal(NULL) the whole app reads for BYOK.
-keys_server <- function(id, creds, config = candid_config) {
+keys_server <- function(id, creds, config = genescout_config) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     # Initial status reflects whether a server-side (.Renviron) key already exists
     # for the configured provider, so a keyless local dev deploy and a hosted BYOK
     # deploy each read sensibly before the user does anything.
-    server_key <- tryCatch(candid_llm_available(config), error = function(e) {
-      FALSE
-    })
+    server_key <- tryCatch(
+      genescout_llm_available(config),
+      error = function(e) {
+        FALSE
+      }
+    )
     status <- reactiveVal(
       if (isTRUE(server_key)) {
         list(
@@ -95,7 +98,7 @@ keys_server <- function(id, creds, config = candid_config) {
     # Repopulate model suggestions when the provider changes.
     observeEvent(input$provider, {
       choices <- tryCatch(
-        candid_provider_model_suggestions(input$provider),
+        genescout_provider_model_suggestions(input$provider),
         error = function(e) character(0)
       )
       updateSelectizeInput(
@@ -107,7 +110,7 @@ keys_server <- function(id, creds, config = candid_config) {
     })
 
     output$key_help <- renderUI({
-      meta <- candid_provider_meta(input$provider %||% "anthropic")
+      meta <- genescout_provider_meta(input$provider %||% "anthropic")
       if (is.null(meta$key_url)) {
         return(NULL)
       }
@@ -131,7 +134,7 @@ keys_server <- function(id, creds, config = candid_config) {
         status(list(ok = FALSE, msg = "Please paste an API key first."))
         return()
       }
-      cred <- candid_byok_credential(provider, key, model = input$model)
+      cred <- genescout_byok_credential(provider, key, model = input$model)
       creds(cred)
       # Clear the visible field once the credential is captured - a shoulder-surfer
       # or screen-share should not see the key after connecting.
@@ -145,7 +148,7 @@ keys_server <- function(id, creds, config = candid_config) {
         ok = TRUE,
         msg = sprintf(
           "Connected: %s%s.",
-          candid_provider_meta(provider)$label,
+          genescout_provider_meta(provider)$label,
           model_note
         )
       ))

@@ -1,5 +1,5 @@
 ---
-title: "CANDID evidence review"
+title: "GeneScout evidence review"
 format:
   html:
     toc: true
@@ -16,7 +16,7 @@ the research-use-only disclaimer. Not yet wired - see PLAN.md.
 -->
 
 ::: {.callout-warning}
-**Research use only.** CANDID is a hypothesis-prioritization aid for researchers.
+**Research use only.** GeneScout is a hypothesis-prioritization aid for researchers.
 It is not a clinical decision-support tool and does not provide diagnosis,
 treatment guidance, or ACMG/AMP variant classification.
 :::
