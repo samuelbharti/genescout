@@ -1,7 +1,10 @@
 # Deploying GeneScout publicly
 
-GeneScout is a standard R Shiny app (`ui.R` / `server.R` / `global.R`). The
-deterministic ranking needs **no API key**; the optional AI stages use a key the
+GeneScout is a standard R Shiny app. It ships an `app.R` entrypoint (for hosts
+that expect a single-file app, such as some Posit Connect and shinyapps.io
+workflows) that reuses the canonical `global.R` / `ui.R` / `server.R` definition,
+so either entrypoint runs the same app. The deterministic ranking needs **no API
+key**; the optional AI stages use a key the
 user pastes in the browser (BYOK) that lives only in the session. This guide
 covers the settings that matter when the app is exposed to the public internet.
 
