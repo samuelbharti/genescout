@@ -1,0 +1,15 @@
+.Renviron
+.RData
+.Rhistory
+.Ruserdata
+.Rproj.user
+.claude
+.quarto
+secrets
+.secrets
+docs/local
+presentations
+renv/library
+renv/staging
+renv/sandbox
+report.html
