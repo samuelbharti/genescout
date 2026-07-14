@@ -8,6 +8,25 @@ key**; the optional AI stages use a key the
 user pastes in the browser (BYOK) that lives only in the session. This guide
 covers the settings that matter when the app is exposed to the public internet.
 
+## Posit Connect Cloud (manifest.json)
+
+Posit Connect Cloud deploys from a Git repo and needs a `manifest.json` at the
+repo root (beside `app.R`) that pins the R version and package dependencies. It is
+committed here, captured from the pinned `renv.lock`, so the deployed environment
+matches the tested one. Regenerate it whenever dependencies change:
+
+```r
+rsconnect::writeManifest(appDir = ".")
+```
+
+An `.rscignore` keeps local and secret files (`.Renviron`, `presentations/`,
+`docs/local/`, `.RData`) out of the bundle, and the committed manifest lists only
+Git-tracked files. If you regenerate, confirm `.Renviron` never appears in
+`manifest.json`.
+
+The manifest pins R `4.6.1` (from `renv.lock`). If Connect Cloud reports an
+unsupported R version, align `renv.lock` to a supported version and regenerate.
+
 ## App-level settings (already wired)
 
 Set the environment variable `GENESCOUT_PRODUCTION=1` for public deployments. It
