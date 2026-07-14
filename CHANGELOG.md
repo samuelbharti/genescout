@@ -3,7 +3,7 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-CANDID is pre-release, so everything lives under **Unreleased** until the first
+GeneScout is pre-release, so everything lives under **Unreleased** until the first
 tagged version; entries are grouped by theme rather than by date.
 
 ## [Unreleased]
@@ -47,12 +47,21 @@ tagged version; entries are grouped by theme rather than by date.
 - Three parallel **specialist agents** (variant · pathway/disease · literature) with
   orchestrator synthesis into one grounded per-gene verdict + a priority next
   experiment, surfaced in the table, report, and CSV.
+- **Bring your own key (BYOK)**: set an Anthropic, Google (Gemini) or OpenAI API key
+  on the Review tab to power every AI stage. The key is held only in the browser
+  session (passed straight to the ellmer client, never written to disk/env, redacted
+  from any surfaced error) and picks a tiered model set per provider from `config.yml`
+  (an optional single-model override applies to all roles). No key → the deterministic
+  ranking still runs; a server-side `.Renviron` key remains a fallback.
+- **Chat assistant** (`shinychat`): a grounded conversational tab that explains the app
+  and interprets *your current run's* cited results, prefixing each turn with a
+  snapshot of the ranked genes and refusing ungrounded biological or clinical claims.
 
 #### Interfaces & reporting
 
 - Shiny UI: multi-source tagged input, ranked table with per-gene evidence drill-down,
-  "Load NF1 example" button, and the **Connectors**, **AI Agents**, and
-  **Reading results** documentation pages.
+  "Load NF1 example" button, an in-session **AI provider (your key)** card, and the
+  **Chat**, **Connectors**, **AI Agents**, and **Reading results** pages.
 - R-native auditable HTML + CSV report (webR-safe htmltools).
 - UI-agnostic core: a `run_review_request` envelope backing a headless CLI and a
   design-only plumber HTTP service with stdlib-Python / curl client demos.

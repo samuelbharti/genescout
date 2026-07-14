@@ -11,7 +11,7 @@
 HPA_BASE <- "https://www.proteinatlas.org"
 HPA_WEB <- "https://www.proteinatlas.org/"
 
-# The disease/cancer classifications CANDID counts (lower-cased for matching).
+# The disease/cancer classifications GeneScout counts (lower-cased for matching).
 HPA_DISEASE_CLASSES <- c(
   "cancer-related genes",
   "disease related genes",

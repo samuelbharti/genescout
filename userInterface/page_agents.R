@@ -4,18 +4,18 @@
 
 # --- Small builders for the flow diagram ------------------------------------
 flow_stage <- function(..., accent = "spine") {
-  div(class = paste("candid-stage", paste0("candid-", accent)), ...)
+  div(class = paste("genescout-stage", paste0("genescout-", accent)), ...)
 }
 flow_arrow <- function(label = NULL) {
   div(
-    class = "candid-arrow",
+    class = "genescout-arrow",
     HTML("&#8595;"),
     if (!is.null(label)) tags$small(label)
   )
 }
 specialist_box <- function(title, sources) {
   div(
-    class = "candid-spec",
+    class = "genescout-spec",
     tags$strong(title),
     tags$div(class = "text-muted", sources)
   )
@@ -24,20 +24,20 @@ specialist_box <- function(title, sources) {
 agents_page <- fluidPage(
   tags$style(HTML(
     "
-    .candid-flow { max-width: 780px; }
-    .candid-stage { border: 1px solid var(--bs-border-color);
+    .genescout-flow { max-width: 780px; }
+    .genescout-stage { border: 1px solid var(--bs-border-color);
       border-radius: .5rem; padding: .85rem 1.1rem; background: var(--bs-body-bg); }
-    .candid-stage h5 { margin: 0 0 .15rem 0; font-size: 1.05rem; }
-    .candid-spine { border-left: 5px solid var(--bs-primary); }
-    .candid-ai    { border-left: 5px solid var(--bs-info); }
-    .candid-arrow { text-align: center; color: var(--bs-secondary-color);
+    .genescout-stage h5 { margin: 0 0 .15rem 0; font-size: 1.05rem; }
+    .genescout-spine { border-left: 5px solid var(--bs-primary); }
+    .genescout-ai    { border-left: 5px solid var(--bs-info); }
+    .genescout-arrow { text-align: center; color: var(--bs-secondary-color);
       font-size: 1.35rem; line-height: 1.15; margin: .25rem 0; }
-    .candid-arrow small { display: block; font-size: .75rem; }
-    .candid-spec-grid { display: grid; grid-template-columns: repeat(3, 1fr);
+    .genescout-arrow small { display: block; font-size: .75rem; }
+    .genescout-spec-grid { display: grid; grid-template-columns: repeat(3, 1fr);
       gap: .5rem; margin-top: .5rem; }
-    .candid-spec { border: 1px solid var(--bs-border-color); border-radius: .4rem;
+    .genescout-spec { border: 1px solid var(--bs-border-color); border-radius: .4rem;
       padding: .5rem .6rem; background: var(--bs-tertiary-bg); font-size: .85rem; }
-    @media (max-width: 640px) { .candid-spec-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .genescout-spec-grid { grid-template-columns: 1fr; } }
     "
   )),
   titlePanel("The AI agents"),
@@ -46,7 +46,7 @@ agents_page <- fluidPage(
     class = "alert alert-info",
     role = "alert",
     tags$strong("Both agents are optional and grounded. "),
-    "CANDID's ranking is fully deterministic and runs with no AI at all. The two",
+    "GeneScout's ranking is fully deterministic and runs with no AI at all. The two",
     "agents below only ",
     tags$em("read, filter, and summarize"),
     " evidence the pipeline already retrieved and cited - they never rank, never",
@@ -63,7 +63,7 @@ agents_page <- fluidPage(
   # --- The workflow diagram --------------------------------------------------
   tags$h4("Where the agents sit"),
   div(
-    class = "candid-flow mb-4",
+    class = "genescout-flow mb-4",
     flow_stage(
       accent = "spine",
       tags$h5(
@@ -112,7 +112,7 @@ agents_page <- fluidPage(
         "Three domain specialists each read ONLY their domains' grounded evidence:"
       ),
       div(
-        class = "candid-spec-grid",
+        class = "genescout-spec-grid",
         specialist_box(
           "Variant & genomic",
           "ClinVar significance · gnomAD constraint · somatic / cancer alteration"

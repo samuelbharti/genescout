@@ -11,9 +11,9 @@
 
 source("global.R")
 
-provider <- candid_config$provider %||% "(unset)"
+provider <- genescout_config$provider %||% "(unset)"
 model <- tryCatch(
-  model_for("orchestrator", candid_config),
+  model_for("orchestrator", genescout_config),
   error = function(e) "(unset)"
 )
 cat(sprintf("provider: %s\nmodel:    %s\n", provider, model))

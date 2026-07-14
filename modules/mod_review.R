@@ -7,28 +7,55 @@ review_ui <- function(id) {
   ns <- NS(id)
 
   layout_sidebar(
+    # Collapsed by default and title-less: the sidebar holds the secondary "which
+    # sources / how to weight" controls, so it opens straight onto Data sources
+    # with no header gap. The primary inputs live on the main grid.
     sidebar = sidebar(
-      title = "Set up your review",
-      width = 400,
-      input_ui(ns("input")),
-      bslib::card(
-        class = "mb-2",
-        bslib::card_header("Export"),
-        bslib::card_body(report_ui(ns("report")))
-      )
+      open = FALSE,
+      width = 360,
+      data_sources_ui(ns("input")),
+      advanced_ui(ns("input"))
     ),
-    div(class = "p-2", results_ui(ns("results")))
+    # Primary inputs on a grid: candidate genes beside study context, then the API
+    # key beside the run controls; results and the export panel fill the width below.
+    fluidPage(
+      fluidRow(
+        column(6, candidate_genes_ui(ns("input"))),
+        column(6, study_context_ui(ns("input")))
+      ),
+      fluidRow(
+        column(6, keys_ui(ns("keys"))),
+        column(6, run_ui(ns("input")))
+      ),
+      fluidRow(column(12, results_ui(ns("results")))),
+      fluidRow(column(
+        12,
+        bslib::card(
+          class = "mb-3",
+          bslib::card_header("Export"),
+          bslib::card_body(report_ui(ns("report")))
+        )
+      ))
+    )
   )
 }
 
 review_server <- function(
   id,
-  config = candid_config,
-  registry = candid_registry
+  config = genescout_config,
+  registry = genescout_registry,
+  creds = reactiveVal(NULL),
+  shared_result = reactiveVal(NULL)
 ) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    inputs <- input_server("input", registry)
+    # The session-scoped BYOK credential (shared with the Chat tab) folded onto the
+    # static config, and whether an LLM can run under it. eff_config() drives every
+    # LLM stage; llm_ready() gates the agent-mode options and help.
+    keys_server("keys", creds, config)
+    eff_config <- reactive(byok_effective_config(config, creds()))
+    llm_ready <- reactive(genescout_llm_available(eff_config()))
+    inputs <- input_server("input", registry, llm_ready = llm_ready)
     # The enriched (unranked) result, recomputed only on a "Rank genes" click.
     enriched <- reactiveVal(NULL)
     # The input agent's proposal awaiting user confirmation (input/both modes).
@@ -38,7 +65,7 @@ review_server <- function(
     # direct path (none/final) and the post-confirm path (input/both).
     enrich_confirmed <- function(cs, disease) {
       active_registry <- if (!is.null(disease)) {
-        candid_registry_disease
+        genescout_registry_disease
       } else {
         registry
       }
@@ -64,7 +91,7 @@ review_server <- function(
       # Discovery seeds a large gene universe; cap it for interactive runs so a
       # click returns in bounded time (the CLI/eval seeder default stays larger).
       seeder <- function(d) {
-        seed_disease_genes(d, max_seed = CANDID_INTERACTIVE_SEED_MAX)
+        seed_disease_genes(d, max_seed = GENESCOUT_INTERACTIVE_SEED_MAX)
       }
       # A determinate per-gene progress bar so a long disease run visibly advances
       # instead of sitting behind a generic spinner (which read as "stuck").
@@ -88,7 +115,7 @@ review_server <- function(
             enabled = inputs$enabled(),
             seeder = seeder,
             progress = on_progress,
-            max_genes = CANDID_INTERACTIVE_INPUT_MAX
+            max_genes = GENESCOUT_INTERACTIVE_INPUT_MAX
           )
         ),
         error = function(e) {
@@ -165,12 +192,19 @@ review_server <- function(
       # taken only when the mode asks for it AND an LLM is available; otherwise the
       # one-click path below runs immediately, exactly as before.
       mode <- inputs$agent_mode()
-      if (mode %in% c("input", "both") && candid_llm_available(config)) {
+      if (
+        mode %in% c("input", "both") && genescout_llm_available(eff_config())
+      ) {
         proposal <- tryCatch(
           withProgress(
             message = "Reviewing your input with the agent...",
             # Background process so Stop/refresh mid-call can't crash the session.
-            candid_llm_run(curate_input, cs, inputs$description(), config)
+            genescout_llm_run(
+              curate_input,
+              cs,
+              inputs$description(),
+              eff_config()
+            )
           ),
           error = function(e) {
             showNotification(
@@ -222,13 +256,17 @@ review_server <- function(
       )
     })
 
+    # Mirror the ranked result up to the app level so the Chat tab can ground its
+    # answers in the current run.
+    observe(shared_result(result()))
+
     # Specialist synthesis, owned here so both the results tab (which triggers it)
     # and the report module (which embeds the verdict in the download) share it.
     specialists <- reactiveVal(NULL)
     results_server(
       "results",
       result,
-      config,
+      config_r = eff_config,
       agent_mode = inputs$agent_mode,
       specialists = specialists
     )
@@ -282,7 +320,7 @@ confirmed_set_from_panel <- function(proposal, input) {
     if (length(genes) == 0) {
       next
     }
-    srcs[[length(srcs) + 1L]] <- candid_source(
+    srcs[[length(srcs) + 1L]] <- genescout_source(
       genes,
       label = meta$label[i],
       type = meta$type[i],

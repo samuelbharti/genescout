@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CANDID engine client demo - drive the UI-agnostic core from Python, zero R.
+"""GeneScout engine client demo - drive the UI-agnostic core from Python, zero R.
 
 This proves the source connectors + selection API are usable outside R Shiny: a
 non-R front end (this script, or a React app) discovers the source catalog, lets a

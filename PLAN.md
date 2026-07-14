@@ -1,6 +1,6 @@
-# CANDID — Build Plan
+# GeneScout — Build Plan
 
-The plan of record for building CANDID. Read `CLAUDE.md` first for the rules and
+The plan of record for building GeneScout. Read `CLAUDE.md` first for the rules and
 architecture. This file sequences the work into phases with explicit acceptance
 criteria. **Build the phases in order.** Do not start a phase until the previous
 phase's acceptance criteria pass.
@@ -42,7 +42,7 @@ Tasks:
 - Scaffold on `RShiny_template`; `renv::restore()` works. **(done)**
 - Directory skeleton, prompts, `config.yml`, NF1 context, example TSV. **(done)**
 - Implement the shared HTTP wrapper (`R/http.R`): timeout, one retry, 30-min
-  success-only cache, typed `candid_http_error`.
+  success-only cache, typed `genescout_http_error`.
 - Implement **one** tool client end to end: `R/tools/opentargets.R`
   (gene → disease associations) with an `httptest2` fixture + parser test.
 - Minimal `run_review()`: read candidates, call the one tool, ask ellmer to
@@ -160,7 +160,7 @@ Tasks:
   version/release, access date.
 - **Reproducibility:** pinned deps (`renv.lock`); the `Dockerfile` recipe; runnable
   example data.
-- **Evaluation:** grow the eval set into a real benchmark — ideally CANDID's ranking
+- **Evaluation:** grow the eval set into a real benchmark — ideally GeneScout's ranking
   vs. a naive/no-caveats baseline, showing the caveats stage changes outcomes. That
   contrast is the novelty hook.
 - **Attribution:** keep git history clean and authorship explicit; `CITATION.cff` current.

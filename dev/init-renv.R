@@ -1,5 +1,5 @@
 # dev/init-renv.R
-# Bootstrap renv for CANDID: install the app's dependencies and write renv.lock.
+# Bootstrap renv for GeneScout: install the app's dependencies and write renv.lock.
 # Run once from the repo root:  Rscript dev/init-renv.R
 # Thereafter, a fresh clone restores with:  Rscript -e 'renv::restore()'
 
@@ -10,7 +10,7 @@ if (!requireNamespace("renv", quietly = TRUE)) {
 if (!file.exists("renv.lock")) {
   message("Initializing renv and taking initial snapshot...")
   renv::init(bare = TRUE)
-  # CANDID runtime dependencies (mirrors DESCRIPTION Imports/Suggests).
+  # GeneScout runtime dependencies (mirrors DESCRIPTION Imports/Suggests).
   renv::install(c(
     "shiny",
     "bslib",

@@ -1,4 +1,4 @@
-# Connectors page: a reference catalog of every data source CANDID can pull a
+# Connectors page: a reference catalog of every data source GeneScout can pull a
 # signal from (see R/connectors.R). It is static - built once at startup from the
 # live source catalog - so no server wiring is needed; new registered connectors
 # appear here automatically.

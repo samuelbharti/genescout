@@ -1,7 +1,7 @@
 # The Connectors reference page: a human-facing catalog of every data source
-# CANDID can pull a signal from, grouped by evidence domain, with each source's
+# GeneScout can pull a signal from, grouped by evidence domain, with each source's
 # provider, role, selection status, and a one-line description. It reads the SAME
-# catalog the engine and the source picker use (candid_source_catalog), so a source
+# catalog the engine and the source picker use (genescout_source_catalog), so a source
 # added to the registry shows up here automatically - the page can never silently
 # omit a connector. Availability reflects the live environment (a key-gated source
 # with no key reads "needs a key"). No engine logic here: presentation over the
@@ -11,7 +11,7 @@
 # This is the only page-specific content; a key without an entry still renders (from
 # its catalog label/source), so the page degrades gracefully when a new connector
 # lands before its blurb does.
-candid_connector_notes <- function() {
+genescout_connector_notes <- function() {
   list(
     ot_assoc = list(
       desc = "Overall gene-disease association score (0-1) integrating genetics, somatic, known drugs, and text-mining.",
@@ -154,11 +154,11 @@ connector_status <- function(s) {
 # The catalog as a plain display data frame (one row per connector), joining the
 # catalog metadata to the human notes. Pure + testable: it drives both the page and
 # its test. `domain` is normalized to a known key so grouping stays stable.
-candid_connector_rows <- function(
-  catalog = candid_source_catalog(),
-  notes = candid_connector_notes()
+genescout_connector_rows <- function(
+  catalog = genescout_source_catalog(),
+  notes = genescout_connector_notes()
 ) {
-  known <- names(CANDID_DOMAIN_LABELS)
+  known <- names(GENESCOUT_DOMAIN_LABELS)
   do.call(
     rbind,
     lapply(catalog, function(s) {
@@ -182,7 +182,7 @@ candid_connector_rows <- function(
 }
 
 # A small summary of the catalog for the page header (counts by status).
-candid_connector_summary <- function(rows = candid_connector_rows()) {
+genescout_connector_summary <- function(rows = genescout_connector_rows()) {
   list(
     total = nrow(rows),
     domains = length(unique(rows$domain)),
@@ -223,7 +223,7 @@ connector_summary_row <- function(sm) {
 
 # One domain's connectors as a table inside a titled card.
 connector_domain_card <- function(domain, sub) {
-  title <- CANDID_DOMAIN_LABELS[[domain]] %||% "Other"
+  title <- GENESCOUT_DOMAIN_LABELS[[domain]] %||% "Other"
   body_rows <- lapply(seq_len(nrow(sub)), function(i) {
     r <- sub[i, , drop = FALSE]
     name_cell <- if (nzchar(r$url)) {
@@ -263,12 +263,12 @@ connector_domain_card <- function(domain, sub) {
 # evidence domain (in the report's domain order), followed by the research-use note.
 # Built from the live catalog so it always reflects the registered sources + keys.
 render_connectors_page <- function(
-  catalog = candid_source_catalog(),
+  catalog = genescout_source_catalog(),
   rows = NULL
 ) {
-  rows <- rows %||% candid_connector_rows(catalog)
-  sm <- candid_connector_summary(rows)
-  order <- names(CANDID_DOMAIN_LABELS)
+  rows <- rows %||% genescout_connector_rows(catalog)
+  sm <- genescout_connector_summary(rows)
+  order <- names(GENESCOUT_DOMAIN_LABELS)
   present <- c(
     intersect(order, unique(rows$domain)),
     setdiff(unique(rows$domain), order)
@@ -280,7 +280,7 @@ render_connectors_page <- function(
     titlePanel("Connectors"),
     tags$p(
       class = "text-muted",
-      "Every data source CANDID can pull a ranking signal from. A review activates",
+      "Every data source GeneScout can pull a ranking signal from. A review activates",
       "a SELECTED subset - a deselected source is never queried (unlike a weight of",
       "0, which still pays the network cost). Every value a connector returns is",
       "grounded: it carries a real source id (an accession or citation), and a",

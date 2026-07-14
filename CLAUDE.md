@@ -1,12 +1,12 @@
 # CLAUDE.md
 
-Working context for Claude Code building **CANDID** — an agentic evidence-review
+Working context for Claude Code building **GeneScout** — an agentic evidence-review
 workbench for research genomics. Read this before writing code. The full phased
 plan is in `PLAN.md`; this file is the standing project memory and the rules.
 
 ## What we are building
 
-CANDID takes a **candidate list** (variants, gene symbols, or perturbation hits)
+GeneScout takes a **candidate list** (variants, gene symbols, or perturbation hits)
 plus a **biological context** (a disease/config file, e.g. NF1) and produces a
 **plausibility-ranked, cited research review** with caveats and suggested next
 experiments. It is an R Shiny app with an ellmer-based agent engine: an
@@ -88,7 +88,7 @@ run_review()  (R/orchestrate.R)
 ## Coding conventions
 
 - Small, pure, testable functions in `R/tools/`. Each client: input → typed list/tibble
-  out; raises `candid_http_error` on failure; never returns a half-parsed blob.
+  out; raises `genescout_http_error` on failure; never returns a half-parsed blob.
 - Every tool client goes through the shared `R/http.R` wrapper with timeout, limited
   retry, and a 30-minute success-only cache (never cache failures).
 - All external identifiers and versions are logged, not silently assumed.

@@ -52,7 +52,7 @@ test_that("cross-source is Balanced: breadth beats a loud source, capped below H
   # keeps the calibration stable as more opt-in connectors are added to the catalog.
   reg <- Filter(
     function(s) isTRUE(s$default_on %||% TRUE),
-    candid_signal_registry(rubric = rubric, multi_source = TRUE)
+    genescout_signal_registry(rubric = rubric, multi_source = TRUE)
   )
   keys <- vapply(reg, function(s) s$key, character(1))
   # A one-gene matrix row from a named list of normalized values (0 elsewhere).
@@ -76,7 +76,7 @@ test_that("cross-source is Balanced: breadth beats a loud source, capped below H
   # ... but stays Moderate (external evidence is still required for a High grade) ...
   expect_equal(grade_for_score(scored$composite[2]), "Moderate")
   # ... and breadth ALONE can never reach the High threshold, even saturated.
-  expect_lt(scored$composite[3], CANDID_GRADE_BREAKS[["high"]])
+  expect_lt(scored$composite[3], GENESCOUT_GRADE_BREAKS[["high"]])
 })
 
 test_that("compute_composite() is the weighted mean of normalized signals", {

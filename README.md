@@ -1,14 +1,14 @@
-# CANDID
+# GeneScout
 
-**C**andidate **A**nnotation a**N**d **D**isease-informed **I**nterpretation of evi**D**ence
+*An agentic evidence-review workbench that investigates candidate gene lists and returns a disease-informed, cited shortlist — with the supporting evidence, the uncertainties, and the recommended next steps.*
 
-An agentic evidence-review workbench for research genomics. CANDID takes a
+An agentic evidence-review workbench for research genomics. GeneScout takes a
 candidate list — variants, genes, or perturbation hits — plus a biological
 context (e.g. *NF1*-associated cancer), and turns it into a **plausibility-ranked
 research review**: what each candidate is, what evidence supports it, what is
 uncertain, and what experiment or analysis should come next.
 
-> **Research use only.** CANDID is a hypothesis-prioritization aid for
+> **Research use only.** GeneScout is a hypothesis-prioritization aid for
 > researchers. It is **not** a clinical decision-support tool and does not
 > provide diagnosis, treatment guidance, or ACMG/AMP variant classification.
 
@@ -22,7 +22,7 @@ between VCFs, annotation tables, pathway databases, PubMed, prior papers, and yo
 own notes to decide which candidates are worth following up. It is slow, hard to
 reproduce, and biased toward genes you already know.
 
-CANDID compresses that loop. Give it a candidate table and a disease context, and
+GeneScout compresses that loop. Give it a candidate table and a disease context, and
 it returns a transparent, cited, ranked review you can act on — with the
 uncertainty made explicit instead of hidden.
 
@@ -54,7 +54,7 @@ uncertainty made explicit instead of hidden.
 
 ## How it works
 
-CANDID is an R Shiny app with an [ellmer](https://ellmer.tidyverse.org/)-based
+GeneScout is an R Shiny app with an [ellmer](https://ellmer.tidyverse.org/)-based
 agent engine. An orchestrator parses the input, then fans out to three specialist
 agents that run in **isolated, parallel contexts** (`parallel_chat_structured()`)
 — each queries public biological databases through thin [httr2](https://httr2.r-lib.org/)
@@ -120,8 +120,8 @@ until their keys are supplied.
 ### Install
 
 ```bash
-git clone https://github.com/samuelbharti/candid.git
-cd candid
+git clone https://github.com/samuelbharti/genescout.git
+cd genescout
 # Restore the exact pinned dependency set from the committed renv.lock.
 Rscript -e 'renv::restore()'
 ```
@@ -190,7 +190,7 @@ stops doing so.
 See [`docs/project_structure.md`](docs/project_structure.md) for the full map.
 
 ```text
-candid/
+genescout/
 ├── global.R / ui.R / server.R  # app entry (bslib template)
 ├── config.yml                  # provider/model per role
 ├── R/                          # engine + utilities (+ R/tools/ bio-DB clients)
@@ -226,7 +226,7 @@ See [`PLAN.md`](PLAN.md) for the full phased plan. Near-term:
 
 ## Citation
 
-If you use CANDID, please cite it via [`CITATION.cff`](CITATION.cff). A preprint
+If you use GeneScout, please cite it via [`CITATION.cff`](CITATION.cff). A preprint
 describing the method and evaluation is planned.
 
 ## License

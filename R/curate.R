@@ -6,7 +6,7 @@
 # a final polish, never a hard dependency: with no credentials (or on any error)
 # it falls back to the top genes by composite rank, so the app always works.
 #
-# Grounding (a CANDID non-negotiable): the gene SELECTION is structurally gated -
+# Grounding (a GeneScout non-negotiable): the gene SELECTION is structurally gated -
 # validate_curation() drops any symbol not in the ranked candidate set, so the
 # model cannot introduce a gene. The one-line rationale is model-written and only
 # prompt-instructed to stay on the shown evidence, so it is presented as an AI
@@ -17,7 +17,7 @@
 # run without the network.
 
 # Default target size for the curated list when the caller (UI/CLI) names none.
-CANDID_CURATE_TARGET_DEFAULT <- 30L
+GENESCOUT_CURATE_TARGET_DEFAULT <- 30L
 
 empty_curated_table <- function() {
   tibble::tibble(
@@ -328,7 +328,7 @@ cap_curation <- function(df, n) {
 curate_gene_list <- function(
   result,
   config = load_config(),
-  top_n = CANDID_CURATE_TARGET_DEFAULT,
+  top_n = GENESCOUT_CURATE_TARGET_DEFAULT,
   pool_n = NULL,
   chat_factory = NULL
 ) {
@@ -350,7 +350,7 @@ curate_gene_list <- function(
   # source_ids are filtered to this set - the citation grounding gate).
   evidence_ids <- curation_evidence_ids(result, candidates)
 
-  if (is.null(chat_factory) && !candid_llm_available(config)) {
+  if (is.null(chat_factory) && !genescout_llm_available(config)) {
     return(curated_with_attrs(
       fallback_curation(result, top_n),
       ai_used = FALSE,
@@ -362,7 +362,8 @@ curate_gene_list <- function(
       build_chat(
         config$provider %||% "anthropic",
         model_for("orchestrator", config),
-        system_prompt
+        system_prompt,
+        api_key = config$api_key
       )
     }
   }

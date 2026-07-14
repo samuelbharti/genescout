@@ -11,12 +11,12 @@
 
 # Absolute path to a file that lives under the app root. The Shiny app, the CLI,
 # and the tests all run with the app root as the working directory, so a plain
-# relative path works and CANDID_APP_ROOT is unset. A hosted service, though (the
+# relative path works and GENESCOUT_APP_ROOT is unset. A hosted service, though (the
 # plumber engine in dev/serve.R), serves requests with a working directory it does
-# not control, so it sets CANDID_APP_ROOT once at startup and the lazily-loaded
+# not control, so it sets GENESCOUT_APP_ROOT once at startup and the lazily-loaded
 # files (rubric.yml, context/*.yaml) resolve regardless of the request-time CWD.
-candid_app_path <- function(rel) {
-  root <- Sys.getenv("CANDID_APP_ROOT", "")
+genescout_app_path <- function(rel) {
+  root <- Sys.getenv("GENESCOUT_APP_ROOT", "")
   if (nzchar(root)) file.path(root, rel) else rel
 }
 
@@ -39,4 +39,21 @@ model_for <- function(role, config = load_config()) {
     stop("No model configured for role: ", role, call. = FALSE)
   }
   model
+}
+
+# The per-provider role -> model map for BYOK (config.yml `byok:` block). A sibling
+# of the profiles, so it is read from the whole file rather than a single profile.
+# Returns a named list with the pipeline roles plus a `chat` model. Model strings
+# stay in config; the BYOK layer (R/byok.R) reads them here, never hardcodes them.
+load_byok_models <- function(provider, path = "config.yml") {
+  path <- genescout_app_path(path)
+  if (!file.exists(path)) {
+    stop("Config file not found: ", path, call. = FALSE)
+  }
+  cfg <- yaml::read_yaml(path)
+  models <- cfg$byok[[provider]]
+  if (is.null(models)) {
+    stop("No BYOK model map configured for provider: ", provider, call. = FALSE)
+  }
+  models
 }

@@ -89,7 +89,7 @@ test_that("enrich_genes() keeps a seed-backed signal for an unresolved gene", {
     input_symbols = list("GENEX"),
     input_lists = list("disease: X")
   )
-  reg <- list(candid_signal(
+  reg <- list(genescout_signal(
     "panelapp",
     "PanelApp confidence",
     "Genomics England PanelApp",
@@ -129,7 +129,7 @@ test_that("enrich_genes() still skips LIVE signals for an unresolved gene", {
     input_symbols = list("JUNK"),
     input_lists = list("mine")
   )
-  reg <- list(candid_signal(
+  reg <- list(genescout_signal(
     "live",
     "Live",
     "Some API",
@@ -195,15 +195,15 @@ test_that("extract_panelapp() / extract_diseases() read seed_data", {
   )
 })
 
-test_that("candid_signal_registry(disease_mode) appends panelapp + diseases", {
+test_that("genescout_signal_registry(disease_mode) appends panelapp + diseases", {
   rubric <- load_rubric(test_path("..", "..", "rubric.yml"))
   disease_keys <- vapply(
-    candid_signal_registry(rubric, disease_mode = TRUE),
+    genescout_signal_registry(rubric, disease_mode = TRUE),
     function(s) s$key,
     character(1)
   )
   enrich_keys <- vapply(
-    candid_signal_registry(rubric),
+    genescout_signal_registry(rubric),
     function(s) s$key,
     character(1)
   )
@@ -225,7 +225,7 @@ test_that("run_enrich() seeds candidate genes from an injected seeder", {
       )
     )
   }
-  reg <- list(candid_signal(
+  reg <- list(genescout_signal(
     "ot_assoc",
     "OT",
     "Open Targets",
