@@ -126,7 +126,7 @@ cd genescout
 Rscript -e 'renv::restore()'
 ```
 
-`renv.lock` pins every dependency (R 4.5.3 + CRAN packages), so a clone reproduces
+`renv.lock` pins every dependency (R 4.6.1 + CRAN packages), so a clone reproduces
 the tested environment; the same lock drives the Docker build. To regenerate the lock
 after changing dependencies, re-run `Rscript dev/init-renv.R` and review the diff.
 
