@@ -15,6 +15,13 @@ authors:
     # orcid: "https://orcid.org/0000-0000-0000-0000"  # add when available
 repository-code: "https://github.com/samuelbharti/genescout"
 url: "https://github.com/samuelbharti/genescout"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.21352389"
+    description: "Concept DOI (resolves to all versions)."
+  - type: doi
+    value: "10.5281/zenodo.21352390"
+    description: "DOI for version 0.1.0."
 license: MIT
 keywords:
   - genomics

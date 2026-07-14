@@ -6,6 +6,10 @@
 
 <p align="center"><em>An agentic evidence-review workbench that investigates candidate gene lists and returns a disease-informed, cited shortlist: the supporting evidence, the uncertainties, and the recommended next steps.</em></p>
 
+<p align="center">
+  <a href="https://doi.org/10.5281/zenodo.21352389"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.21352389.svg" alt="DOI"></a>
+</p>
+
 An agentic evidence-review workbench for research genomics. GeneScout takes a
 candidate list (variants, genes, or perturbation hits) plus a biological
 context (e.g. *NF1*-associated cancer), and turns it into a **plausibility-ranked
