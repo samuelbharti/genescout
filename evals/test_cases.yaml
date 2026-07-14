@@ -1,4 +1,4 @@
-# CANDID eval cases.
+# GeneScout eval cases.
 #
 # The DETERMINISTIC spine ranks genes by cross-source prominence (Open Targets
 # association, Europe PMC mentions, ClinVar pathogenic variants). It asserts that

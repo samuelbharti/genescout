@@ -3,7 +3,7 @@
 # A tiny two-evidence-signal registry for building gene matrices.
 caveat_registry <- function() {
   list(
-    candid_signal(
+    genescout_signal(
       "ev1",
       "Evidence one",
       "Src",
@@ -12,7 +12,7 @@ caveat_registry <- function() {
       1,
       role = "evidence"
     ),
-    candid_signal(
+    genescout_signal(
       "ev2",
       "Evidence two",
       "Src",

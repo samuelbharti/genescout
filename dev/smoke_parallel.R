@@ -33,7 +33,7 @@ genes <- c(
   "TSC2",
   "MLH1"
 )
-cs <- new_candidate_set(list(candid_source(
+cs <- new_candidate_set(list(genescout_source(
   genes,
   label = "smoke",
   type = "gene"
@@ -49,13 +49,17 @@ present_pairs <- function(out) {
 }
 
 run_timed <- function(label, parallel) {
-  message(sprintf("\n=== %s run (candid.parallel = %s) ===", label, parallel))
+  message(sprintf(
+    "\n=== %s run (genescout.parallel = %s) ===",
+    label,
+    parallel
+  ))
   warned <- character(0)
   t <- system.time(
     out <- withCallingHandlers(
       withr::with_options(
-        list(candid.parallel = parallel),
-        run_enrich(cs, "parallel smoke test", candid_config)
+        list(genescout.parallel = parallel),
+        run_enrich(cs, "parallel smoke test", genescout_config)
       ),
       warning = function(w) {
         warned[[length(warned) + 1L]] <<- conditionMessage(w)

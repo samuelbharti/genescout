@@ -1,4 +1,4 @@
-# Contributing to CANDID
+# Contributing to GeneScout
 
 ## Branching & commits
 

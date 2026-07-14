@@ -1,4 +1,4 @@
-# Continuous integration for CANDID.
+# Continuous integration for GeneScout.
 #
 # Jobs:
 #   format   - checks R code is formatted with air (config in air.toml)

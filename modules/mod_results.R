@@ -14,23 +14,28 @@ results_ui <- function(id) {
       condition = "output.has_result == true",
       ns = ns,
       div(class = "mb-3", uiOutput(ns("results_header"))),
-      div(class = "mb-3", uiOutput(ns("legend"))),
+      div(class = "mb-2", uiOutput(ns("legend"))),
       div(class = "mb-3", DT::DTOutput(ns("ranked_table"))),
-      uiOutput(ns("curate_control")),
-      uiOutput(ns("curation")),
-      uiOutput(ns("specialist_control")),
-      div(class = "mt-3", uiOutput(ns("drilldown")))
+      # Per-gene evidence sits directly under the table, so selecting a row is
+      # never pushed below the AI controls.
+      div(class = "mb-3", uiOutput(ns("drilldown"))),
+      # The optional AI actions (shortlist + specialists) are grouped in one card
+      # below the evidence.
+      uiOutput(ns("ai_assist"))
     )
   )
 }
 
-# `result` is a reactive returning the run_review() output (or NULL). `config` is
-# the provider/model config the AI curator uses. `agent_mode` is a reactive of the
-# selected agent involvement; the final curator is offered only for final/both.
+# `result` is a reactive returning the run_review() output (or NULL). `config_r` is
+# a reactive of the effective provider/model config the AI curator uses - it folds
+# any session BYOK credential (key + provider + models) onto the static config, so
+# curation/specialists run under the user's pasted key. `agent_mode` is a reactive
+# of the selected agent involvement; the final curator is offered only for
+# final/both.
 results_server <- function(
   id,
   result,
-  config = candid_config,
+  config_r = reactive(genescout_config),
   agent_mode = reactive("final"),
   specialists = reactiveVal(NULL)
 ) {
@@ -95,11 +100,40 @@ results_server <- function(
 
     output$ranked_table <- DT::renderDT({
       req(ranked_display())
+      # scrollX keeps the many signal columns inside the table's own horizontal
+      # scroll region instead of overflowing the card and widening the page;
+      # nowrap stops cells from wrapping so rows stay a single line.
       DT::datatable(
         ranked_display(),
         rownames = FALSE,
         selection = "single",
-        options = list(pageLength = 25)
+        class = "compact stripe hover nowrap",
+        width = "100%",
+        options = list(
+          pageLength = 25,
+          scrollX = TRUE,
+          autoWidth = FALSE
+        )
+      )
+    })
+
+    # Group the optional AI actions (shortlist + specialists) into one card, shown
+    # only when the final-curator agent mode is on, and placed below the per-gene
+    # evidence so it never displaces the drill-down.
+    output$ai_assist <- renderUI({
+      req(result())
+      if (!final_curator_on()) {
+        return(NULL)
+      }
+      bslib::card(
+        class = "mb-3",
+        bslib::card_header("Refine with AI (optional)"),
+        bslib::card_body(
+          uiOutput(ns("curate_control")),
+          uiOutput(ns("curation")),
+          tags$hr(class = "my-3"),
+          uiOutput(ns("specialist_control"))
+        )
       )
     })
 
@@ -118,7 +152,7 @@ results_server <- function(
       }
       n_ranked <- nrow(result()$genes)
       div(
-        class = "my-3",
+        div(class = "fw-semibold mb-1", "Shortlist to a target size"),
         div(
           class = "d-flex align-items-end gap-2 flex-wrap",
           div(
@@ -126,7 +160,7 @@ results_server <- function(
             numericInput(
               ns("target_size"),
               "Target list size",
-              value = min(CANDID_CURATE_TARGET_DEFAULT, n_ranked),
+              value = min(GENESCOUT_CURATE_TARGET_DEFAULT, n_ranked),
               min = 1,
               max = n_ranked,
               step = 1
@@ -141,10 +175,9 @@ results_server <- function(
         div(
           class = "text-muted small mt-1",
           paste(
-            "The deterministic rank shortlists the top candidates; the model",
-            "filters them down to about your target size, choosing only from the",
-            "ranked genes and citing the evidence shown. The grounded,",
-            "source-linked evidence stays in the table and drill-down above."
+            "The model filters the top ranked genes down to about your target",
+            "size, choosing only from them and citing the evidence shown. The",
+            "curated shortlist (with a CSV download) appears just below."
           )
         )
       )
@@ -155,17 +188,21 @@ results_server <- function(
       req(final_curator_on())
       ts <- input$target_size
       if (is.null(ts) || is.na(ts) || ts < 1) {
-        ts <- CANDID_CURATE_TARGET_DEFAULT
+        ts <- GENESCOUT_CURATE_TARGET_DEFAULT
       }
+      cfg <- config_r()
       cur <- tryCatch(
         withProgress(
           message = "Curating with the configured model...",
           # Run in a background process so Stop/refresh mid-call can't crash the session.
-          candid_llm_run(curate_gene_list, result(), config, top_n = ts)
+          genescout_llm_run(curate_gene_list, result(), cfg, top_n = ts)
         ),
         error = function(e) {
           showNotification(
-            paste("Curation failed:", conditionMessage(e)),
+            paste(
+              "Curation failed:",
+              genescout_redact_secret(conditionMessage(e), cfg$api_key %||% "")
+            ),
             type = "error"
           )
           NULL
@@ -195,7 +232,7 @@ results_server <- function(
     })
 
     output$curated_download <- downloadHandler(
-      filename = function() "candid_curated.csv",
+      filename = function() "genescout_curated.csv",
       content = function(file) {
         req(result())
         req(curated())
@@ -220,20 +257,20 @@ results_server <- function(
         return(NULL)
       }
       div(
-        class = "my-3",
+        div(class = "fw-semibold mb-1", "Deep-dive the top candidates"),
         actionButton(
           ns("do_specialists"),
-          "Analyze top candidates with specialists →",
+          "Analyze with specialists →",
           class = "btn-outline-primary"
         ),
-        span(
-          class = "text-muted small ms-2",
+        div(
+          class = "text-muted small mt-1",
           paste(
             "Three grounded specialists (variant · pathway/disease · literature)",
-            "synthesize each top candidate's own evidence, then an orchestrator",
-            "rolls them into one verdict + a priority next experiment. Runs on the",
-            "top of your curated list when you have curated, else the top ranked",
-            "genes. Select a gene row to read its analysis."
+            "synthesize each candidate's evidence into one verdict + a priority",
+            "next experiment. Results appear as a Plausibility column in the table",
+            "above and, per gene, inside the Evidence panel (select a row). Runs",
+            "on your curated shortlist if you curated, else the top ranked genes."
           )
         )
       )
@@ -251,20 +288,24 @@ results_server <- function(
       } else {
         NULL
       }
+      cfg <- config_r()
       sp <- tryCatch(
         withProgress(
           message = "Running specialists on the top candidates...",
           # Background process: the specialists' libcurl calls stay out of the session.
-          candid_llm_run(
+          genescout_llm_run(
             run_specialists,
             result(),
-            config,
+            cfg,
             restrict_to = restrict
           )
         ),
         error = function(e) {
           showNotification(
-            paste("Specialist analysis failed:", conditionMessage(e)),
+            paste(
+              "Specialist analysis failed:",
+              genescout_redact_secret(conditionMessage(e), cfg$api_key %||% "")
+            ),
             type = "error"
           )
           NULL

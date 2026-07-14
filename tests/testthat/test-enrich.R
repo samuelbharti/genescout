@@ -76,7 +76,7 @@ test_that("a missing signal is NA raw, 0 normalized, not present", {
     flatten_gene_lists(list(mine = "NF1")),
     resolver = stub_resolver
   )
-  reg <- list(candid_signal(
+  reg <- list(genescout_signal(
     "z",
     "Z",
     "Stub",

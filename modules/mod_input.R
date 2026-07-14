@@ -3,10 +3,10 @@
 # weight sliders re-rank the cached result live (no re-query, because the
 # normalization is absolute); the description is stored for the later AI step.
 
-# `registry` defaults to a freshly built registry (not the `candid_registry`
+# `registry` defaults to a freshly built registry (not the `genescout_registry`
 # global, which global.R defines only after the UI is sourced). Its keys match
 # the global, so the slider input ids line up with what input_server() reads.
-input_ui <- function(id, registry = candid_signal_registry()) {
+input_ui <- function(id, registry = genescout_signal_registry()) {
   ns <- NS(id)
 
   tagList(
@@ -111,7 +111,9 @@ input_ui <- function(id, registry = candid_signal_registry()) {
       class = "mb-3",
       bslib::card_header("Run"),
       bslib::card_body(
-        agent_mode_ui(ns),
+        # Rendered server-side so the input/both agent modes appear as soon as a key
+        # is available (env or a session BYOK key), not only at page-load time.
+        uiOutput(ns("agent_mode_ui")),
         actionButton(ns("run"), "Rank genes", class = "btn-primary w-100 mt-2")
       )
     ),
@@ -162,9 +164,9 @@ input_ui <- function(id, registry = candid_signal_registry()) {
 # the default_on + available subset. Key-gated sources with no key are shown but
 # labeled "needs API key" (and left unchecked). The input/network auto-signals
 # (cross-source, STRING) are not shown - they append from the run data, not a
-# checkbox. Built from candid_source_catalog(), so new connectors appear here for free.
+# checkbox. Built from genescout_source_catalog(), so new connectors appear here for free.
 source_picker_ui <- function(ns) {
-  catalog <- tryCatch(candid_source_catalog(), error = function(e) list())
+  catalog <- tryCatch(genescout_source_catalog(), error = function(e) list())
   # Only runnable, per-gene connectors are selectable. Stubs (key-gated sources
   # with no live client yet) are catalog/introspection-only - offering one as a
   # checkbox would be a silent no-op, so they are listed separately as "planned".
@@ -195,7 +197,7 @@ source_picker_ui <- function(ns) {
     choices = stats::setNames(keys, labels),
     selected = selected
   )
-  # Key-gated sources CANDID knows about but cannot query yet (no client). Shown as
+  # Key-gated sources GeneScout knows about but cannot query yet (no client). Shown as
   # an informational note, never a checkbox, so the picker offers only working ones.
   stub_cat <- Filter(function(s) isTRUE(s$stub), catalog)
   if (length(stub_cat) == 0) {
@@ -263,7 +265,7 @@ extra_source_row <- function(ns, rid) {
       selectInput(
         ns(paste0("src_type_", rid)),
         label = NULL,
-        choices = candid_source_types(),
+        choices = genescout_source_types(),
         selected = "unspecified"
       )
     ),
@@ -281,13 +283,14 @@ extra_source_row <- function(ns, rid) {
   )
 }
 
-# The "Agent involvement" selector. The input/both modes are offered only when an
-# LLM key is set; the default "final" preserves today's behavior (final curator
-# only). Cross-source corroboration needs no toggle - it applies automatically
-# when the run has two or more sources.
-agent_mode_ui <- function(ns) {
-  llm_ok <- tryCatch(candid_llm_available(), error = function(e) FALSE)
-  choices <- if (llm_ok) {
+# The "Agent involvement" selector, rendered from the current LLM availability. The
+# input/both modes are offered only when a key is available (env or a session BYOK
+# key); the default "final" preserves today's behavior (final curator only).
+# Cross-source corroboration needs no toggle - it applies automatically when the run
+# has two or more sources. `selected` keeps the user's current pick across
+# re-renders (e.g. when a key is pasted), defaulting to "final".
+agent_mode_control <- function(ns, llm_ok, selected = "final") {
+  choices <- if (isTRUE(llm_ok)) {
     c(
       "None - deterministic only" = "none",
       "Curate my input up front" = "input",
@@ -300,25 +303,44 @@ agent_mode_ui <- function(ns) {
       "Curate the final list (default)" = "final"
     )
   }
+  if (!selected %in% choices) {
+    selected <- "final"
+  }
   tagList(
     radioButtons(
       ns("agent_mode"),
       "Agent involvement",
       choices = choices,
-      selected = "final"
+      selected = selected
     ),
-    if (!llm_ok) {
+    if (!isTRUE(llm_ok)) {
       helpText(
         class = "small",
-        "Set an API key (.Renviron) to enable the input-curation agent."
+        "Add an API key above (or set one in .Renviron) to enable AI curation,",
+        "the specialists, and the input-curation agent."
       )
     }
   )
 }
 
-input_server <- function(id, registry = candid_registry) {
+input_server <- function(
+  id,
+  registry = genescout_registry,
+  llm_ready = reactive(FALSE)
+) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+
+    # The agent-mode radio reacts to LLM availability so pasting a key on the Review
+    # tab unlocks the input/both modes without a reload. isolate() the current pick
+    # so re-rendering on a key change preserves the user's selection.
+    output$agent_mode_ui <- renderUI({
+      agent_mode_control(
+        ns,
+        llm_ok = tryCatch(llm_ready(), error = function(e) FALSE),
+        selected = isolate(input$agent_mode) %||% "final"
+      )
+    })
 
     # The picker's selectable (runnable, per-gene) source keys - used only to tell a
     # genuine deselect-all (character(0) -> query nothing) from a picker that never
@@ -327,7 +349,7 @@ input_server <- function(id, registry = candid_registry) {
       vapply(
         Filter(
           function(s) identical(s$needs %||% "gene", "gene") && !isTRUE(s$stub),
-          candid_source_catalog()
+          genescout_source_catalog()
         ),
         function(s) s$key,
         character(1)

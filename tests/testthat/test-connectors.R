@@ -1,23 +1,23 @@
 # Connectors reference page - the catalog display builder + render. Offline; the
-# page is built from candid_source_catalog() metadata, no network.
+# page is built from genescout_source_catalog() metadata, no network.
 
 rubric_path <- function() test_path("..", "..", "rubric.yml")
-test_catalog <- function() candid_source_catalog(load_rubric(rubric_path()))
+test_catalog <- function() genescout_source_catalog(load_rubric(rubric_path()))
 
-test_that("candid_connector_rows() has one row per catalog source, all fields set", {
+test_that("genescout_connector_rows() has one row per catalog source, all fields set", {
   cat <- test_catalog()
-  rows <- candid_connector_rows(cat)
+  rows <- genescout_connector_rows(cat)
   expect_equal(nrow(rows), length(cat)) # never silently drops a connector
   expect_setequal(rows$key, vapply(cat, function(s) s$key, character(1)))
   expect_true(all(nzchar(rows$label)))
   expect_true(all(nzchar(rows$source)))
   expect_true(all(nzchar(rows$status)))
   # Every domain is either a known report-domain key or the "other" bucket.
-  expect_true(all(rows$domain %in% c(names(CANDID_DOMAIN_LABELS), "other")))
+  expect_true(all(rows$domain %in% c(names(GENESCOUT_DOMAIN_LABELS), "other")))
 })
 
-test_that("candid_connector_rows() describes the newly added connectors", {
-  rows <- candid_connector_rows(test_catalog())
+test_that("genescout_connector_rows() describes the newly added connectors", {
+  rows <- genescout_connector_rows(test_catalog())
   for (k in c("go", "uniprot_disease", "pdbe", "impc")) {
     r <- rows[rows$key == k, ]
     expect_equal(nrow(r), 1)
@@ -30,10 +30,10 @@ test_that("candid_connector_rows() describes the newly added connectors", {
 })
 
 test_that("connector_status() derives the selection status from catalog metadata", {
-  keyless_default <- candid_signal("k", "K", "S", NULL, normalize_identity)
+  keyless_default <- genescout_signal("k", "K", "S", NULL, normalize_identity)
   expect_equal(connector_status(keyless_default)$label, "Default on")
 
-  opt_in <- candid_signal(
+  opt_in <- genescout_signal(
     "o",
     "O",
     "S",
@@ -43,7 +43,7 @@ test_that("connector_status() derives the selection status from catalog metadata
   )
   expect_equal(connector_status(opt_in)$label, "Opt-in")
 
-  auto <- candid_signal(
+  auto <- genescout_signal(
     "c",
     "C",
     "S",
@@ -53,10 +53,10 @@ test_that("connector_status() derives the selection status from catalog metadata
   )
   expect_equal(connector_status(auto)$label, "Automatic")
 
-  gtex <- candid_signal("gtex_tissue", "G", "GTEx", NULL, normalize_identity)
+  gtex <- genescout_signal("gtex_tissue", "G", "GTEx", NULL, normalize_identity)
   expect_equal(connector_status(gtex)$label, "Contextual")
 
-  stub <- candid_signal(
+  stub <- genescout_signal(
     "s",
     "S",
     "S",
@@ -64,27 +64,27 @@ test_that("connector_status() derives the selection status from catalog metadata
     normalize_identity,
     stub = TRUE,
     auth = "bearer",
-    key_env = "CANDID_ABSENT"
+    key_env = "GENESCOUT_ABSENT"
   )
   expect_equal(connector_status(stub)$label, "Planned")
 
-  gated <- candid_signal(
+  gated <- genescout_signal(
     "g",
     "G",
     "S",
     NULL,
     normalize_identity,
     auth = "bearer",
-    key_env = "CANDID_ABSENT_KEY_XYZ"
+    key_env = "GENESCOUT_ABSENT_KEY_XYZ"
   )
-  withr::with_envvar(c(CANDID_ABSENT_KEY_XYZ = ""), {
+  withr::with_envvar(c(GENESCOUT_ABSENT_KEY_XYZ = ""), {
     expect_equal(connector_status(gated)$label, "Needs a key")
   })
 })
 
-test_that("candid_connector_summary() counts add up to the catalog size", {
-  rows <- candid_connector_rows(test_catalog())
-  sm <- candid_connector_summary(rows)
+test_that("genescout_connector_summary() counts add up to the catalog size", {
+  rows <- genescout_connector_rows(test_catalog())
+  sm <- genescout_connector_summary(rows)
   expect_equal(sm$total, nrow(rows))
   expect_true(sm$domains >= 6)
   expect_true(sm$default_on > 0)

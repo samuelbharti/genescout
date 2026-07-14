@@ -6,7 +6,7 @@
 # evidence for their domains and return a structured synthesis + a suggested next
 # experiment.
 #
-# Grounding (a CANDID non-negotiable): every specialist FINDING must cite evidence
+# Grounding (a GeneScout non-negotiable): every specialist FINDING must cite evidence
 # ids that actually appear in the gene's gathered evidence - a fabricated citation
 # is dropped, and a finding left with no grounded id is dropped entirely (it would
 # be an ungrounded claim). The narrative `assessment` is a model summary of the
@@ -21,7 +21,7 @@
 # signal extractors, R/enrich.R) and a short focus used in its prompt. Domains not
 # claimed by any specialist (interaction, input-provenance) are cohort-relative
 # annotations, not per-gene biological evidence, so no specialist synthesizes them.
-candid_specialists <- function() {
+genescout_specialists <- function() {
   list(
     list(
       key = "variant-effect",
@@ -251,7 +251,8 @@ run_parallel_structured <- function(
   chat <- build_chat(
     config$provider %||% "anthropic",
     model_for(role, config),
-    system_prompt
+    system_prompt,
+    api_key = config$api_key
   )
   out <- ellmer::parallel_chat_structured(
     chat,
@@ -311,7 +312,7 @@ run_specialists <- function(
   config = load_config(),
   top_n = 10,
   runner = NULL,
-  specialists = candid_specialists(),
+  specialists = genescout_specialists(),
   synthesize = TRUE,
   synth_runner = NULL,
   restrict_to = NULL
@@ -324,7 +325,7 @@ run_specialists <- function(
       by_gene = list()
     ))
   }
-  if (is.null(runner) && !candid_llm_available(config)) {
+  if (is.null(runner) && !genescout_llm_available(config)) {
     return(list(
       ai_used = FALSE,
       message = "No LLM credentials set - specialist analysis is unavailable.",
@@ -500,7 +501,7 @@ synthesis_user_prompt <- function(symbol, gene_specialists, context) {
   } else {
     disease$name %||% disease$id %||% "(unspecified)"
   }
-  ordered <- intersect(CANDID_SPECIALIST_ORDER, names(gene_specialists))
+  ordered <- intersect(GENESCOUT_SPECIALIST_ORDER, names(gene_specialists))
   blocks <- vapply(
     ordered,
     function(k) {
@@ -552,7 +553,7 @@ synthesis_user_prompt <- function(symbol, gene_specialists, context) {
 # The union of grounded ids a gene's specialists cited - the only ids the verdict
 # may cite (grounding chains through the specialists to the verdict).
 gene_grounded_ids <- function(gene_specialists) {
-  ordered <- intersect(CANDID_SPECIALIST_ORDER, names(gene_specialists))
+  ordered <- intersect(GENESCOUT_SPECIALIST_ORDER, names(gene_specialists))
   ids <- unlist(
     lapply(ordered, function(k) {
       unlist(

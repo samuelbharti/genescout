@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Headless CANDID gene-list ranking. Reads one or more (optionally tagged) gene
+# Headless GeneScout gene-list ranking. Reads one or more (optionally tagged) gene
 # sources, optionally runs the interpretive input agent up front and/or the final
 # curator at the end, ranks by the composite score, and writes an auditable HTML
 # report. It calls the SAME core functions the Shiny app and the design-only API
@@ -22,7 +22,7 @@
 
 usage <- function() {
   cat(
-    "CANDID - headless gene-list ranking\n\n",
+    "GeneScout - headless gene-list ranking\n\n",
     "Usage: Rscript dev/run_review.R (--input <genes> | --source ...) [options]\n\n",
     "  --input        <path>   gene table (TSV/CSV) or one-per-line (one source)\n",
     "  --source  <name[=TYPE]:path>  a tagged source; repeatable for many\n",
@@ -165,7 +165,7 @@ main <- function() {
 
   # Input agent (front): propose -> auto-confirm (headless). May propose a disease.
   if (agent %in% c("input", "both")) {
-    proposal <- curate_input(cs, description, candid_config)
+    proposal <- curate_input(cs, description, genescout_config)
     print_proposal(proposal)
     cs <- confirm_input(proposal)
     st <- proposal$proposed_disease$search_term
@@ -195,9 +195,9 @@ main <- function() {
   }
 
   registry <- if (!is.null(disease_ctx)) {
-    candid_registry_disease
+    genescout_registry_disease
   } else {
-    candid_registry
+    genescout_registry
   }
   tissues <- if (!is.null(opt$tissue) && !is_blank(opt$tissue)) {
     trimws(strsplit(opt$tissue, ",")[[1]])
@@ -226,7 +226,7 @@ main <- function() {
       priors_id = priors_id,
       options = list(caveats = TRUE, sources = sources_sel)
     ),
-    config = candid_config,
+    config = genescout_config,
     registry = registry
   )
 
@@ -235,9 +235,9 @@ main <- function() {
     target_size <- suppressWarnings(as.integer(opt[["target-size"]]))
     result$curated <- curate_gene_list(
       result,
-      candid_config,
+      genescout_config,
       top_n = if (is.na(target_size)) {
-        CANDID_CURATE_TARGET_DEFAULT
+        GENESCOUT_CURATE_TARGET_DEFAULT
       } else {
         target_size
       }

@@ -1,10 +1,10 @@
 # Project structure
 
-CANDID is an R Shiny app (built on a bslib template) with an ellmer-based agent
+GeneScout is an R Shiny app (built on a bslib template) with an ellmer-based agent
 engine and httr2 bio-database clients. One runtime, one language.
 
 ```text
-candid/
+genescout/
 ├── global.R / ui.R / server.R   App entry: setup, navbar UI, server wiring.
 ├── _brand.yml                   Colors/fonts/logo (bslib brand).
 ├── config.yml                   Provider/model per role (read by R/config.R).

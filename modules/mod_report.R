@@ -4,7 +4,8 @@
 report_ui <- function(id) {
   ns <- NS(id)
 
-  tagList(
+  div(
+    class = "d-flex gap-2 flex-wrap",
     downloadButton(
       ns("download"),
       "Download report (HTML)",
@@ -13,7 +14,7 @@ report_ui <- function(id) {
     downloadButton(
       ns("download_csv"),
       "Download table (CSV)",
-      class = "btn-outline-secondary mt-2"
+      class = "btn-outline-secondary"
     )
   )
 }
@@ -24,14 +25,14 @@ report_ui <- function(id) {
 report_server <- function(id, result, specialists = reactive(NULL)) {
   moduleServer(id, function(input, output, session) {
     output$download <- downloadHandler(
-      filename = function() "candid_report.html",
+      filename = function() "genescout_report.html",
       content = function(file) {
         req(result())
         render_report(result(), file, specialists = specialists())
       }
     )
     output$download_csv <- downloadHandler(
-      filename = function() "candid_ranking.csv",
+      filename = function() "genescout_ranking.csv",
       content = function(file) {
         req(result())
         utils::write.csv(

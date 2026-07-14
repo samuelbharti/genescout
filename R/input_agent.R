@@ -6,7 +6,7 @@
 # proposed disease SEARCH TERM derived from the description. It is the front-of-
 # pipeline mirror of R/curate.R and obeys the same contract:
 #
-#   * Grounding (a CANDID non-negotiable): the agent may NEVER introduce a gene
+#   * Grounding (a GeneScout non-negotiable): the agent may NEVER introduce a gene
 #     the user did not provide. validate_input_curation() gates on the ORIGINAL
 #     token (not the symbol), so a typo correction like KRSA -> KRAS survives
 #     while a fabricated token is dropped.
@@ -83,7 +83,7 @@ input_proposal_with_attrs <- function(
   if (!is.null(error)) {
     attr(p, "error") <- error
   }
-  structure(p, class = "candid_input_proposal")
+  structure(p, class = "genescout_input_proposal")
 }
 
 empty_tokens_table <- function() {
@@ -366,7 +366,7 @@ fallback_input <- function(cs) {
 # --- Main entry point -------------------------------------------------------
 
 # Interpret + clean the user's multi-source input into a proposal. Returns a
-# candid_input_proposal: list(tokens, sources, proposed_disease, notes) with
+# genescout_input_proposal: list(tokens, sources, proposed_disease, notes) with
 # attributes ai_used (logical) and optionally message / error. NEVER resolves the
 # disease over the network.
 curate_input <- function(
@@ -387,7 +387,7 @@ curate_input <- function(
   }
   validator <- validator %||% default_input_validator()
 
-  if (is.null(chat_factory) && !candid_llm_available(config)) {
+  if (is.null(chat_factory) && !genescout_llm_available(config)) {
     return(input_proposal_with_attrs(
       fallback_input(cs),
       ai_used = FALSE,
@@ -399,7 +399,8 @@ curate_input <- function(
       build_chat(
         config$provider %||% "anthropic",
         model_for("input_curator", config),
-        system_prompt
+        system_prompt,
+        api_key = config$api_key
       )
     }
   }
@@ -492,7 +493,7 @@ confirm_input <- function(proposal, edits = NULL) {
     if (length(genes) == 0) {
       next
     }
-    out_sources[[length(out_sources) + 1L]] <- candid_source(
+    out_sources[[length(out_sources) + 1L]] <- genescout_source(
       genes,
       label = meta$label[i],
       type = meta$type[i],

@@ -1,13 +1,13 @@
 # Study-context priors wiring: a priors_id loads context/<id>.yaml into
 # context$priors, which the caveats + context-matching stages read. Offline (stub
-# resolver + registry). CANDID_APP_ROOT points the loader at the app root, since
+# resolver + registry). GENESCOUT_APP_ROOT points the loader at the app root, since
 # tests run from tests/testthat.
 
 app_root <- function() normalizePath(test_path("..", ".."))
 
 test_that("run_enrich() loads study-context priors from a priors_id", {
   enr <- withr::with_envvar(
-    c(CANDID_APP_ROOT = app_root()),
+    c(GENESCOUT_APP_ROOT = app_root()),
     run_enrich(
       list(mine = c("NF1", "TP53")),
       registry = stub_registry(),
@@ -33,7 +33,7 @@ test_that("run_enrich() leaves priors NULL when no priors_id is given", {
 
 test_that("a bad priors_id degrades to no priors rather than crashing", {
   enr <- withr::with_envvar(
-    c(CANDID_APP_ROOT = app_root()),
+    c(GENESCOUT_APP_ROOT = app_root()),
     run_enrich(
       list(mine = c("NF1", "TP53")),
       registry = stub_registry(),
@@ -48,10 +48,10 @@ test_that("run_review_request() threads priors_id into the run's priors", {
   # The serializable envelope carries priors_id; a review through it loads the
   # same priors (the cross-language surface used by the CLI / API).
   res <- withr::with_envvar(
-    c(CANDID_APP_ROOT = app_root()),
+    c(GENESCOUT_APP_ROOT = app_root()),
     run_review_request(
       list(
-        sources = candidate_set(candid_source(
+        sources = candidate_set(genescout_source(
           c("NF1", "TP53"),
           label = "mine"
         )),

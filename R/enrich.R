@@ -6,19 +6,19 @@
 # gene-only. The free-text description is reserved for the later agent stage.
 #
 # A SIGNAL is one source's contribution, defined once in the registry:
-#   candid_signal(key, label, source, extractor, normalize, weight, direction,
+#   genescout_signal(key, label, source, extractor, normalize, weight, direction,
 #                 role, needs)
 # `role` is "evidence" (counts toward breadth) or "annotation" (nudges but does
 # not gate); `needs` is "gene" (per-gene extractor), "disease" (a seeder, run
 # before this step), "input" (derived from the input structure, no network -
 # cross_source, filled by enrich_input_signals), or "network" (one call sees the
 # WHOLE resolved set - STRING, filled by enrich_network_signals). Adding a source =
-# one candid_signal() here plus its R/tools/ client. Each per-gene extractor
+# one genescout_signal() here plus its R/tools/ client. Each per-gene extractor
 # returns a raw number + grounded evidence rows.
 
 # --- Signal registry --------------------------------------------------------
 
-candid_signal <- function(
+genescout_signal <- function(
   key,
   label,
   source,
@@ -50,7 +50,7 @@ candid_signal <- function(
     # still run for an unresolved gene, so a seeded gene MyGene could not resolve
     # keeps its already-in-hand grounded evidence instead of being blanked.
     seed_key = seed_key,
-    # Catalog metadata (see candid_source_catalog / resolve_active_sources). All
+    # Catalog metadata (see genescout_source_catalog / resolve_active_sources). All
     # optional and back-compatible: a signal with defaults behaves exactly as before.
     #   domain     - grouping label for the UI picker / report (e.g. "cancer").
     #   default_on - TRUE if this source runs when the caller selects nothing.
@@ -60,7 +60,7 @@ candid_signal <- function(
     default_on = default_on,
     auth = auth,
     key_env = key_env,
-    # A stub is catalog/introspection-only: it advertises a source CANDID knows
+    # A stub is catalog/introspection-only: it advertises a source GeneScout knows
     # about but has no live client for yet, so it is never a runnable/selectable
     # source (the picker lists it separately, never as a working checkbox).
     stub = stub
@@ -69,7 +69,7 @@ candid_signal <- function(
 
 # TRUE if a signal can actually run: keyless signals are always available; a
 # key-gated one is available only when its key is present in the environment (so a
-# keyless deploy silently skips it instead of erroring - mirrors candid_llm_available).
+# keyless deploy silently skips it instead of erroring - mirrors genescout_llm_available).
 signal_available <- function(sig) {
   if (is.null(sig$auth) || is.null(sig$key_env)) {
     return(TRUE)
@@ -109,7 +109,7 @@ cross_source_signal <- function(rubric = NULL) {
   # Tolerate a missing rubric (fall back to the same defaults) so run_enrich's
   # internal call never hard-fails when rubric.yml is off the current path.
   rubric <- rubric %||% tryCatch(load_rubric(), error = function(e) list())
-  candid_signal(
+  genescout_signal(
     "cross_source",
     "Cross-source corroboration",
     "Your input sources",
@@ -127,7 +127,7 @@ cross_source_signal <- function(rubric = NULL) {
 # are unchanged. Rubric-tolerant defaults so it never hard-fails off-path.
 gtex_tissue_signal <- function(rubric = NULL) {
   rubric <- rubric %||% tryCatch(load_rubric(), error = function(e) list())
-  candid_signal(
+  genescout_signal(
     "gtex_tissue",
     "GTEx tissue expression",
     "GTEx",
@@ -144,7 +144,7 @@ gtex_tissue_signal <- function(rubric = NULL) {
 # run_enrich appends the STRING signal only for lists of at least this many input
 # tokens. Below it, connectivity is uninformative and no STRING call is made - and
 # every small offline test stays byte-for-byte unchanged (no network column added).
-CANDID_STRING_MIN_GENES <- 5L
+GENESCOUT_STRING_MIN_GENES <- 5L
 
 # The STRING within-list connectivity signal (annotation). needs = "network": one
 # STRING call sees the WHOLE resolved set at once (enrich_network_signals), unlike
@@ -154,7 +154,7 @@ CANDID_STRING_MIN_GENES <- 5L
 # run_enrich only for a multi-gene list. Rubric-tolerant defaults, off-path safe.
 string_signal <- function(rubric = NULL) {
   rubric <- rubric %||% tryCatch(load_rubric(), error = function(e) list())
-  candid_signal(
+  genescout_signal(
     "string",
     "STRING within-list connectivity",
     "STRING",
@@ -173,7 +173,7 @@ string_signal <- function(rubric = NULL) {
 # and DISEASES signals are appended; when `multi_source` is TRUE (the user gave
 # >= 2 sources) the cross-source signal is appended. Both are omitted otherwise
 # so their absence never penalizes a gene (single-source runs are unchanged).
-candid_signal_registry <- function(
+genescout_signal_registry <- function(
   rubric = load_rubric(),
   disease_mode = FALSE,
   multi_source = FALSE
@@ -181,7 +181,7 @@ candid_signal_registry <- function(
   w <- rubric$weights %||% list()
   m <- rubric$midpoints %||% list()
   base <- list(
-    candid_signal(
+    genescout_signal(
       "ot_assoc",
       "Open Targets association",
       "Open Targets Platform",
@@ -194,7 +194,7 @@ candid_signal_registry <- function(
       # in plain enrichment it queries live by gene id (handled by the extractor).
       seed_key = "ot_targets"
     ),
-    candid_signal(
+    genescout_signal(
       "pmc_hits",
       "Europe PMC mentions",
       "Europe PMC",
@@ -204,7 +204,7 @@ candid_signal_registry <- function(
       role = "evidence",
       domain = "literature"
     ),
-    candid_signal(
+    genescout_signal(
       "pubtator",
       "PubTator3 gene mentions",
       "PubTator3",
@@ -214,7 +214,7 @@ candid_signal_registry <- function(
       role = "evidence",
       domain = "literature"
     ),
-    candid_signal(
+    genescout_signal(
       "clinvar_path",
       "ClinVar pathogenic variants",
       "ClinVar",
@@ -224,7 +224,7 @@ candid_signal_registry <- function(
       role = "evidence",
       domain = "variant-effect"
     ),
-    candid_signal(
+    genescout_signal(
       "dgidb",
       "DGIdb drug interactions",
       "DGIdb",
@@ -234,7 +234,7 @@ candid_signal_registry <- function(
       role = "evidence",
       domain = "druggability"
     ),
-    candid_signal(
+    genescout_signal(
       "gnomad_loeuf",
       "gnomAD LOEUF constraint",
       "gnomAD",
@@ -252,7 +252,7 @@ candid_signal_registry <- function(
     # and as an informative column. normalize_saturating_desc makes its _n rarity
     # (rare -> high), so if a user ever raises its slider it nudges in the correct
     # direction rather than rewarding a common gene.
-    candid_signal(
+    genescout_signal(
       "gnomad_af",
       "gnomAD common-LoF frequency",
       "gnomAD",
@@ -264,7 +264,7 @@ candid_signal_registry <- function(
       domain = "population-frequency",
       default_on = FALSE
     ),
-    candid_signal(
+    genescout_signal(
       "pharos_tdl",
       "Pharos target dev. level",
       "Pharos",
@@ -274,7 +274,7 @@ candid_signal_registry <- function(
       role = "annotation",
       domain = "druggability"
     ),
-    candid_signal(
+    genescout_signal(
       "reactome",
       "Reactome disease pathways",
       "Reactome",
@@ -286,7 +286,7 @@ candid_signal_registry <- function(
     ),
     # Opt-in keyless connectors (default_on = FALSE): in the catalog + selectable,
     # but off unless a review selects them, so default runs stay lean + unchanged.
-    candid_signal(
+    genescout_signal(
       "hpo",
       "HPO gene-disease",
       "Human Phenotype Ontology",
@@ -297,7 +297,7 @@ candid_signal_registry <- function(
       domain = "gene-disease",
       default_on = FALSE
     ),
-    candid_signal(
+    genescout_signal(
       "hpa",
       "HPA disease/cancer class",
       "Human Protein Atlas",
@@ -308,7 +308,7 @@ candid_signal_registry <- function(
       domain = "cancer",
       default_on = FALSE
     ),
-    candid_signal(
+    genescout_signal(
       "cbioportal",
       "cBioPortal mutation frequency",
       "cBioPortal (MSK-IMPACT)",
@@ -319,7 +319,7 @@ candid_signal_registry <- function(
       domain = "cancer",
       default_on = FALSE
     ),
-    candid_signal(
+    genescout_signal(
       "civic",
       "CIViC clinical evidence",
       "CIViC",
@@ -330,7 +330,7 @@ candid_signal_registry <- function(
       domain = "cancer",
       default_on = FALSE
     ),
-    candid_signal(
+    genescout_signal(
       "clingen",
       "ClinGen gene-disease validity",
       "ClinGen",
@@ -341,7 +341,7 @@ candid_signal_registry <- function(
       domain = "gene-disease",
       default_on = FALSE
     ),
-    candid_signal(
+    genescout_signal(
       "uniprot_disease",
       "UniProt disease involvement",
       "UniProt (Swiss-Prot)",
@@ -352,7 +352,7 @@ candid_signal_registry <- function(
       domain = "gene-disease",
       default_on = FALSE
     ),
-    candid_signal(
+    genescout_signal(
       "go",
       "Gene Ontology function",
       "QuickGO (EBI)",
@@ -363,7 +363,7 @@ candid_signal_registry <- function(
       domain = "function",
       default_on = FALSE
     ),
-    candid_signal(
+    genescout_signal(
       "pdbe",
       "PDBe 3D structures",
       "PDBe (EBI)",
@@ -374,7 +374,7 @@ candid_signal_registry <- function(
       domain = "structure",
       default_on = FALSE
     ),
-    candid_signal(
+    genescout_signal(
       "impc",
       "IMPC mouse knockout phenotype",
       "IMPC",
@@ -390,7 +390,7 @@ candid_signal_registry <- function(
     base <- c(
       base,
       list(
-        candid_signal(
+        genescout_signal(
           "panelapp",
           "PanelApp confidence",
           "Genomics England PanelApp",
@@ -401,7 +401,7 @@ candid_signal_registry <- function(
           domain = "gene-disease",
           seed_key = "panelapp"
         ),
-        candid_signal(
+        genescout_signal(
           "diseases",
           "DISEASES (Jensen) score",
           "DISEASES (Jensen Lab)",
@@ -422,20 +422,20 @@ candid_signal_registry <- function(
 }
 
 # --- Source catalog + selection --------------------------------------------
-# The catalog is the full set of connectors CANDID knows about; a run activates a
+# The catalog is the full set of connectors GeneScout knows about; a run activates a
 # SELECTED subset. Selection gates which extractors are QUERIED (unlike a weight of
 # 0, which mutes ranking but still pays the network cost). This is the extensibility
-# surface a non-R front end introspects (candid_source_catalog) and chooses from.
+# surface a non-R front end introspects (genescout_source_catalog) and chooses from.
 
-# Key-gated source STUBS: sources CANDID knows about but whose live clients need an
+# Key-gated source STUBS: sources GeneScout knows about but whose live clients need an
 # API key / license (deferred). They appear in the catalog (so a front end can show
 # "needs a key") but are default_on = FALSE and unavailable without their key, so a
 # keyless deploy never selects or queries them. Their extractor is a safe miss, so
 # even an explicit selection with the key present cannot crash (no client yet). They
 # live ONLY in the catalog (introspection), never in the run registry.
-candid_source_stubs <- function() {
+genescout_source_stubs <- function() {
   stub <- function(key, label, source, domain, auth, key_env) {
-    candid_signal(
+    genescout_signal(
       key,
       label,
       source,
@@ -495,17 +495,17 @@ candid_source_stubs <- function() {
 
 # The full ordered source catalog: every registry signal (base + disease-keyed +
 # cross-source) plus the tissue (GTEx) and network (STRING) signals, plus the
-# key-gated stubs. New connectors are added to candid_signal_registry() as
+# key-gated stubs. New connectors are added to genescout_signal_registry() as
 # default_on = FALSE (opt-in) and flow in here automatically. This is the
 # introspectable universe of selectable sources (a front end renders a picker from it).
-candid_source_catalog <- function(rubric = load_rubric()) {
+genescout_source_catalog <- function(rubric = load_rubric()) {
   c(
-    candid_signal_registry(rubric, disease_mode = TRUE, multi_source = TRUE),
+    genescout_signal_registry(rubric, disease_mode = TRUE, multi_source = TRUE),
     list(
       gtex_tissue_signal(rubric),
       string_signal(rubric)
     ),
-    candid_source_stubs()
+    genescout_source_stubs()
   )
 }
 
@@ -513,7 +513,7 @@ candid_source_catalog <- function(rubric = load_rubric()) {
 # the UI source picker. One record per source with its selection metadata + whether
 # it is currently `available` (a key-gated source needs its key). No closures, so it
 # is safe to serialize to JSON for a non-R front end to render a grouped picker.
-candid_catalog_json <- function(catalog = candid_source_catalog()) {
+genescout_catalog_json <- function(catalog = genescout_source_catalog()) {
   lapply(catalog, function(s) {
     list(
       key = s$key,
@@ -678,7 +678,7 @@ extract_ot_assoc <- function(resolved, context = list()) {
 # How many top articles the pmc_hits signal surfaces as citable PMID evidence, on
 # top of the query-count summary row - enough real papers to ground a curation /
 # specialist rationale without bloating a prompt.
-CANDID_PMC_EVIDENCE_MAX <- 5L
+GENESCOUT_PMC_EVIDENCE_MAX <- 5L
 
 # Europe PMC gene-mention count. In discovery mode, the count of papers
 # co-mentioning the gene AND the disease (a context-specific literature signal);
@@ -722,7 +722,7 @@ extract_pmc_hits <- function(resolved, context = list()) {
   )
   if (isTRUE(r$count > 0)) {
     papers <- tryCatch(
-      europepmc_search(q, limit = CANDID_PMC_EVIDENCE_MAX),
+      europepmc_search(q, limit = GENESCOUT_PMC_EVIDENCE_MAX),
       error = function(e) NULL
     )
     if (!is.null(papers) && isTRUE(papers$ok)) {
@@ -748,7 +748,7 @@ extract_pmc_hits <- function(resolved, context = list()) {
 pmc_paper_evidence <- function(
   gene_id,
   papers,
-  max_rows = CANDID_PMC_EVIDENCE_MAX
+  max_rows = GENESCOUT_PMC_EVIDENCE_MAX
 ) {
   if (is.null(papers) || nrow(papers) == 0) {
     return(empty_evidence_long())
@@ -1486,15 +1486,15 @@ cap_seed_symbols <- function(symbols, data, max_seed = 200) {
 # which reads as a hung app. The batch default (max_seed = 200 below) is kept for
 # the CLI/evals, where a long run is fine; the interactive app passes this smaller
 # cap so a discovery click returns in a bounded time. The user's OWN pasted genes
-# are enriched up to CANDID_INTERACTIVE_INPUT_MAX (a generous safety bound); the
+# are enriched up to GENESCOUT_INTERACTIVE_INPUT_MAX (a generous safety bound); the
 # disease-seeded universe is capped separately and more tightly here.
-CANDID_INTERACTIVE_SEED_MAX <- 75L
+GENESCOUT_INTERACTIVE_SEED_MAX <- 75L
 
 # The interactive (Shiny) cap on the USER's own candidate list (run_enrich's
 # `max_genes`). A pasted list of thousands would fan out to (#genes x #sources)
 # serial calls and read as a hung app; this bounds an interactive run while staying
 # far above any realistic candidate set. The CLI/eval path leaves max_genes = Inf.
-CANDID_INTERACTIVE_INPUT_MAX <- 300L
+GENESCOUT_INTERACTIVE_INPUT_MAX <- 300L
 
 seed_disease_genes <- function(disease, ot_size = 250, max_seed = 200) {
   data <- list()
@@ -1811,7 +1811,7 @@ empty_signals_long <- function() {
 # step; they are skipped here. `context` is passed to each extractor.
 enrich_genes <- function(
   resolved,
-  registry = candid_signal_registry(),
+  registry = genescout_signal_registry(),
   context = list(),
   progress = NULL
 ) {
@@ -2115,7 +2115,7 @@ enrich_network_signals <- function(
 assemble_matrix <- function(
   signals_long,
   resolved,
-  registry = candid_signal_registry()
+  registry = genescout_signal_registry()
 ) {
   keys <- vapply(registry, function(s) s$key, character(1))
   roles <- vapply(registry, function(s) s$role %||% "evidence", character(1))

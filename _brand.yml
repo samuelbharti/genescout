@@ -1,9 +1,9 @@
-# Brand configuration: CANDID's colors, fonts, and logo in one place.
+# Brand configuration: GeneScout's colors, fonts, and logo in one place.
 # Consumed automatically by bslib via `bs_theme(brand = TRUE)` (see ui.R).
 # Spec: https://posit-dev.github.io/brand-yml/
 
 meta:
-  name: CANDID
+  name: GeneScout
 
 color:
   palette:

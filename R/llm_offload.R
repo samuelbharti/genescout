@@ -25,13 +25,13 @@
 # environment (loaded from .Renviron before any daemon launches) and sources the engine
 # so the stage function and ellmer resolve there.
 
-CANDID_LLM_COMPUTE <- "candid_llm"
+GENESCOUT_LLM_COMPUTE <- "genescout_llm"
 
 # Is background LLM execution allowed right now? Never under testthat, only when enabled
 # (default TRUE), and only when mirai is installed.
-candid_llm_offload_available <- function() {
+genescout_llm_offload_available <- function() {
   !identical(Sys.getenv("TESTTHAT"), "true") &&
-    isTRUE(getOption("candid.llm.offload", TRUE)) &&
+    isTRUE(getOption("genescout.llm.offload", TRUE)) &&
     requireNamespace("mirai", quietly = TRUE)
 }
 
@@ -40,15 +40,15 @@ candid_llm_offload_available <- function() {
 # the app's load_components.R and the enrichment worker bootstrap in R/parallel.R; it
 # must be inlined in the everywhere() expression (the daemon has no engine until it
 # runs). Returns TRUE on success.
-candid_llm_bootstrap <- function(root, libs) {
+genescout_llm_bootstrap <- function(root, libs) {
   tryCatch(
     {
       mirai::everywhere(
         {
-          .libPaths(candid_libs)
-          Sys.setenv(CANDID_APP_ROOT = candid_root)
+          .libPaths(genescout_libs)
+          Sys.setenv(GENESCOUT_APP_ROOT = genescout_root)
           eng <- list.files(
-            file.path(candid_root, "R"),
+            file.path(genescout_root, "R"),
             pattern = "[.][Rr]$",
             full.names = TRUE
           )
@@ -57,7 +57,7 @@ candid_llm_bootstrap <- function(root, libs) {
             sys.source(f, envir = globalenv())
           }
           tools <- list.files(
-            file.path(candid_root, "R", "tools"),
+            file.path(genescout_root, "R", "tools"),
             pattern = "[.][Rr]$",
             full.names = TRUE
           )
@@ -65,9 +65,9 @@ candid_llm_bootstrap <- function(root, libs) {
             sys.source(f, envir = globalenv())
           }
         },
-        candid_libs = libs,
-        candid_root = root,
-        .compute = CANDID_LLM_COMPUTE
+        genescout_libs = libs,
+        genescout_root = root,
+        .compute = GENESCOUT_LLM_COMPUTE
       )
       TRUE
     },
@@ -81,17 +81,17 @@ candid_llm_bootstrap <- function(root, libs) {
 # unchanged. `fn` is a stage function (a global closure - it and ellmer resolve in the
 # daemon's sourced engine); `...` are its plain-data arguments (the ranked result,
 # config, sizes), which serialize cleanly.
-candid_llm_run <- function(fn, ...) {
-  if (!candid_llm_offload_available()) {
+genescout_llm_run <- function(fn, ...) {
+  if (!genescout_llm_offload_available()) {
     return(fn(...))
   }
   args <- list(...)
-  root <- candid_engine_root()
+  root <- genescout_engine_root()
   libs <- .libPaths()
 
   started <- tryCatch(
     {
-      mirai::daemons(1, .compute = CANDID_LLM_COMPUTE)
+      mirai::daemons(1, .compute = GENESCOUT_LLM_COMPUTE)
       TRUE
     },
     error = function(e) FALSE
@@ -100,18 +100,18 @@ candid_llm_run <- function(fn, ...) {
     return(fn(...))
   }
   on.exit(
-    try(mirai::daemons(0, .compute = CANDID_LLM_COMPUTE), silent = TRUE),
+    try(mirai::daemons(0, .compute = GENESCOUT_LLM_COMPUTE), silent = TRUE),
     add = TRUE
   )
-  if (!candid_llm_bootstrap(root, libs)) {
+  if (!genescout_llm_bootstrap(root, libs)) {
     return(fn(...))
   }
 
   m <- mirai::mirai(
-    do.call(candid_fn, candid_args),
-    candid_fn = fn,
-    candid_args = args,
-    .compute = CANDID_LLM_COMPUTE
+    do.call(genescout_fn, genescout_args),
+    genescout_fn = fn,
+    genescout_args = args,
+    .compute = GENESCOUT_LLM_COMPUTE
   )
   res <- m[] # blocks on an interrupt-safe nanonext receive, not inside libcurl
   if (mirai::is_error_value(res)) {
