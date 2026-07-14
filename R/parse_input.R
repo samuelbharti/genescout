@@ -85,6 +85,130 @@ example_text <- function(name, dir = file.path("data", "examples")) {
   paste(df$candidate, collapse = "\n")
 }
 
+# Read a plain gene-list file: a single column of symbols, one per line, with NO
+# header row - the format every UI upload accepts. Handles .txt / .tsv / .csv by
+# taking the first field of each line (so an extra column is ignored); a lone
+# header-like first line ("gene", "symbol", ...) is dropped so a headered file
+# still works. Comment/blank lines are skipped.
+read_gene_list_file <- function(path) {
+  lines <- readLines(path, warn = FALSE)
+  # First field of each line (so an extra column is ignored), unquoted and trimmed,
+  # so a quoted CSV (write.csv default) yields clean symbols rather than `"NF1"`.
+  first <- trimws(sub("[\t,;].*$", "", lines))
+  first <- sub('^"(.*)"$', "\\1", first)
+  first <- trimws(sub("^'(.*)'$", "\\1", first))
+  first <- first[nzchar(first) & !startsWith(first, "#")]
+  # Drop a leading header cell. Deliberately NOT "id"/"ids": IDS (iduronate
+  # 2-sulfatase) is a real HGNC symbol, so treating "ids" as a header would silently
+  # drop a candidate; the words kept here collide with no approved gene symbol.
+  header_words <- c(
+    "gene",
+    "genes",
+    "symbol",
+    "symbols",
+    "candidate",
+    "candidates"
+  )
+  if (length(first) > 0 && tolower(first[1]) %in% header_words) {
+    first <- first[-1]
+  }
+  if (length(first) == 0) {
+    stop("No gene symbols found in the file.", call. = FALSE)
+  }
+  first
+}
+
+# Lenient reader for a user upload: use a structured table's gene/candidate/symbol
+# column when the file has that header, otherwise fall back to a headerless
+# single-column gene list. Returns a character vector of candidate tokens, so both
+# a proper table and a bare one-per-line list "just work". A file that parses but
+# yields no symbols (e.g. header row only) errors, so collect_candidate_set records
+# it rather than silently dropping the source.
+read_candidate_file <- function(path) {
+  tbl <- tryCatch(read_candidate_table(path), error = function(e) NULL)
+  if (!is.null(tbl)) {
+    genes <- as.character(tbl$candidate)
+    genes <- genes[!is.na(genes) & nzchar(trimws(genes))]
+    if (length(genes) == 0) {
+      stop("No gene symbols found in the file.", call. = FALSE)
+    }
+    return(genes)
+  }
+  read_gene_list_file(path)
+}
+
+# A multi-source example: four candidate lists from different assays for the same
+# NF1-associated MPNST study, tagged by assay type. It demonstrates cross-source
+# corroboration (a gene found in more of your own lists ranks higher - e.g. CDK4,
+# AURKA, EGFR, SOX9 recur across lists) and the caveats/veto stage (the sequencing-
+# artifact genes TTN, MUC16 in the WES list sink despite passing raw signal). Only
+# public gene symbols; illustrative candidate inputs, not biological claims. The
+# UI's "Load 4-source example" button pre-fills these as tagged sources.
+genescout_multisource_example <- function() {
+  list(
+    list(
+      label = "WES somatic calls",
+      type = "wes",
+      genes = c(
+        "NF1",
+        "SUZ12",
+        "EED",
+        "CDKN2A",
+        "TP53",
+        "PTEN",
+        "RB1",
+        "NF2",
+        "EGFR",
+        "TTN",
+        "MUC16"
+      )
+    ),
+    list(
+      label = "Bulk RNA-seq DEGs",
+      type = "rnaseq_deg",
+      genes = c(
+        "SOX9",
+        "TWIST1",
+        "CDK4",
+        "MDM2",
+        "AURKA",
+        "BIRC5",
+        "TOP2A",
+        "MKI67",
+        "CENPF",
+        "EGFR"
+      )
+    ),
+    list(
+      label = "ATAC-seq enriched",
+      type = "atacseq",
+      genes = c(
+        "SOX10",
+        "FOXD3",
+        "PAX3",
+        "EGR2",
+        "POU3F1",
+        "TFAP2A",
+        "SOX9"
+      )
+    ),
+    list(
+      label = "CRISPR dependency screen",
+      type = "crispr",
+      genes = c(
+        "PLK1",
+        "WEE1",
+        "CHEK1",
+        "KIF11",
+        "EZH2",
+        "AURKA",
+        "CDK4",
+        "BRD4"
+      )
+    )
+  )
+}
+
 # Assemble the named gene lists the pipeline consumes from the paste box and an
 # optional uploaded table. Each source becomes one named list, so a gene's origin
 # is retained through de-duplication. Returns list() when nothing was provided.
@@ -311,23 +435,26 @@ collect_candidate_set <- function(specs) {
     genes <- character()
     if (!is.null(spec$genes)) {
       genes <- as.character(spec$genes)
-    } else if (!is.null(spec$text) && nzchar(trimws(spec$text %||% ""))) {
-      genes <- strsplit(spec$text, "\r?\n")[[1]]
-    } else if (!is.null(spec$file) && nzchar(spec$file)) {
-      # A malformed upload (e.g. no gene column) is recorded, not silently dropped,
-      # so a caller can tell the user why their file contributed nothing.
-      tbl <- tryCatch(
-        read_candidate_table(spec$file),
-        error = function(e) {
-          errors[[length(errors) + 1L]] <<- list(
-            source = label,
-            message = conditionMessage(e)
-          )
-          NULL
-        }
-      )
-      if (!is.null(tbl)) {
-        genes <- as.character(tbl$candidate)
+    } else {
+      # A source can be filled by paste AND/OR upload; combine both. The upload
+      # accepts a headerless single-column list or a structured table.
+      if (!is.null(spec$text) && nzchar(trimws(spec$text %||% ""))) {
+        genes <- c(genes, strsplit(spec$text, "\r?\n")[[1]])
+      }
+      if (!is.null(spec$file) && nzchar(spec$file)) {
+        # A malformed upload is recorded, not silently dropped, so a caller can tell
+        # the user why their file contributed nothing.
+        fg <- tryCatch(
+          read_candidate_file(spec$file),
+          error = function(e) {
+            errors[[length(errors) + 1L]] <<- list(
+              source = label,
+              message = conditionMessage(e)
+            )
+            character()
+          }
+        )
+        genes <- c(genes, fg)
       }
     }
     genes <- genes[!is.na(genes) & nzchar(trimws(genes))]
