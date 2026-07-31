@@ -104,3 +104,61 @@ test_that("resolution_summary() counts resolved vs unresolved genes", {
   expect_equal(resolution_summary(NULL)$unresolved, 0)
   expect_equal(resolution_summary(tibble::tibble(symbol = "A"))$unresolved, 0)
 })
+
+test_that("normalize_extractor_result() enforces the scalar contract", {
+  # A which.max() over an all-NA column yields integer(0), so these fields arrive
+  # empty; unguarded they aborted the whole run inside tibble().
+  out <- normalize_extractor_result(list(
+    ok = TRUE,
+    raw = numeric(0),
+    source_id = character(0)
+  ))
+  expect_true(is.na(out$raw))
+  expect_equal(out$source_id, "")
+  expect_equal(out$source_url, "")
+})
+
+test_that("normalize_extractor_result() maps a non-finite raw to NA", {
+  # max(na.rm = TRUE) over an all-NA vector returns -Inf, which passed !is.na()
+  # and counted the gene as "present" with no real measurement.
+  out <- normalize_extractor_result(list(
+    ok = TRUE,
+    raw = -Inf,
+    source_id = "X"
+  ))
+  expect_true(is.na(out$raw))
+  expect_equal(out$source_id, "X")
+})
+
+test_that("normalize_extractor_result() takes the first of an over-long field", {
+  out <- normalize_extractor_result(list(
+    ok = TRUE,
+    raw = c(2, 3),
+    source_id = c("A", "B")
+  ))
+  expect_equal(out$raw, 2)
+  expect_equal(out$source_id, "A")
+})
+
+test_that("enrich_genes() records an extractor failure instead of aborting", {
+  boom <- genescout_signal(
+    "boom",
+    "Exploding source",
+    "Boom",
+    extractor = function(resolved, context = list()) stop("upstream 500"),
+    normalize = function(x) x
+  )
+  resolved <- tibble::tibble(
+    gene_id = "ENSG1",
+    symbol = "NF1",
+    entrez = NA,
+    resolved = TRUE,
+    input_lists = "mine"
+  )
+  out <- enrich_genes(resolved, list(boom))
+  expect_equal(nrow(out$failures), 1)
+  expect_equal(out$failures$signal_key, "boom")
+  expect_match(out$failures$reason, "upstream 500")
+  # The gene still contributes a row, recorded as a miss.
+  expect_false(out$signals_long$present[1])
+})

@@ -198,6 +198,13 @@ enrich_genes_parallel <- function(
 
   list(
     signals_long = dplyr::bind_rows(lapply(parts, `[[`, "signals_long")),
-    evidence_long = dplyr::bind_rows(lapply(parts, `[[`, "evidence_long"))
+    evidence_long = dplyr::bind_rows(lapply(parts, `[[`, "evidence_long")),
+    failures = dplyr::bind_rows(lapply(parts, `[[`, "failures")),
+    # Each daemon holds its own breaker, so the run's unreachable set is the union
+    # of what every worker saw.
+    unreachable_hosts = unique(unlist(
+      lapply(parts, `[[`, "unreachable_hosts"),
+      use.names = FALSE
+    ))
   )
 }

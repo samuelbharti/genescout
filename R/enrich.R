@@ -588,6 +588,32 @@ registry_summary <- function(registry) {
 # PR1 extractors are gene-only and ignore `context`; PR2 wires the disease path.
 
 # No signal for this gene from this source (absent or lookup failed).
+# First element of `x`, or `default` when it is absent/empty. Extractors are ~25
+# hand-written functions; a which.max() on an all-NA column yields integer(0) and
+# then a zero-length field, which used to reach tibble() and abort the whole run
+# with "columns must have compatible sizes".
+extractor_scalar <- function(x, default) {
+  if (is.null(x) || length(x) == 0) {
+    return(default)
+  }
+  x[[1]]
+}
+
+# Coerce an extractor's return to the scalar contract enrich_genes() relies on:
+# a length-1 numeric `raw` and length-1 character `source_id`/`source_url`. Also
+# maps non-finite raws to NA: max(na.rm = TRUE) over an all-NA vector returns -Inf,
+# which is not a real measurement but passed `!is.na()` and counted as present.
+normalize_extractor_result <- function(res) {
+  if (!is.list(res)) {
+    stop("extractor did not return a list", call. = FALSE)
+  }
+  raw <- suppressWarnings(as.numeric(extractor_scalar(res$raw, NA_real_)))
+  res$raw <- if (length(raw) == 1 && is.finite(raw)) raw else NA_real_
+  res$source_id <- as.character(extractor_scalar(res$source_id, ""))
+  res$source_url <- as.character(extractor_scalar(res$source_url, ""))
+  res
+}
+
 signal_miss <- function() {
   list(
     ok = FALSE,
@@ -656,6 +682,13 @@ extract_ot_assoc <- function(resolved, context = list()) {
     return(signal_miss())
   }
   ev <- a$evidence
+  # Open Targets emits NA_real_ for a missing score field. With every score NA,
+  # which.max() returns integer(0) (so `top` is a 0-row tibble and source_id is
+  # character(0)) and max(na.rm = TRUE) returns -Inf: a gene that would count as
+  # "present" with no citation behind it. No usable score means no signal.
+  if (all(is.na(ev$score))) {
+    return(signal_miss())
+  }
   top <- ev[which.max(ev$score), ]
   list(
     ok = TRUE,
@@ -1822,6 +1855,9 @@ enrich_genes <- function(
   has_input_symbols <- "input_symbols" %in% names(resolved)
   signals <- list()
   evidence <- list()
+  # Per-(gene x signal) extractor failures. Collected so a run can tell an OUTAGE
+  # apart from a genuine absence instead of reporting both as "no data".
+  failures <- list()
   n_genes <- nrow(resolved)
   for (i in seq_len(n_genes)) {
     gene <- list(
@@ -1849,9 +1885,22 @@ enrich_genes <- function(
       seed_backed <- !is.null(sig$seed_key) &&
         !is.null(seed_row(context, sig$seed_key, seed_lookup_symbols(gene)))
       res <- if (isTRUE(gene$resolved) || seed_backed) {
-        tryCatch(sig$extractor(gene, context), error = function(e) {
-          signal_miss()
-        })
+        # The tryCatch spans the shape normalization too, so a malformed extractor
+        # return is recorded as this signal's failure instead of aborting the run
+        # (and, in the parallel path, being retried serially only to abort again).
+        tryCatch(
+          normalize_extractor_result(sig$extractor(gene, context)),
+          error = function(e) {
+            failures[[length(failures) + 1]] <<- tibble::tibble(
+              gene_id = gene$gene_id,
+              symbol = gene$symbol,
+              signal_key = sig$key,
+              label = sig$label,
+              reason = conditionMessage(e)
+            )
+            signal_miss()
+          }
+        )
       } else {
         signal_miss()
       }
@@ -1889,7 +1938,26 @@ enrich_genes <- function(
       dplyr::bind_rows(evidence)
     } else {
       empty_evidence_long()
-    }
+    },
+    failures = if (length(failures)) {
+      dplyr::bind_rows(failures)
+    } else {
+      empty_failures()
+    },
+    # Hosts whose circuit breaker is open at the end of this batch: the strongest
+    # cheap evidence that a source was DOWN rather than empty. Snapshotted here
+    # because in the parallel path the breaker lives in the daemon, not the parent.
+    unreachable_hosts = genescout_breaker_tripped_hosts()
+  )
+}
+
+empty_failures <- function() {
+  tibble::tibble(
+    gene_id = character(),
+    symbol = character(),
+    signal_key = character(),
+    label = character(),
+    reason = character()
   )
 }
 
