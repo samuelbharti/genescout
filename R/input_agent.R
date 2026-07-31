@@ -429,7 +429,12 @@ curate_input <- function(
       input_proposal_with_attrs(
         fallback_input(cs),
         ai_used = FALSE,
-        error = conditionMessage(e)
+        # Redact HERE: this is stashed on the proposal and surfaced by the proposal
+        # renderer and the plumber API, neither of which redacts.
+        error = genescout_redact_secret(
+          conditionMessage(e),
+          config$api_key %||% ""
+        )
       )
     }
   )

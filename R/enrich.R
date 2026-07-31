@@ -33,6 +33,7 @@ genescout_signal <- function(
   default_on = TRUE,
   auth = NULL,
   key_env = NULL,
+  optional_key_env = NULL,
   stub = FALSE
 ) {
   list(
@@ -56,10 +57,15 @@ genescout_signal <- function(
     #   default_on - TRUE if this source runs when the caller selects nothing.
     #   auth       - NULL (keyless), "query" (NCBI-style key), or "header"/"bearer".
     #   key_env    - Sys.getenv name of the API key for a key-gated source.
+    #   optional_key_env - Sys.getenv name of a key the source USES but does not
+    #     REQUIRE (NCBI raises the rate limit from 3 to 10 req/s with one). Reported
+    #     in the catalog but deliberately NOT read by signal_available(): setting
+    #     key_env instead would make a keyless deploy skip a source that works fine.
     domain = domain,
     default_on = default_on,
     auth = auth,
     key_env = key_env,
+    optional_key_env = optional_key_env,
     # A stub is catalog/introspection-only: it advertises a source GeneScout knows
     # about but has no live client for yet, so it is never a runnable/selectable
     # source (the picker lists it separately, never as a working checkbox).
@@ -222,7 +228,12 @@ genescout_signal_registry <- function(
       normalize = normalize_saturating(m$clinvar_path %||% 5),
       weight = w$clinvar_path %||% 1,
       role = "evidence",
-      domain = "variant-effect"
+      domain = "variant-effect",
+      # E-utilities works keyless at 3 req/s; NCBI_API_KEY raises that to 10. The
+      # client sends it via secret_query (R/tools/clinvar.R), so it is declared here
+      # as OPTIONAL - the source stays available without it.
+      auth = "query",
+      optional_key_env = "NCBI_API_KEY"
     ),
     genescout_signal(
       "dgidb",
@@ -523,6 +534,9 @@ genescout_catalog_json <- function(catalog = genescout_source_catalog()) {
       role = s$role %||% "evidence",
       default_on = isTRUE(s$default_on %||% TRUE),
       auth = s$auth %||% "none",
+      # A key this source benefits from but does not require (rate limits), so a
+      # front end can prompt for it without marking the source unavailable.
+      optional_key = s$optional_key_env %||% "",
       available = signal_available(s),
       # TRUE for a catalog-only stub (no live client) so a front end renders it as
       # "planned / needs a key", not as a working, selectable source.

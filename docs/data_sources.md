@@ -52,10 +52,18 @@ without a live client yet. The HTTP layer supports header/bearer auth
 (`http_get_json(..., headers = source_auth_headers(sig))`), with the token redacted
 from logs and excluded from the cache key; their live clients land in a later round.
 
+Where an API takes its key as a query parameter instead of a header (NCBI E-utilities),
+the client passes it via `http_get_json(..., secret_query = ...)`, which appends it to
+the request but keeps it out of the cache key. Such a key is declared on the signal as
+`optional_key_env` rather than `key_env`, because the source works without it: NCBI
+allows 3 requests/second keyless and 10 with a key, and `R/http.R` throttles per host
+to whichever applies.
+
 ## Reproducibility checklist
 
 - [ ] Every integrated source has a real version/release and access date above.
-- [ ] Each client sends a descriptive `User-Agent` and respects rate limits.
+- [x] Each client sends a descriptive `User-Agent` and respects rate limits
+      (per-host throttle in `R/http.R`, divided across the parallel pool).
 - [ ] Dependency versions are pinned (`renv.lock` / `DESCRIPTION`).
 - [ ] A container recipe reproduces the environment.
 - [ ] Example candidates in `data/examples/` are public or synthetic only.
