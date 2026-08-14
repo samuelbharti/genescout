@@ -246,3 +246,43 @@ test_that("proposal_display() renders one row per token with the decision", {
   expect_setequal(df$Action, c("correct", "drop"))
   expect_equal(df$Symbol[df$Input == "junk"], "") # NA symbol shown blank
 })
+
+test_that("apply_input_validator() matches by symbol, not position", {
+  # The failure mode: a validator that reorders and drops rows. Matching by index
+  # would apply KMT2A's mapping to whichever symbol happened to sit at that
+  # position, renaming the wrong gene with authoritative-looking reason text.
+  decisions <- tibble::tibble(
+    original = c("TP53", "MLL", "KRAS"),
+    symbol = c("TP53", "MLL", "KRAS"),
+    action = "keep",
+    reason = "",
+    confidence = 1
+  )
+  reordering_validator <- function(symbols, species = "human") {
+    tibble::tibble(
+      input = c("MLL", "TP53"), # reordered, and KRAS filtered out entirely
+      normalized = c("KMT2A", "TP53")
+    )
+  }
+  out <- apply_input_validator(decisions, reordering_validator)
+  expect_equal(out$symbol, c("TP53", "KMT2A", "KRAS"))
+  expect_equal(out$action, c("keep", "correct", "keep"))
+  expect_match(out$reason[2], "MLL -> KMT2A", fixed = TRUE)
+})
+
+test_that("apply_input_validator() leaves decisions alone with no join column", {
+  decisions <- tibble::tibble(
+    original = "TP53",
+    symbol = "TP53",
+    action = "keep",
+    reason = "",
+    confidence = 1
+  )
+  # No input/query/id/symbol column: there is no safe way to align rows, so the
+  # right answer is to change nothing rather than guess by position.
+  out <- apply_input_validator(
+    decisions,
+    function(symbols, species = "human") tibble::tibble(normalized = "WRONG")
+  )
+  expect_equal(out$symbol, "TP53")
+})

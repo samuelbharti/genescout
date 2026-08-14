@@ -142,12 +142,19 @@ test_that("coerce_parallel_rows passes a non-data-frame through unchanged", {
   expect_identical(coerce_parallel_rows(lst), lst)
 })
 
-test_that("clean_specialist_result coerces an unknown strength to moderate", {
+test_that("clean_specialist_result coerces an unknown strength to none", {
+  # Defaulting an unparseable confidence UP to "moderate" manufactured a confident
+  # badge from a malformed response; the absence of a usable value is "none".
   out <- clean_specialist_result(
     list(assessment = "a", strength = "amazing", findings = list()),
     valid = character()
   )
-  expect_equal(out$strength, "moderate")
+  expect_equal(out$strength, "none")
+  blank <- clean_specialist_result(
+    list(assessment = "a", findings = list()),
+    valid = character()
+  )
+  expect_equal(blank$strength, "none")
 })
 
 test_that("run_specialists routes evidence to the right specialists, grounded", {

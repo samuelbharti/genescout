@@ -98,6 +98,13 @@ genescout_breaker_record <- function(host, ok, now = as.numeric(Sys.time())) {
   invisible(genescout_breaker[[host]])
 }
 
+# Hosts currently tripped. The enrichment layer reads this to report which sources
+# were unreachable during a run, so an outage is not silently reported as no data.
+genescout_breaker_tripped_hosts <- function(now = as.numeric(Sys.time())) {
+  hosts <- ls(genescout_breaker)
+  hosts[vapply(hosts, genescout_breaker_open, logical(1), now = now)]
+}
+
 # Clear all breaker state (used by tests to isolate; a fresh process starts clean).
 genescout_breaker_reset <- function() {
   rm(list = ls(genescout_breaker), envir = genescout_breaker)
