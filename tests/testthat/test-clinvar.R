@@ -29,3 +29,10 @@ test_that("clinvar_gene_pathogenic_term() builds a gene + clinsig query", {
 test_that("clinvar_gene_pathogenic_count() rejects a blank symbol", {
   expect_false(clinvar_gene_pathogenic_count("")$ok)
 })
+
+test_that("clinvar_secret_query() carries the key only when one is set", {
+  withr::local_envvar(NCBI_API_KEY = "")
+  expect_null(clinvar_secret_query())
+  withr::local_envvar(NCBI_API_KEY = "abc123")
+  expect_equal(clinvar_secret_query(), list(api_key = "abc123"))
+})

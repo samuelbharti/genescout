@@ -241,3 +241,20 @@ test_that("curate_gene_list() uses a stubbed model and drops hallucinations", {
   expect_true(attr(cur, "ai_used"))
   expect_equal(cur$gene_symbol, "NF1") # GHOST not a candidate -> dropped
 })
+
+test_that("curate_gene_list() redacts the BYOK key from a provider error", {
+  # The stashed error is rendered into the report banner and a toast, so the key
+  # must be scrubbed where it is captured, not at the call site.
+  res <- fake_curate_result()
+  cfg <- modifyList(genescout_config, list(api_key = "sk-secret-123"))
+  cur <- curate_gene_list(
+    res,
+    config = cfg,
+    chat_factory = function(system_prompt) {
+      stop("401 unauthorized for key sk-secret-123")
+    }
+  )
+  err <- attr(cur, "error")
+  expect_false(grepl("sk-secret-123", err, fixed = TRUE))
+  expect_match(err, "<redacted-key>", fixed = TRUE)
+})

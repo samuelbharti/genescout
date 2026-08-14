@@ -176,3 +176,58 @@ test_that("genescout_perform() short-circuits a tripped host without a request",
   expect_false(res$ok)
   expect_match(res$error, "skipped", fixed = TRUE)
 })
+
+test_that("secret_query is excluded from the cache key", {
+  # Prime the cache under the key built from the NON-secret query only, then call
+  # with a secret attached. A cache hit proves the secret never entered the hash
+  # (and that no request was performed).
+  genescout_cache$reset()
+  on.exit(genescout_cache$reset(), add = TRUE)
+  base <- "https://eutils.example.org/entrez/eutils"
+  query <- list(db = "clinvar", term = "NF1[gene]")
+  key <- genescout_cache_key("GET", base, "esearch.fcgi", query)
+  genescout_cache$set(key, list(ok = TRUE, status = 200L, data = "cached"))
+
+  res <- http_get_json(
+    base,
+    path = "esearch.fcgi",
+    query = query,
+    secret_query = list(api_key = "SUPER-SECRET")
+  )
+  expect_true(res$ok)
+  expect_equal(res$data, "cached")
+})
+
+test_that("a blank secret_query is dropped and still hits the same key", {
+  genescout_cache$reset()
+  on.exit(genescout_cache$reset(), add = TRUE)
+  base <- "https://eutils.example.org/entrez/eutils"
+  key <- genescout_cache_key("GET", base, NULL, list(db = "clinvar"))
+  genescout_cache$set(key, list(ok = TRUE, status = 200L, data = "cached"))
+
+  res <- http_get_json(
+    base,
+    query = list(db = "clinvar"),
+    secret_query = list(api_key = "")
+  )
+  expect_equal(res$data, "cached")
+})
+
+test_that("genescout_host_rate() splits a host limit across concurrent processes", {
+  withr::local_options(genescout.http.concurrency = 1L)
+  expect_equal(genescout_host_rate("example.org"), GENESCOUT_DEFAULT_HOST_RATE)
+  withr::local_options(genescout.http.concurrency = 4L)
+  expect_equal(
+    genescout_host_rate("example.org"),
+    GENESCOUT_DEFAULT_HOST_RATE / 4
+  )
+})
+
+test_that("the NCBI rate limit reflects whether an API key is set", {
+  withr::local_options(genescout.http.concurrency = 1L)
+  host <- "eutils.ncbi.nlm.nih.gov"
+  withr::local_envvar(NCBI_API_KEY = "")
+  expect_equal(genescout_host_rate_limit(host), 3) # keyless ceiling
+  withr::local_envvar(NCBI_API_KEY = "abc123")
+  expect_equal(genescout_host_rate_limit(host), 10) # raised by the key
+})
