@@ -7,6 +7,25 @@ Entries are grouped by theme rather than strictly by date.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-14
+
+### Fixed
+
+- **Grounding gate closed for scores, not just evidence**: `assemble_matrix()` was fed
+  the ungated signal table, so an evidence row with no `source_id` could still move a
+  gene's composite score and print a value in the ranked table while its evidence was
+  silently dropped as ungrounded. An ungrounded present signal is now demoted to a miss
+  instead. Fixes a related crash where an all-missing score column reached `tibble()`
+  with a zero-length field and aborted the run.
+- **Provider keys kept out of toasts, cache keys, and rate limits**: a BYOK error path
+  could surface a raw provider message to the browser; the NCBI key was being hashed
+  into the HTTP cache key and appended to the request URL instead of held out of both.
+  Adds a per-host request throttle sized to NCBI E-utilities' published rate limit.
+- **Deployment manifest scoped to the application**: `manifest.json` named the whole
+  repository (231 files, including tests, docs, and dev tooling) instead of the 91
+  files Connect Cloud needs to deploy, so a scoped deployment failed on the first
+  missing file.
+
 ## [0.1.0] - 2026-07-14
 
 First tagged release. Archived on Zenodo.
