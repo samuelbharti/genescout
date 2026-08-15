@@ -238,10 +238,12 @@ I am **Samuel Bharti**. I wrote GeneScout and I maintain it on my own.
 
 ## Citation
 
-If you use GeneScout, please cite it via [`CITATION.cff`](CITATION.cff). Zenodo
-archives each release: the DOI above resolves to every version, and the Zenodo
-record also lists a DOI for each individual version. A preprint describing the
-method and the evaluation is planned.
+If you use GeneScout, please cite it. Zenodo archives each release: the DOI
+above resolves to every version, and the Zenodo record also lists a DOI for each
+individual version. [`CITATION.cff`](CITATION.cff) holds the full metadata, and
+[`CITATION.md`](CITATION.md) gives a ready-made text and BibTeX entry.
+
+A preprint describing the method and the evaluation is planned.
 
 ## Contributing
 
