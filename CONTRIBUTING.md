@@ -1,8 +1,8 @@
 # Contributing to GeneScout
 
-Thanks for looking. This is a solo project, so please open an issue before you
-start on anything large. That way I can tell you early whether I want it, and
-you do not waste the work. Small fixes are welcome as a pull request straight
+Thanks for looking. This is a one-person project, so for anything large please
+open an issue first: that way you get an early yes or no instead of sinking time
+into work that may not land. Small fixes are welcome as a pull request straight
 away.
 
 Please also read the [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -42,7 +42,7 @@ prek install --hook-type pre-commit --hook-type commit-msg
 
 ## Ground rules
 
-These are the ones I care most about. `CLAUDE.md` has the rest.
+The most important ones are below; `CLAUDE.md` covers the rest.
 
 - Research use only. No clinical interpretation, no diagnosis, no ACMG/AMP
   calls.
@@ -57,7 +57,7 @@ These are the ones I care most about. `CLAUDE.md` has the rest.
 Branch from `main` as `<type>/<short-desc>`, for example
 `feat/open-targets-client`. Write [Conventional
 Commits](https://www.conventionalcommits.org/) messages, and give the pull
-request a title in the same form, because a workflow checks it. I squash-merge.
+request a title in the same form, because a workflow checks it. Merges are squashed.
 
 Then check that all of this passes:
 
