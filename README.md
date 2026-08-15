@@ -229,7 +229,7 @@ See [`PLAN.md`](PLAN.md) for the full phased plan. Near-term:
 
 ## Author
 
-Samuel Bharti, sole author and maintainer.
+Samuel Bharti
 
 - Email: <samuelbharti.io@gmail.com>
 - Web: [samuelbharti.com](https://www.samuelbharti.com)

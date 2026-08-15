@@ -7,6 +7,20 @@ Entries are grouped by theme rather than strictly by date.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-15
+
+### Fixed
+
+- `app_version()` still returned 0.1.0 after the 0.1.1 release, so the version
+  shown in the app disagreed with `CITATION.cff` and `DESCRIPTION`.
+
+### Changed
+
+- Shortened the Code of Conduct and rewrote the contributing guide.
+- Added a security policy, a plain-text citation file, and Author and
+  Contributing sections in the README. The README had no contributing section
+  at all.
+
 ## [0.1.1] - 2026-08-14
 
 ### Fixed
