@@ -10,6 +10,8 @@
   <a href="https://doi.org/10.5281/zenodo.21352389"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21352389-1682D4" alt="DOI"></a>
 </p>
 
+<p align="center">By <a href="https://www.samuelbharti.com">Samuel Bharti</a></p>
+
 An agentic evidence-review workbench for research genomics. GeneScout takes a
 candidate list (variants, genes, or perturbation hits) plus a biological
 context (e.g. *NF1*-associated cancer), and turns it into a **plausibility-ranked
@@ -225,11 +227,34 @@ See [`PLAN.md`](PLAN.md) for the full phased plan. Near-term:
       process, so stopping or refreshing mid-call can't segfault the session
 - [ ] Preprint + evaluation write-up
 
+## Author
+
+I am **Samuel Bharti**. I wrote GeneScout and I maintain it on my own.
+
+- Email: <samuelbharti.io@gmail.com>
+- Web: [samuelbharti.com](https://www.samuelbharti.com)
+- ORCID: [0000-0003-4190-7058](https://orcid.org/0000-0003-4190-7058)
+- GitHub: [@samuelbharti](https://github.com/samuelbharti)
+
 ## Citation
 
-If you use GeneScout, please cite it via [`CITATION.cff`](CITATION.cff). A preprint
-describing the method and evaluation is planned.
+If you use GeneScout, please cite it. Zenodo archives each release: the DOI
+above resolves to every version, and the Zenodo record also lists a DOI for each
+individual version. [`CITATION.cff`](CITATION.cff) holds the full metadata, and
+[`CITATION.md`](CITATION.md) gives a ready-made text and BibTeX entry.
+
+A preprint describing the method and the evaluation is planned.
+
+## Contributing
+
+I maintain this on my own, and issues and pull requests are welcome. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) first, and please follow the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+Found a security problem? Do not open a public issue. Email me instead, as
+[SECURITY.md](SECURITY.md) describes.
 
 ## License
 
-[MIT](LICENSE). Built for *Built with Claude: Life Sciences* (2026).
+[MIT](LICENSE). Copyright (c) 2026 Samuel Bharti. Built for *Built with Claude:
+Life Sciences* (2026).
