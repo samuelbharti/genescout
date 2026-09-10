@@ -7,6 +7,14 @@ Entries are grouped by theme rather than strictly by date.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-10
+
+### Added
+
+- GoatCounter, a visit counter that sets no cookie, in the page head. The
+  recorded path begins with the hostname, so every application of the
+  bioinformatics gallery lands in one dashboard.
+
 ## [0.1.3] - 2026-09-10
 
 ### Added
