@@ -1,4 +1,4 @@
-# Interpretive input agent - grounding gate, fallback, confirm, biogate seam
+# Interpretive input agent - grounding gate, fallback, confirm, biobouncer seam
 # (offline; the model is stubbed via an injected chat_factory).
 
 # read_prompt() resolves prompts/ relative to the app root, but tests run from
@@ -106,7 +106,8 @@ test_that("curate_input() applies the grounding gate with a stubbed model", {
     description = "studying NF1",
     config = genescout_config,
     chat_factory = factory,
-    validator = function(symbols, species = "human") NULL # isolate from biogate
+    # isolate from biobouncer
+    validator = function(symbols, species = "human") NULL
   ))
   expect_true(attr(prop, "ai_used"))
   # GHOST is not a provided token -> never appears; only the real tokens survive.
@@ -175,7 +176,7 @@ test_that("confirm_input() honors user edits (add back and drop)", {
   expect_null(Find(function(s) s$label == "atac", confirmed)) # TP53 dropped -> empty
 })
 
-test_that("the biogate seam normalizes a retired symbol on the confirmed set", {
+test_that("the biobouncer seam normalizes a retired symbol on confirm", {
   skip_if_not_installed("ellmer")
   fake_validator <- function(symbols, species = "human") {
     tibble::tibble(
@@ -221,8 +222,11 @@ test_that("the biogate seam normalizes a retired symbol on the confirmed set", {
   expect_setequal(mine$genes, c("KMT2A", "TP53")) # MLL -> KMT2A
 })
 
-test_that("default_input_validator() returns NULL when biogate is absent", {
-  skip_if(requireNamespace("biogate", quietly = TRUE), "biogate is installed")
+test_that("default_input_validator() returns NULL when biobouncer is absent", {
+  skip_if(
+    requireNamespace("biobouncer", quietly = TRUE),
+    "biobouncer is installed"
+  )
   expect_null(default_input_validator())
 })
 
