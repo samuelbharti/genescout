@@ -7,6 +7,15 @@ Entries are grouped by theme rather than strictly by date.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-11
+
+### Fixed
+
+- The optional ID-validation seam asked for a package named `biogate`, which
+  does not exist, so `requireNamespace()` was always FALSE and the seam never
+  ran. It now asks for `biobouncer`, which is the package it was written
+  against: `check_id()` takes the same arguments and returns the same columns.
+
 ## [0.1.4] - 2026-09-10
 
 ### Added
