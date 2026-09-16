@@ -4,11 +4,15 @@
 
 <h1 align="center">GeneScout</h1>
 
-<p align="center"><em>An agentic evidence-review workbench that investigates candidate gene lists and returns a disease-informed, cited shortlist: the supporting evidence, the uncertainties, and the recommended next steps.</em></p>
-
+<!-- badges: start -->
 <p align="center">
+  <a href="https://github.com/samuelbharti/genescout/actions/workflows/ci.yaml"><img src="https://github.com/samuelbharti/genescout/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
   <a href="https://doi.org/10.5281/zenodo.21352389"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21352389-1682D4" alt="DOI"></a>
+  <a href="https://github.com/samuelbharti/genescout/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
 </p>
+<!-- badges: end -->
+
+<p align="center"><em>An agentic evidence-review workbench that investigates candidate gene lists and returns a disease-informed, cited shortlist: the supporting evidence, the uncertainties, and the recommended next steps.</em></p>
 
 <p align="center">By <a href="https://www.samuelbharti.com">Samuel Bharti</a></p>
 
@@ -24,7 +28,7 @@ uncertain, and what experiment or analysis should come next.
 
 ---
 
-## The problem
+## Motivation
 
 After sequencing, differential expression, or a perturbation screen, you end up
 with a long list of candidates. The next step is still painfully manual: you move
@@ -36,7 +40,7 @@ GeneScout compresses that loop. Give it a candidate table and a disease context,
 it returns a transparent, cited, ranked review you can act on, with the
 uncertainty made explicit instead of hidden.
 
-## What makes it different
+## Features
 
 - **Candidate-agnostic input.** Variants, gene symbols, or perturbation hits: the
   same pipeline handles all three.
@@ -65,7 +69,7 @@ uncertainty made explicit instead of hidden.
 ## How it works
 
 <p align="center">
-  <img src="www/img/overview.png" alt="GeneScout pipeline: input (paste or upload, per-list weights, disease priors) → resolve to canonical IDs → enrich with per-gene signals from ~8 public sources → citation gate → weighted composite, grade, and caveats/veto → ranked, cited review; plus an optional API-key layer (curate with AI, three specialists, grounded chat)" width="900">
+  <img src="www/img/overview.png" alt="GeneScout pipeline: input (paste or upload, per-list weights, disease priors) → resolve to canonical IDs → enrich with per-gene signals from public sources → citation gate → weighted composite, grade, and caveats/veto → ranked, cited review; plus an optional API-key layer (curate with AI, three specialists, grounded chat)" width="900">
 </p>
 
 The **deterministic spine** above is the source of truth and needs no API key. It
@@ -109,7 +113,7 @@ planned), and what it contributes, all rendered from the same catalog the engine
 Key-gated databases (OncoKB, COSMIC, DisGeNET, OMIM, DrugBank) are catalog stubs
 until their keys are supplied.
 
-## Quickstart
+## Usage
 
 ### Requirements
 
@@ -205,28 +209,6 @@ genescout/
 └── docs/                       # data_sources, described_plan, project_structure
 ```
 
-## Roadmap
-
-See [`PLAN.md`](PLAN.md) for the full phased plan. Near-term:
-
-- [x] Thin vertical slice: candidate list → one source → summary → report
-- [x] Multi-source deterministic enrichment + weighted-mean ranking (live sliders)
-- [x] Dual-mode discovery: seed genes from a disease, disease-aware scoring
-- [x] Scoring rubric + caveats/veto stage (deterministic: FLAGS veto, weak-source)
-- [x] Tagged multi-source input (WES · DEGs · ATAC-seq · …) with a UI-agnostic core
-- [x] Cross-source corroboration signal: breadth beats a single loud source
-- [x] Optional interpretive input agent (propose → confirm → run; never invents genes)
-- [x] AI curator: grounded, model-agnostic final compaction
-- [x] Shiny UI with per-candidate evidence cards; CLI + design-only HTTP API
-- [x] Eval harness on known NF1 biology
-- [x] Three parallel specialist agents (grounded synthesis + suggested next
-      experiment), layered on the deterministic ranking
-- [x] Parallel evidence retrieval for large lists (a bounded [mirai](https://mirai.r-lib.org/)
-      worker pool; serial fallback), so a 100+ gene panel ranks in a fraction of the time
-- [x] Crash-safe AI stages: the curator/specialist/input LLM calls run in a background
-      process, so stopping or refreshing mid-call can't segfault the session
-- [ ] Preprint + evaluation write-up
-
 ## Author
 
 Samuel Bharti
@@ -247,11 +229,9 @@ A preprint describing the method and the evaluation is planned.
 
 ## Contributing
 
-Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md)
-first, and please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
-
-For a security problem, do not open a public issue: [SECURITY.md](SECURITY.md)
-explains how to report it privately.
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md),
+the [Code of Conduct](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md) for
+reporting a security problem privately.
 
 ## License
 
