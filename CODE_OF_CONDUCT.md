@@ -7,7 +7,7 @@ a question, report a bug, or send a patch without being made to feel unwelcome.
 
 - Be respectful and assume good faith, since people here come with different
   backgrounds and different levels of experience.
-- Keep criticism about the code rather than the person who wrote it.
+- Keep criticism about the code, not the person who wrote it.
 - Accept that a change may be turned down, and that a reply may take a while.
 
 ## What is not acceptable

@@ -146,7 +146,7 @@ per-PR gate. Each case asserts three invariants:
 A committed **baseline** ([`evals/baseline.json`](../evals/baseline.json), regenerated
 with `--write-baseline`) records what the pipeline produced on a given date (each
 candidate's resolved id, rank, grade, and composite), so a future run can be diffed
-for drift. Because live databases grow, grades and ranks may legitimately move; the
+for drift. Because live databases grow, grades and ranks can change for good reason; the
 baseline is a snapshot, and the invariant assertions above are the pass/fail gate
 (identity is exact).
 

@@ -11,8 +11,8 @@ The specific problem is that computational biologists often end up with long
 lists of variants or genes from sequencing, differential expression, or
 perturbation analyses, but the next step is still very manual. A researcher has
 to move between VCFs, annotation tables, pathway databases, PubMed, prior papers,
-cohort metadata, and their own notes to decide which candidates are worth
-following up. This is slow, hard to reproduce, and easy to bias toward familiar
+cohort metadata, and their own notes to decide which candidates to
+follow up. This is slow, hard to reproduce, and easy to bias toward familiar
 genes.
 
 At the hackathon, I would build a Claude-powered workflow that takes a small

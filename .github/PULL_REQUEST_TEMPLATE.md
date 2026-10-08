@@ -10,7 +10,7 @@ The pr-title workflow enforces this.
 
 ## Summary
 
-<!-- What does this PR do and why? Link related issues, e.g. "Closes #123". -->
+<!-- What this PR does and the reason for it. Link related issues, e.g. "Closes #123". -->
 
 ## Type of change
 

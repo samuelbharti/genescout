@@ -270,7 +270,7 @@ test_that("a non-null gene-only selection still appends cross_source + STRING", 
 
 test_that("an explicit empty selection (deselect-all) queries nothing and errors", {
   # Regression (high): a UI deselect-all arrives as character(0), which must error
-  # rather than silently fall back to the full default set. The STRING fetch must
+  # instead of silently falling back to the full default set. The STRING fetch must
   # never fire (the error is raised before any append/enrichment).
   expect_error(
     run_enrich(

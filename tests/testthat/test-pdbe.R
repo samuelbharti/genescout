@@ -14,7 +14,7 @@ test_that("pdbe_structures_parse() counts distinct experimental structures", {
 
 test_that("pdbe_structures_parse() falls back to the first value when unkeyed", {
   # Same body, but looked up without knowing the accession key: the parser takes
-  # the first (only) value rather than returning a miss.
+  # the first (only) value instead of returning a miss.
   body <- read_fixture("pdbe_nf1.json")
   r <- pdbe_structures_parse(body, "WRONGKEY")
   expect_true(r$ok)
