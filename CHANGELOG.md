@@ -7,6 +7,13 @@ Entries are grouped by theme rather than strictly by date.
 
 ## [Unreleased]
 
+### Fixed
+
+- PTEN and MUC16 were reported as unresolved and ranked last (#48). MyGene
+  returns a second Ensembl id for each of them on an assembly patch, so the
+  `ensembl` field is a list, and the parser read nothing from it. It now takes
+  the id that `genomic_pos` places on a primary chromosome.
+
 ## [0.1.5] - 2026-09-11
 
 ### Fixed
