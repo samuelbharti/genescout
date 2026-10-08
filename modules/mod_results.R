@@ -241,9 +241,11 @@ results_server <- function(
     curated <- reactiveVal(NULL)
     curate_job <- genescout_llm_task(session)
     bslib::bind_task_button(curate_job$task, "do_curate")
-    # The ranking a run was started for: a result that arrives after the ranking
-    # changed is dropped.
+    # The ranking and config a run was started with: a result that arrives after
+    # the ranking changed is dropped, and a failure message is redacted with the
+    # key the run used.
     curate_for <- NULL
+    curate_cfg <- NULL
     # Reset any prior curation when the ranking changes (ignoreNULL = FALSE so a
     # failed re-run that clears the result also clears a stale curated card/CSV),
     # and stop a run that was started for the old ranking.
@@ -264,7 +266,8 @@ results_server <- function(
         ts <- GENESCOUT_CURATE_TARGET_DEFAULT
       }
       curate_for <<- result()
-      curate_job$task$invoke(curate_gene_list, result(), config_r(), top_n = ts)
+      curate_cfg <<- config_r()
+      curate_job$task$invoke(curate_gene_list, result(), curate_cfg, top_n = ts)
     })
 
     observeEvent(curate_job$task$status(), {
@@ -275,7 +278,7 @@ results_server <- function(
           showNotification(
             paste(
               "Curation failed:",
-              genescout_redact_secret(out$message, config_r()$api_key %||% "")
+              genescout_redact_secret(out$message, curate_cfg$api_key %||% "")
             ),
             type = "error"
           )
@@ -337,6 +340,7 @@ results_server <- function(
     spec_job <- genescout_llm_task(session)
     bslib::bind_task_button(spec_job$task, "do_specialists")
     spec_for <- NULL
+    spec_cfg <- NULL
     # Clear stale analysis when the ranking changes (ignoreNULL = FALSE so a
     # failed re-run that clears the result also clears the specialist cards), and
     # stop a run that was started for the old ranking.
@@ -362,10 +366,11 @@ results_server <- function(
         NULL
       }
       spec_for <<- result()
+      spec_cfg <<- config_r()
       spec_job$task$invoke(
         run_specialists,
         result(),
-        config_r(),
+        spec_cfg,
         restrict_to = restrict
       )
     })
@@ -378,7 +383,7 @@ results_server <- function(
           showNotification(
             paste(
               "Specialist analysis failed:",
-              genescout_redact_secret(out$message, config_r()$api_key %||% "")
+              genescout_redact_secret(out$message, spec_cfg$api_key %||% "")
             ),
             type = "error"
           )

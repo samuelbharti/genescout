@@ -148,6 +148,9 @@ review_server <- function(
     # The input agent runs in the background (R/llm_offload.R): this session waits
     # for the proposal, and other visitors are not held up.
     agent_job <- genescout_llm_task(session)
+    # The config the agent ran with, so a failure message is redacted with the
+    # key it used.
+    agent_cfg <- NULL
     agent_progress <- NULL
 
     # "Clear all": drop the ranked result (which cascades to clear the AI curation
@@ -308,11 +311,12 @@ review_server <- function(
         if (identical(agent_job$task$status(), "running")) {
           return()
         }
+        agent_cfg <<- eff_config()
         agent_job$task$invoke(
           curate_input,
           cs,
           inputs$description(),
-          eff_config()
+          agent_cfg
         )
       } else {
         enrich_confirmed(cs, disease)
@@ -344,7 +348,7 @@ review_server <- function(
               "Input agent failed:",
               genescout_redact_secret(
                 out$message,
-                eff_config()$api_key %||% ""
+                agent_cfg$api_key %||% ""
               )
             ),
             type = "error"

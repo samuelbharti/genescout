@@ -67,6 +67,24 @@ wait_until <- function(condition, timeout = 15) {
 
 pool_info <- function() mirai::info(.compute = GENESCOUT_LLM_COMPUTE)
 
+# Run this process's event loop until `condition()` is TRUE, for at most
+# `timeout` seconds; or for exactly `seconds`.
+pump_until <- function(condition, timeout = 15) {
+  deadline <- Sys.time() + timeout
+  while (!isTRUE(condition()) && Sys.time() < deadline) {
+    later::run_now(0.05)
+  }
+  isTRUE(condition())
+}
+
+pump_for <- function(seconds) {
+  deadline <- Sys.time() + seconds
+  while (Sys.time() < deadline) {
+    later::run_now(0.05)
+  }
+  invisible(TRUE)
+}
+
 # --- In-process path ------------------------------------------------------------
 
 test_that("genescout_llm_offload_available() is off under testthat", {
@@ -198,6 +216,55 @@ test_that("the engine loads on a worker, and a real step runs there", {
   expect_match(attr(out, "message"), "No ranked genes")
 })
 
+test_that("a session's task settles while the session is open, and stops quietly after", {
+  skip_if_not_installed("mirai")
+  local_llm_pool()
+  double <- in_global(function(x) x * 2)
+  shiny::testServer(
+    function(input, output, session) {
+      session$userData$job <- genescout_llm_task(session)
+    },
+    {
+      job <- session$userData$job
+      status <- function() shiny::isolate(job$task$status())
+      settled <- function() status() %in% c("success", "error")
+
+      job$task$invoke(double, 21)
+      expect_true(pump_until(settled))
+      out <- shiny::isolate(job$outcome())
+      expect_true(out$ok)
+      expect_equal(out$value, 42)
+
+      # A background failure settles the task as a value, not as an error, and
+      # writes one line to the server log.
+      withr::with_options(list(genescout.llm.timeout_ms = 300), {
+        expect_message(
+          {
+            job$task$invoke(sleepy, 3)
+            expect_true(pump_until(settled))
+          },
+          "an AI step failed: it timed out"
+        )
+        expect_equal(status(), "success")
+        out <- shiny::isolate(job$outcome())
+        expect_false(out$ok)
+        expect_match(out$message, "ran longer than 1 second ")
+      })
+
+      # Closing the session stops the running step. The step resolves after
+      # the session is gone, and settling the task then would raise "its
+      # module session has been destroyed".
+      job$task$invoke(sleepy, 5)
+      pump_for(0.5)
+      expect_message(
+        session$close(),
+        "stopped an AI step because its session ended"
+      )
+      expect_no_error(pump_for(2))
+    }
+  )
+})
+
 # --- Reading a finished step ----------------------------------------------------
 
 test_that("genescout_llm_outcome() reads a finished step as a value or a message", {
@@ -232,6 +299,17 @@ test_that("genescout_llm_outcome() reads a finished step as a value or a message
       "ran longer than 5 seconds"
     )
   })
+  # A limit under a second still reads as a whole second, never "0 seconds".
+  withr::with_options(list(genescout.llm.timeout_ms = 300), {
+    expect_match(
+      genescout_llm_failure(code(5L)),
+      "ran longer than 1 second and"
+    )
+  })
+
+  # The server log names the kind of failure only, and skips a cancel.
+  expect_message(genescout_llm_log_failure(code(19L)), "its worker stopped")
+  expect_silent(genescout_llm_log_failure(code(20L)))
 
   stopped <- genescout_llm_outcome(fake_task("error"), fake_mirai(code(19L)))
   expect_match(stopped$message, "worker stopped")

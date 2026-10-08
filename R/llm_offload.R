@@ -217,7 +217,11 @@ genescout_llm_task <- function(session = shiny::getDefaultReactiveDomain()) {
           if (ended) {
             return(invisible())
           }
-          if (inherits(step, "mirai")) resolve(step$data) else reject(error)
+          if (!inherits(step, "mirai")) {
+            return(reject(error))
+          }
+          genescout_llm_log_failure(step$data)
+          resolve(step$data)
         }
       )
     })
@@ -262,6 +266,27 @@ genescout_llm_outcome <- function(task, m) {
   list(ok = TRUE, value = task$result())
 }
 
+# One line in the server log for a failed background step: the kind of failure,
+# never its message, so no API key can reach the log. A step cancelled on
+# purpose is not logged here (the session-end stop logs its own line).
+genescout_llm_log_failure <- function(x) {
+  kind <- if (inherits(x, "miraiError")) {
+    "an R error in the step"
+  } else {
+    switch(
+      as.character(suppressWarnings(as.integer(unclass(x)))),
+      "5" = "it timed out",
+      "19" = "its worker stopped",
+      "20" = NULL,
+      "an unknown failure"
+    )
+  }
+  if (!is.null(kind)) {
+    message("GeneScout: an AI step failed: ", kind, ".")
+  }
+  invisible(kind)
+}
+
 # A plain message for a failed background step, to follow "Curation failed: " and
 # the like, or NULL for a step that was cancelled on purpose. mirai reports a
 # step's R error as a miraiError, an interrupt as a miraiInterrupt, and otherwise a
@@ -277,7 +302,8 @@ genescout_llm_failure <- function(x) {
   if (identical(code, 5L)) {
     ms <- genescout_llm_timeout_ms()
     limit <- if (ms < 60000) {
-      sprintf("%s seconds", format(round(ms / 1000)))
+      seconds <- as.integer(max(1, ceiling(ms / 1000)))
+      sprintf("%d second%s", seconds, if (seconds == 1L) "" else "s")
     } else {
       sprintf("%s minutes", format(round(ms / 60000, 1)))
     }
