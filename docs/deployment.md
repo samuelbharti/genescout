@@ -43,6 +43,24 @@ Always on (independent of the flag):
 - **Upload size**: `options(shiny.maxRequestSize = 30 * 1024^2)` (30 MB), well
   above any realistic single-column gene list. Raise it in `global.R` if needed.
 
+## Background workers for the AI steps
+
+The AI steps (input agent, Curate with AI, the specialists) run in a pool of
+background R processes (`R/llm_offload.R`), so a long step makes only its own
+session wait. The pool starts on the first AI step and closes when the app stops.
+
+| Environment variable | Option | Default | Meaning |
+| --- | --- | --- | --- |
+| `GENESCOUT_LLM_WORKERS` | `genescout.llm.workers` | 2 | Steps that run at the same time; more wait in a queue |
+| `GENESCOUT_LLM_TIMEOUT_MS` | `genescout.llm.timeout_ms` | 600000 (10 min) | Time limit for one step, queue time included |
+
+Each worker is a full R process with the engine loaded, so memory grows with the
+pool size. A step stops when its session ends. A worker that crashes costs only
+its own step, and the pool starts again on the next step.
+
+"Rank genes" does not use this pool yet: it still makes other visitors wait
+while it runs.
+
 ## Session, idle, and connection timeouts
 
 Open-source Shiny has **no built-in idle timeout**; those are set by the host.

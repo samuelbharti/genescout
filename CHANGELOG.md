@@ -13,6 +13,12 @@ Entries are grouped by theme rather than strictly by date.
   returns a second Ensembl id for each of them on an assembly patch, so the
   `ensembl` field is a list, and the parser read nothing from it. It now takes
   the id that `genomic_pos` places on a primary chromosome.
+- Analyze with specialists, Curate with AI and the input agent no longer make
+  other visitors wait while they run (#47). They run on a pool of background R
+  processes as Shiny ExtendedTasks, and a run stops when its session ends or
+  after 10 minutes. `GENESCOUT_LLM_WORKERS` (default 2) and
+  `GENESCOUT_LLM_TIMEOUT_MS` set the pool size and the time limit. Rank genes
+  still makes other visitors wait while it runs.
 
 ## [0.1.5] - 2026-09-11
 
