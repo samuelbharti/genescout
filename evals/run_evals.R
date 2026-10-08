@@ -13,7 +13,7 @@
 # The baseline (evals/baseline.json) is a committed, reproducible record of what the
 # pipeline produced on a given date - each candidate's resolved id, rank, grade, and
 # composite. It documents the eval and lets a future run diff for drift; because live
-# databases grow, grades/ranks may legitimately move, so the baseline is a snapshot,
+# databases grow, grades/ranks can change for good reason, so the baseline is a snapshot,
 # and the pass/fail gate is the invariant assertions above (identity is exact).
 
 source("global.R")

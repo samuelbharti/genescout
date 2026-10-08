@@ -162,7 +162,7 @@ test_that("a middling annotation never drags a gene below an identical one", {
   conn <- out$composite[out$symbol == "CONN"]
   iso <- out$composite[out$symbol == "ISO"]
   # `weak` (0.25) is below CONN's running mean after `strong` (~0.49), so it is
-  # excluded and CONN TIES ISO rather than dropping below it.
+  # excluded and CONN TIES ISO instead of dropping below it.
   expect_gte(conn, iso)
   expect_equal(conn, iso)
 })

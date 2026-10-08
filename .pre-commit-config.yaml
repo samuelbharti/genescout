@@ -9,9 +9,11 @@ exclude: "^(renv/|data/|docs/|secrets/)"
 
 repos:
   # R code formatting with air (matches air.toml). air is the single R
-  # style/formatting gate; it also fails on unparseable R.
-  - repo: https://github.com/posit-dev/air
-    rev: v0.9.0
+  # style/formatting gate; it also fails on unparseable R. The hook lives in
+  # posit-dev/air-pre-commit (posit-dev/air has no hook manifest); keep its rev
+  # on the air version the CI format job installs.
+  - repo: https://github.com/posit-dev/air-pre-commit
+    rev: 0.12.0
     hooks:
       - id: air-format
 
@@ -42,7 +44,11 @@ repos:
     rev: v2.3.0
     hooks:
       - id: codespell
-        args: ["--ignore-words-list=ans,fo,nd"]
+        # Words that are variable names here (numer, pres, ser, mis), OT (the
+        # abbreviation for Open Targets), and a valid spelling (unparseable).
+        # manifest.json and renv.lock are generated and carry package metadata.
+        args: ["--ignore-words-list=ans,fo,nd,ot,numer,pres,ser,mis,unparseable"]
+        exclude: '^(manifest\.json|renv\.lock)$'
 
   # Enforce Conventional Commit messages.
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook

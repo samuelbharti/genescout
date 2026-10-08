@@ -11,7 +11,7 @@ through [bslib](https://rstudio.github.io/bslib/).
   optional logo.
 - [ui.R](../ui.R) calls `bslib::bs_theme(brand = TRUE)`, which discovers
   `_brand.yml` at the app root and applies it to the whole UI.
-- `brand = TRUE` requires the file to exist (a clear contract). To make it
+- `brand = TRUE` requires the file to exist (a clear rule). To make it
   optional, use `bslib::bs_theme()` instead; it applies `_brand.yml` if found
   and is a no-op otherwise.
 

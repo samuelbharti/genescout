@@ -33,7 +33,7 @@ uncertain, and what experiment or analysis should come next.
 After sequencing, differential expression, or a perturbation screen, you end up
 with a long list of candidates. The next step is still painfully manual: you move
 between VCFs, annotation tables, pathway databases, PubMed, prior papers, and your
-own notes to decide which candidates are worth following up. It is slow, hard to
+own notes to decide which candidates to follow up. It is slow, hard to
 reproduce, and biased toward genes you already know.
 
 GeneScout compresses that loop. Give it a candidate table and a disease context, and

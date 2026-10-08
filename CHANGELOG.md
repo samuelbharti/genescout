@@ -3,7 +3,7 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Entries are grouped by theme rather than strictly by date.
+Entries are grouped by theme, not strictly by date.
 
 ## [Unreleased]
 
@@ -169,7 +169,7 @@ First tagged release. Archived on Zenodo.
 
 ### Fixed
 
-- **Wrong-gene resolution**: resolve to the exact gene symbol rather than MyGene's
+- **Wrong-gene resolution**: resolve to the exact gene symbol instead of MyGene's
   top-scored fuzzy match (an input of TTN had resolved to TTR).
 - Vertex AI authentication: pass project + location to the chat and bundle `gargle`.
 - Ground curation citations to each gene's real evidence ids; bound and track

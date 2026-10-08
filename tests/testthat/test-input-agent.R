@@ -18,7 +18,7 @@ test_that("validate_input_curation() gates on the ORIGINAL token, not the symbol
   out <- validate_input_curation(df, provided = c("nf1", "TPP53"))
   # GHOST is not a provided token -> dropped (the agent cannot invent a gene) ...
   expect_setequal(out$original, c("nf1", "TPP53"))
-  # ... but a typo correction whose symbol is off-list legitimately survives.
+  # ... but a typo correction whose symbol is off-list rightly survives.
   expect_equal(out$symbol[out$original == "TPP53"], "TP53")
 })
 
@@ -283,7 +283,7 @@ test_that("apply_input_validator() leaves decisions alone with no join column", 
     confidence = 1
   )
   # No input/query/id/symbol column: there is no safe way to align rows, so the
-  # right answer is to change nothing rather than guess by position.
+  # right answer is to change nothing, not guess by position.
   out <- apply_input_validator(
     decisions,
     function(symbols, species = "human") tibble::tibble(normalized = "WRONG")

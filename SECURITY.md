@@ -12,7 +12,7 @@ Please do not open a public issue for a security problem. Email
 can, the steps to reproduce it. You will get an acknowledgement within a few
 days, along with what happens next.
 
-## Worth knowing before you report
+## Before you report
 
 - The deterministic core needs no key. Every source it queries is public and
   read-only.

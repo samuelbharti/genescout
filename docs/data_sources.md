@@ -55,7 +55,7 @@ from logs and excluded from the cache key; their live clients land in a later ro
 Where an API takes its key as a query parameter instead of a header (NCBI E-utilities),
 the client passes it via `http_get_json(..., secret_query = ...)`, which appends it to
 the request but keeps it out of the cache key. Such a key is declared on the signal as
-`optional_key_env` rather than `key_env`, because the source works without it: NCBI
+`optional_key_env` instead of `key_env`, because the source works without it: NCBI
 allows 3 requests/second keyless and 10 with a key, and `R/http.R` throttles per host
 to whichever applies.
 
