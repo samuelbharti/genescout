@@ -181,8 +181,9 @@ page for the full walkthrough.
   caveats, and one priority next experiment). They fetch nothing new; a finding whose
   citation is not in the gene's evidence is dropped.
 
-Crash-safety: these calls run in a background process, so stopping or refreshing
-mid-call cannot take down the R session.
+Background runs: these calls run in a pool of background R processes. A long run
+makes only its own session wait, it stops when its session ends or after a time
+limit, and a crash in a call cannot take down the app.
 
 ## 9. Limits (stated plainly)
 

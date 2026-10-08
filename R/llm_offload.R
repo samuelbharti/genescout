@@ -88,54 +88,6 @@ genescout_llm_bootstrap <- function(root, libs, n = 1L) {
   )
 }
 
-# Run `fn(...)` crash-safely, returning its value. When offloading is available the call
-# executes in a background process and the caller blocks (interrupt-safe) for the
-# result; otherwise, or on ANY worker failure, it runs in-process so behavior is
-# unchanged. `fn` is a stage function (a global closure - it and ellmer resolve in the
-# daemon's sourced engine); `...` are its plain-data arguments (the ranked result,
-# config, sizes), which serialize cleanly.
-genescout_llm_run <- function(fn, ...) {
-  if (!genescout_llm_offload_available()) {
-    return(fn(...))
-  }
-  args <- list(...)
-  root <- genescout_engine_root()
-  libs <- .libPaths()
-
-  started <- tryCatch(
-    {
-      mirai::daemons(1, .compute = GENESCOUT_LLM_COMPUTE)
-      TRUE
-    },
-    error = function(e) FALSE
-  )
-  if (!started) {
-    return(fn(...))
-  }
-  on.exit(
-    try(mirai::daemons(0, .compute = GENESCOUT_LLM_COMPUTE), silent = TRUE),
-    add = TRUE
-  )
-  if (!genescout_llm_bootstrap(root, libs)) {
-    return(fn(...))
-  }
-
-  m <- mirai::mirai(
-    do.call(genescout_fn, genescout_args),
-    genescout_fn = fn,
-    genescout_args = args,
-    .compute = GENESCOUT_LLM_COMPUTE
-  )
-  res <- m[] # blocks on an interrupt-safe nanonext receive, not inside libcurl
-  if (mirai::is_error_value(res)) {
-    # The worker infrastructure failed (the stage itself catches model errors and
-    # returns a graceful value). Fall back in-process so the run still produces a
-    # result instead of a daemon error.
-    return(fn(...))
-  }
-  res
-}
-
 # --- The pool -------------------------------------------------------------------
 
 # Pool size and time limit: the option, else the environment variable, else the

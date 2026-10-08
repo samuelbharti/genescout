@@ -74,27 +74,6 @@ test_that("genescout_llm_offload_available() is off under testthat", {
   expect_false(genescout_llm_offload_available())
 })
 
-test_that("genescout_llm_run() is a pass-through when offloading is off", {
-  # Same result, arguments forwarded verbatim (positional and named).
-  expect_equal(genescout_llm_run(function(a, b) a + b, 40, 2), 42)
-  scale_by <- function(x, scale = 1) x * scale
-  expect_equal(genescout_llm_run(scale_by, 21, scale = 2), 42)
-})
-
-test_that("genescout_llm_run() honors the opt-out option without spawning a worker", {
-  skip_if_not_installed("mirai")
-  withr::with_envvar(c(TESTTHAT = ""), {
-    # With the off-switch lifted and mirai present, offloading WOULD engage...
-    expect_true(genescout_llm_offload_available())
-    withr::with_options(list(genescout.llm.offload = FALSE), {
-      # ...but the opt-out forces the in-process path (available is FALSE, so
-      # genescout_llm_run short-circuits before any daemon is started).
-      expect_false(genescout_llm_offload_available())
-      expect_equal(genescout_llm_run(function() 42), 42)
-    })
-  })
-})
-
 test_that("a step runs in-process as a promise when offloading is off", {
   p <- genescout_llm_submit(function(a, b) a + b, 40, 2)
   expect_true(promises::is.promise(p))
