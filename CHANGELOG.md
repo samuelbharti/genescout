@@ -9,6 +9,10 @@ Entries are grouped by theme rather than strictly by date.
 
 ### Fixed
 
+- PTEN and MUC16 were reported as unresolved and ranked last (#48). MyGene
+  returns a second Ensembl id for each of them on an assembly patch, so the
+  `ensembl` field is a list, and the parser read nothing from it. It now takes
+  the id that `genomic_pos` places on a primary chromosome.
 - Analyze with specialists, Curate with AI and the input agent no longer make
   other visitors wait while they run (#47). They run on a pool of background R
   processes as Shiny ExtendedTasks, and a run stops when its session ends or

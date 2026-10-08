@@ -128,3 +128,55 @@ test_that("resolve_symbols_batch() short-circuits blank input with no network", 
   expect_false(res[[1]]$ok)
   expect_false(res[[2]]$ok)
 })
+
+# --- Genes with more than one Ensembl id (issue #48) ---------------------------
+
+test_that("mygene_parse_batch() resolves genes that have a patch-assembly id", {
+  # Recorded /query POST: PTEN and MUC16 each have a second Ensembl id on an
+  # assembly patch, so `ensembl` and `genomic_pos` are lists. NF1 has one id.
+  hits <- read_fixture("mygene_batch_multi_ensembl.json")
+  res <- mygene_parse_batch(hits, c("PTEN", "MUC16", "NF1"))
+
+  expect_true(all(vapply(res, function(r) isTRUE(r$ok), logical(1))))
+  expect_equal(
+    vapply(res, function(r) r$ensembl_gene, character(1)),
+    c("ENSG00000171862", "ENSG00000181143", "ENSG00000196712")
+  )
+  expect_equal(res[[1]]$entrez, "5728")
+  expect_equal(res[[1]]$uniprot, "P60484")
+})
+
+test_that("mygene_ensembl_gene() picks the primary-assembly id in any order", {
+  pten <- read_fixture("mygene_batch_multi_ensembl.json")[[1]]
+  pten$ensembl <- rev(pten$ensembl)
+  pten$genomic_pos <- rev(pten$genomic_pos)
+  expect_equal(pten$ensembl[[1]]$gene, "ENSG00000284792") # the patch id is first
+  expect_equal(mygene_ensembl_gene(pten), "ENSG00000171862")
+})
+
+test_that("mygene_ensembl_gene() takes the first id when positions are absent", {
+  two_ids <- list(ensembl = list(list(gene = "ENSG1"), list(gene = "ENSG2")))
+  expect_equal(mygene_ensembl_gene(two_ids), "ENSG1")
+  expect_equal(
+    mygene_ensembl_gene(list(ensembl = list(gene = "ENSG3"))),
+    "ENSG3"
+  )
+  expect_true(is.na(mygene_ensembl_gene(list(symbol = "NOENSEMBL"))))
+})
+
+test_that("resolve_genes() counts PTEN and MUC16 as resolved", {
+  symbols <- c("PTEN", "MUC16", "NF1")
+  parsed <- mygene_parse_batch(
+    read_fixture("mygene_batch_multi_ensembl.json"),
+    symbols
+  )
+  names(parsed) <- symbols
+  resolver <- function(symbol, species = "human") parsed[[toupper(symbol)]]
+
+  res <- resolve_genes(
+    flatten_gene_lists(list(wes = symbols)),
+    resolver = resolver
+  )
+  expect_true(all(res$resolved))
+  expect_equal(resolution_summary(res)$unresolved, 0)
+})
