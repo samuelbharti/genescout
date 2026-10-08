@@ -7,6 +7,8 @@ Entries are grouped by theme, not strictly by date.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-08
+
 ### Fixed
 
 - PTEN and MUC16 were reported as unresolved and ranked last (#48). MyGene
@@ -19,6 +21,12 @@ Entries are grouped by theme, not strictly by date.
   after 10 minutes. `GENESCOUT_LLM_WORKERS` (default 2) and
   `GENESCOUT_LLM_TIMEOUT_MS` set the pool size and the time limit. Rank genes
   still makes other visitors wait while it runs.
+
+### Changed
+
+- mirai 2.7.2 in `renv.lock` and the manifest. It fixes a worker crash on an
+  error raised before evaluation, and worker cleanup that did not restore
+  options; the background pool for the AI steps meets both.
 
 ## [0.1.5] - 2026-09-11
 
